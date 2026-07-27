@@ -1,0 +1,2473 @@
+[
+  {
+    "incipit": "A Patre Unigenite",
+    "season_code": "Bapt",
+    "office_part": "1V",
+    "page": "43",
+    "grebobase_id": "8428"
+  },
+  {
+    "incipit": "A solis ortu",
+    "season_code": "N ante Ep",
+    "office_part": "L",
+    "page": "22",
+    "grebobase_id": "15754"
+  },
+  {
+    "incipit": "Ad cenam Agni",
+    "season_code": "P ante Asc",
+    "office_part": "V",
+    "page": "74",
+    "grebobase_id": "4502"
+  },
+  {
+    "incipit": "Ad preces nostras",
+    "season_code": "2.4H3",
+    "office_part": "Ol",
+    "page": "225",
+    "grebobase_id": "10445"
+  },
+  {
+    "incipit": "Adesto Christe",
+    "season_code": "1.3H6",
+    "office_part": "Ol",
+    "page": "204",
+    "grebobase_id": "15623"
+  },
+  {
+    "incipit": "Adesto rerum conditor",
+    "season_code": "2.4H6",
+    "office_part": "Ol",
+    "page": "235",
+    "grebobase_id": "16749"
+  },
+  {
+    "incipit": "Adorna Sion",
+    "season_code": "2/2",
+    "office_part": "L",
+    "page": "347",
+    "grebobase_id": "8254"
+  },
+  {
+    "incipit": "Æterna cæli gloria",
+    "season_code": "1.3H6",
+    "office_part": "L",
+    "page": "204",
+    "grebobase_id": "15632"
+  },
+  {
+    "incipit": "Æterna Christi",
+    "season_code": "PlM",
+    "office_part": "L",
+    "page": "275",
+    "grebobase_id": "17919"
+  },
+  {
+    "incipit": "Æterna imago",
+    "season_code": "Reg",
+    "office_part": "L",
+    "page": "125",
+    "grebobase_id": "9425"
+  },
+  {
+    "incipit": "Æterna lux divinitas",
+    "season_code": "1.3H2",
+    "office_part": "Ol",
+    "page": "190",
+    "grebobase_id": "15607"
+  },
+  {
+    "incipit": "Æterne lucis conditor",
+    "season_code": "2.4H3",
+    "office_part": "L",
+    "page": "226",
+    "grebobase_id": "16710"
+  },
+  {
+    "incipit": "Æterne rerum... noctem",
+    "season_code": "1.3H1",
+    "office_part": "L",
+    "page": "184",
+    "grebobase_id": "15724"
+  },
+  {
+    "incipit": "Æterne rerum... qui mare",
+    "season_code": "2/10",
+    "office_part": "Ol",
+    "page": "448",
+    "grebobase_id": "17929"
+  },
+  {
+    "incipit": "Æterne rex",
+    "season_code": "Asc",
+    "office_part": "Ol",
+    "page": "92",
+    "grebobase_id": "8704"
+  },
+  {
+    "incipit": "Æterne sol",
+    "season_code": "Doct",
+    "office_part": "Ol V",
+    "page": "303",
+    "grebobase_id": "8821"
+  },
+  {
+    "incipit": "Agnes beatæ",
+    "season_code": "21/1",
+    "office_part": "L",
+    "page": "341",
+    "grebobase_id": "14293"
+  },
+  {
+    "incipit": "Agnoscat omne",
+    "season_code": "25/3",
+    "office_part": "1V",
+    "page": "360",
+    "grebobase_id": "8264"
+  },
+  {
+    "incipit": "Ales diei",
+    "season_code": "2.4H5",
+    "office_part": "Ol",
+    "page": "232",
+    "grebobase_id": "12157"
+  },
+  {
+    "incipit": "Amoris sensus",
+    "season_code": "2.4H5",
+    "office_part": "Ol",
+    "page": "232",
+    "grebobase_id": "10447"
+  },
+  {
+    "incipit": "Angelum pacis",
+    "season_code": "29/9",
+    "office_part": "V",
+    "page": "444",
+    "grebobase_id": "17930"
+  },
+  {
+    "incipit": "Anglorum iam apostolus",
+    "season_code": "3/9",
+    "office_part": "1V",
+    "page": "427",
+    "grebobase_id": "9195"
+  },
+  {
+    "incipit": "Angularis fundamentum",
+    "season_code": "Ded",
+    "office_part": "L",
+    "page": "251",
+    "grebobase_id": "8962"
+  },
+  {
+    "incipit": "Antra deserti",
+    "season_code": "24/6",
+    "office_part": "Ol",
+    "page": "384",
+    "grebobase_id": "8951"
+  },
+  {
+    "incipit": "Apostolorum passio",
+    "season_code": "29/6",
+    "office_part": "L",
+    "page": "391",
+    "grebobase_id": "4565"
+  },
+  {
+    "incipit": "Aptata virgo",
+    "season_code": "Virg",
+    "office_part": "L",
+    "page": "308",
+    "grebobase_id": "15288"
+  },
+  {
+    "incipit": "Auctor beate",
+    "season_code": "Cord",
+    "office_part": "V",
+    "page": "117",
+    "grebobase_id": "10383"
+  },
+  {
+    "incipit": "Auctor perennis",
+    "season_code": "1.3H7",
+    "office_part": "Ol",
+    "page": "206",
+    "grebobase_id": "15624"
+  },
+  {
+    "incipit": "Auctor salutis",
+    "season_code": "6Q7",
+    "office_part": "V",
+    "page": "72",
+    "grebobase_id": "17865"
+  },
+  {
+    "incipit": "Audi benigne",
+    "season_code": "Q1",
+    "office_part": "V",
+    "page": "48",
+    "grebobase_id": "12643"
+  },
+  {
+    "incipit": "Audit tyrannus",
+    "season_code": "28/12",
+    "office_part": "L",
+    "page": "485",
+    "grebobase_id": "8423"
+  },
+  {
+    "incipit": "Aurea luce",
+    "season_code": "29/6",
+    "office_part": "1V",
+    "page": "388",
+    "grebobase_id": "8745"
+  },
+  {
+    "incipit": "Aurora iam spargit",
+    "season_code": "1.3H7",
+    "office_part": "L",
+    "page": "207",
+    "grebobase_id": "15633"
+  },
+  {
+    "incipit": "Aurora lucis",
+    "season_code": "P ante Asc",
+    "office_part": "L",
+    "page": "82",
+    "grebobase_id": "15087"
+  },
+  {
+    "incipit": "Aurora solis nuntia",
+    "season_code": "1/5",
+    "office_part": "L",
+    "page": "371",
+    "grebobase_id": "16105"
+  },
+  {
+    "incipit": "Aurora surgit",
+    "season_code": "22/7",
+    "office_part": "L",
+    "page": "398",
+    "grebobase_id": "10456"
+  },
+  {
+    "incipit": "Aurora velut",
+    "season_code": "18/8",
+    "office_part": "Ol",
+    "page": "416",
+    "grebobase_id": "10574"
+  },
+  {
+    "incipit": "Ave maris stella 1",
+    "season_code": "25/3 BMV soll.",
+    "office_part": "2V",
+    "page": "258",
+    "grebobase_id": "7428"
+  },
+  {
+    "incipit": "Ave maris stella 2",
+    "season_code": "BMV fest.",
+    "office_part": "2V",
+    "page": "259",
+    "grebobase_id": "2563"
+  },
+  {
+    "incipit": "Ave maris stella 3",
+    "season_code": "BMV mem.",
+    "office_part": "2V",
+    "page": "260",
+    "grebobase_id": "14959"
+  },
+  {
+    "incipit": "Barnabæ clarum",
+    "season_code": "11/6",
+    "office_part": "L V",
+    "page": "380",
+    "grebobase_id": "17931"
+  },
+  {
+    "incipit": "Beata cæli",
+    "season_code": "VirPl",
+    "office_part": "L",
+    "page": "313",
+    "grebobase_id": "8829"
+  },
+  {
+    "incipit": "Beata Dei genetrix",
+    "season_code": "8/9",
+    "office_part": "Ol",
+    "page": "429",
+    "grebobase_id": "10612"
+  },
+  {
+    "incipit": "Beata nobis gaudia",
+    "season_code": "Pent",
+    "office_part": "L",
+    "page": "99",
+    "grebobase_id": "17804"
+  },
+  {
+    "incipit": "Beate martyr",
+    "season_code": "UnM",
+    "office_part": "Ol",
+    "page": "281",
+    "grebobase_id": "17328"
+  },
+  {
+    "incipit": "Bernarde gemma",
+    "season_code": "20/8",
+    "office_part": "L V",
+    "page": "418",
+    "grebobase_id": "4614"
+  },
+  {
+    "incipit": "Cælestis formam",
+    "season_code": "6/8",
+    "office_part": "Ol",
+    "page": "408",
+    "grebobase_id": "10535"
+  },
+  {
+    "incipit": "Cæli Deus sanctissime",
+    "season_code": "1.3H4",
+    "office_part": "V",
+    "page": "200",
+    "grebobase_id": "12615"
+  },
+  {
+    "incipit": "Cælitum Ioseph",
+    "season_code": "19/3",
+    "office_part": "L",
+    "page": "358",
+    "grebobase_id": "11972"
+  },
+  {
+    "incipit": "Candor æternæ 1",
+    "season_code": "N",
+    "office_part": "Ol",
+    "page": "19",
+    "grebobase_id": "4246"
+  },
+  {
+    "incipit": "Candor æternæ 2",
+    "season_code": "N",
+    "office_part": "Ol",
+    "page": "21",
+    "grebobase_id": "13356"
+  },
+  {
+    "incipit": "Captator olim piscium",
+    "season_code": "30/3",
+    "office_part": "L",
+    "page": "472",
+    "grebobase_id": "7412"
+  },
+  {
+    "incipit": "Celsæ salutis",
+    "season_code": "6Q1 Hm",
+    "office_part": "Hm",
+    "page": "65",
+    "grebobase_id": "17766"
+  },
+  {
+    "incipit": "Certum tenentes (Adv)",
+    "season_code": "Adv post 17/12",
+    "office_part": "T",
+    "page": "12",
+    "grebobase_id": "4238"
+  },
+  {
+    "incipit": "Certum tenentes (Nat)",
+    "season_code": "N post Ep",
+    "office_part": "T",
+    "page": "41",
+    "grebobase_id": "16770"
+  },
+  {
+    "incipit": "Certum tenentes (dom.)",
+    "season_code": "2.4H1",
+    "office_part": "T",
+    "page": "213",
+    "grebobase_id": "16812"
+  },
+  {
+    "incipit": "Certum tenentes (soll.)",
+    "season_code": "2.4H soll.",
+    "office_part": "T",
+    "page": "213",
+    "grebobase_id": "16813"
+  },
+  {
+    "incipit": "Certum tenentes (fer.)",
+    "season_code": "2.4H2-7",
+    "office_part": "T",
+    "page": "219",
+    "grebobase_id": "16814"
+  },
+  {
+    "incipit": "Certum tenentes (mem.)",
+    "season_code": "2.4H mem.",
+    "office_part": "T",
+    "page": "219",
+    "grebobase_id": "16815"
+  },
+  {
+    "incipit": "Certum tenentes (fest.)",
+    "season_code": "2.4H fest.",
+    "office_part": "T",
+    "page": "220",
+    "grebobase_id": "16816"
+  },
+  {
+    "incipit": "Chorus novæ",
+    "season_code": "P2-7 ante Asc",
+    "office_part": "L",
+    "page": "83",
+    "grebobase_id": "7291"
+  },
+  {
+    "incipit": "Christe cælorum Domine",
+    "season_code": "6Q7",
+    "office_part": "Ol",
+    "page": "69",
+    "grebobase_id": "17854"
+  },
+  {
+    "incipit": "Christe cælorum habitator",
+    "season_code": "1/11",
+    "office_part": "Ol",
+    "page": "462",
+    "grebobase_id": "16186"
+  },
+  {
+    "incipit": "Christe cunctorum dominator",
+    "season_code": "Ded",
+    "office_part": "Ol",
+    "page": "249",
+    "grebobase_id": "17954"
+  },
+  {
+    "incipit": "Christe cunctorum sator",
+    "season_code": "MulPl",
+    "office_part": "V",
+    "page": "323",
+    "grebobase_id": "17955"
+  },
+  {
+    "incipit": "Christe lux vera",
+    "season_code": "2.4H4",
+    "office_part": "Ol",
+    "page": "229",
+    "grebobase_id": "10444"
+  },
+  {
+    "incipit": "Christe pastorum caput",
+    "season_code": "Past",
+    "office_part": "Ol",
+    "page": "290",
+    "grebobase_id": "8820"
+  },
+  {
+    "incipit": "Christe precamur",
+    "season_code": "1.3H5",
+    "office_part": "Ol",
+    "page": "201",
+    "grebobase_id": "15621"
+  },
+  {
+    "incipit": "Christe qui splendor (Adv)",
+    "season_code": "Adv post 17/12",
+    "office_part": "C",
+    "page": "9",
+    "grebobase_id": "4685"
+  },
+  {
+    "incipit": "Christe qui splendor (Nat)",
+    "season_code": "N post Ep",
+    "office_part": "C",
+    "page": "37",
+    "grebobase_id": "4687"
+  },
+  {
+    "incipit": "Christe qui splendor (Quad)",
+    "season_code": "2.4Q",
+    "office_part": "C",
+    "page": "51",
+    "grebobase_id": "4686"
+  },
+  {
+    "incipit": "Christe qui splendor (fer.)",
+    "season_code": "2.4H2-6",
+    "office_part": "C",
+    "page": "243",
+    "grebobase_id": "7519"
+  },
+  {
+    "incipit": "Christe qui splendor (mem.)",
+    "season_code": "2.4H mem.",
+    "office_part": "C",
+    "page": "243",
+    "grebobase_id": "7518"
+  },
+  {
+    "incipit": "Christe qui splendor (fest.)",
+    "season_code": "2.4H fest.",
+    "office_part": "C",
+    "page": "243",
+    "grebobase_id": "7517"
+  },
+  {
+    "incipit": "Christe qui splendor (dom.)",
+    "season_code": "2.4H1",
+    "office_part": "C",
+    "page": "244",
+    "grebobase_id": "7515"
+  },
+  {
+    "incipit": "Christe qui splendor (soll.)",
+    "season_code": "2.4H soll.",
+    "office_part": "C",
+    "page": "244",
+    "grebobase_id": "16706"
+  },
+  {
+    "incipit": "Christe redemptor... conserva",
+    "season_code": "1/11",
+    "office_part": "V",
+    "page": "460",
+    "grebobase_id": "16180"
+  },
+  {
+    "incipit": "Christe redemptor... ex Patre",
+    "season_code": "N ante Ep",
+    "office_part": "V",
+    "page": "14",
+    "grebobase_id": "4692"
+  },
+  {
+    "incipit": "Christe splendor",
+    "season_code": "Fam",
+    "office_part": "L",
+    "page": "29",
+    "grebobase_id": "15763"
+  },
+  {
+    "incipit": "Christus est vita",
+    "season_code": "26/12",
+    "office_part": "L",
+    "page": "479",
+    "grebobase_id": "8421"
+  },
+  {
+    "incipit": "Claro paschali",
+    "season_code": "Ap TP",
+    "office_part": "L",
+    "page": "268",
+    "grebobase_id": "17774"
+  },
+  {
+    "incipit": "Cohors beata",
+    "season_code": "27/12",
+    "office_part": "L",
+    "page": "483",
+    "grebobase_id": "8422"
+  },
+  {
+    "incipit": "Commune vos apostoli",
+    "season_code": "28/12",
+    "office_part": "L",
+    "page": "459",
+    "grebobase_id": "17961"
+  },
+  {
+    "incipit": "Concito gressu",
+    "season_code": "31/5",
+    "office_part": "V",
+    "page": "377",
+    "grebobase_id": "17962"
+  },
+  {
+    "incipit": "Conditor alme",
+    "season_code": "Adv ante 17/12",
+    "office_part": "V",
+    "page": "3",
+    "grebobase_id": "7424"
+  },
+  {
+    "incipit": "Consors paterni",
+    "season_code": "1.3H3",
+    "office_part": "Ol",
+    "page": "196",
+    "grebobase_id": "15616"
+  },
+  {
+    "incipit": "Cor arca",
+    "season_code": "Cord",
+    "office_part": "Ol",
+    "page": "119",
+    "grebobase_id": "12454"
+  },
+  {
+    "incipit": "Corde natus",
+    "season_code": "N-1/1",
+    "office_part": "V",
+    "page": "31",
+    "grebobase_id": "8424"
+  },
+  {
+    "incipit": "Crux mundi",
+    "season_code": "6Q6",
+    "office_part": "S",
+    "page": "68",
+    "grebobase_id": "17789"
+  },
+  {
+    "incipit": "Custodes hominum",
+    "season_code": "2/10",
+    "office_part": "V",
+    "page": "451",
+    "grebobase_id": "13140"
+  },
+  {
+    "incipit": "Dei fide",
+    "season_code": "Q",
+    "office_part": "T",
+    "page": "56",
+    "grebobase_id": "9909"
+  },
+  {
+    "incipit": "Deus creator",
+    "season_code": "1.3H1",
+    "office_part": "1V",
+    "page": "181",
+    "grebobase_id": "7367"
+  },
+  {
+    "incipit": "Deus de nullo",
+    "season_code": "2.4H7",
+    "office_part": "Ol",
+    "page": "238",
+    "grebobase_id": "16750"
+  },
+  {
+    "incipit": "Deus qui cæli",
+    "season_code": "2.4H6",
+    "office_part": "L",
+    "page": "236",
+    "grebobase_id": "16748"
+  },
+  {
+    "incipit": "Deus qui claro",
+    "season_code": "2.4H5",
+    "office_part": "V",
+    "page": "233",
+    "grebobase_id": "16747"
+  },
+  {
+    "incipit": "Deus tuorum militum",
+    "season_code": "UnM",
+    "office_part": "V",
+    "page": "286",
+    "grebobase_id": "12553"
+  },
+  {
+    "incipit": "Dicamus laudes (Adv)",
+    "season_code": "Adv post 17/12",
+    "office_part": "S",
+    "page": "13",
+    "grebobase_id": "4239"
+  },
+  {
+    "incipit": "Dicamus laudes (Nat)",
+    "season_code": "N post Ep",
+    "office_part": "S",
+    "page": "42",
+    "grebobase_id": "16771"
+  },
+  {
+    "incipit": "Dicamus laudes (dom.)",
+    "season_code": "2.4H1",
+    "office_part": "S",
+    "page": "214",
+    "grebobase_id": "16817"
+  },
+  {
+    "incipit": "Dicamus laudes (soll.)",
+    "season_code": "2.4H soll.",
+    "office_part": "S",
+    "page": "214",
+    "grebobase_id": "16819"
+  },
+  {
+    "incipit": "Dicamus laudes (fer.)",
+    "season_code": "2.4H2-7",
+    "office_part": "S",
+    "page": "220",
+    "grebobase_id": "16820"
+  },
+  {
+    "incipit": "Dicamus laudes (mem.)",
+    "season_code": "2.4H mem.",
+    "office_part": "S",
+    "page": "221",
+    "grebobase_id": "16824"
+  },
+  {
+    "incipit": "Dicamus laudes (fest.)",
+    "season_code": "2.4H fest.",
+    "office_part": "S",
+    "page": "221",
+    "grebobase_id": "16825"
+  },
+  {
+    "incipit": "Diei luce",
+    "season_code": "2.4H7",
+    "office_part": "L",
+    "page": "239",
+    "grebobase_id": "16058"
+  },
+  {
+    "incipit": "Dies ætasque",
+    "season_code": "1.3H1",
+    "office_part": "Ol",
+    "page": "183",
+    "grebobase_id": "15628"
+  },
+  {
+    "incipit": "Dies iræ",
+    "season_code": "34H2-6",
+    "office_part": "Ol",
+    "page": "126",
+    "grebobase_id": "1198"
+  },
+  {
+    "incipit": "Divina vox",
+    "season_code": "22/2",
+    "office_part": "V",
+    "page": "352",
+    "grebobase_id": "7483"
+  },
+  {
+    "incipit": "Doctor æternus",
+    "season_code": "Doct",
+    "office_part": "L",
+    "page": "302",
+    "grebobase_id": "17964"
+  },
+  {
+    "incipit": "Doctor egregie",
+    "season_code": "25/3",
+    "office_part": "L",
+    "page": "469",
+    "grebobase_id": "4250"
+  },
+  {
+    "incipit": "Dulce fit nobis",
+    "season_code": "Fam",
+    "office_part": "Ol",
+    "page": "28",
+    "grebobase_id": "16711"
+  },
+  {
+    "incipit": "Dulci depromat",
+    "season_code": "Virg",
+    "office_part": "Ol",
+    "page": "306",
+    "grebobase_id": "15287"
+  },
+  {
+    "incipit": "Dulcis Iesu",
+    "season_code": "6/8",
+    "office_part": "L",
+    "page": "409",
+    "grebobase_id": "10536"
+  },
+  {
+    "incipit": "Dum sacerdotum",
+    "season_code": "PastPl",
+    "office_part": "Ol",
+    "page": "292",
+    "grebobase_id": "8701"
+  },
+  {
+    "incipit": "Dum tuas festo",
+    "season_code": "26/7",
+    "office_part": "V",
+    "page": "402",
+    "grebobase_id": "17965"
+  },
+  {
+    "incipit": "Ecce iam noctis",
+    "season_code": "2.4H1",
+    "office_part": "L",
+    "page": "212",
+    "grebobase_id": "12721"
+  },
+  {
+    "incipit": "Eia mater",
+    "season_code": "15/9",
+    "office_part": "L",
+    "page": "436",
+    "grebobase_id": "17970"
+  },
+  {
+    "incipit": "Eia mater",
+    "season_code": "15/9",
+    "office_part": "L",
+    "page": "437",
+    "grebobase_id": "17969"
+  },
+  {
+    "incipit": "En acetum",
+    "season_code": "6Q",
+    "office_part": "L",
+    "page": "63",
+    "grebobase_id": "17750"
+  },
+  {
+    "incipit": "Ex more docti",
+    "season_code": "Q1",
+    "office_part": "Ol",
+    "page": "52",
+    "grebobase_id": "16932"
+  },
+  {
+    "incipit": "Excelsam Pauli",
+    "season_code": "25/1",
+    "office_part": "V",
+    "page": "343",
+    "grebobase_id": "17971"
+  },
+  {
+    "incipit": "Exsultet cælum",
+    "season_code": "Ap",
+    "office_part": "V",
+    "page": "270",
+    "grebobase_id": "16685"
+  },
+  {
+    "incipit": "Felix per omnes",
+    "season_code": "29/6",
+    "office_part": "Ol",
+    "page": "390",
+    "grebobase_id": "4564"
+  },
+  {
+    "incipit": "Festiva canimus",
+    "season_code": "30/9",
+    "office_part": "L V",
+    "page": "446",
+    "grebobase_id": "17972"
+  },
+  {
+    "incipit": "Festiva vos archangeli",
+    "season_code": "29/9",
+    "office_part": "Ol",
+    "page": "442",
+    "grebobase_id": "7373"
+  },
+  {
+    "incipit": "Festum celebre",
+    "season_code": "26/12",
+    "office_part": "Ol",
+    "page": "479",
+    "grebobase_id": "16642"
+  },
+  {
+    "incipit": "Fit porta Christi",
+    "season_code": "N-1/1",
+    "office_part": "L",
+    "page": "34",
+    "grebobase_id": "15769"
+  },
+  {
+    "incipit": "Fortem piumque",
+    "season_code": "7/12",
+    "office_part": "L",
+    "page": "473",
+    "grebobase_id": "17973"
+  },
+  {
+    "incipit": "Fortem virili",
+    "season_code": "Mul",
+    "office_part": "V",
+    "page": "322",
+    "grebobase_id": "11249"
+  },
+  {
+    "incipit": "Fulgentis auctor",
+    "season_code": "2.4H4",
+    "office_part": "L",
+    "page": "230",
+    "grebobase_id": "14141"
+  },
+  {
+    "incipit": "Fulget in cælis",
+    "season_code": "28/12",
+    "office_part": "L",
+    "page": "424",
+    "grebobase_id": "8822"
+  },
+  {
+    "incipit": "Galli cantu",
+    "season_code": "2.4H6",
+    "office_part": "Ol",
+    "page": "234",
+    "grebobase_id": "4620"
+  },
+  {
+    "incipit": "Gaudentes festum",
+    "season_code": "VirgPl",
+    "office_part": "Ol",
+    "page": "307",
+    "grebobase_id": "17974"
+  },
+  {
+    "incipit": "Gaudium mundi",
+    "season_code": "15/8",
+    "office_part": "V",
+    "page": "414",
+    "grebobase_id": "10573"
+  },
+  {
+    "incipit": "Hæ feminæ laudabiles",
+    "season_code": "MulPl",
+    "office_part": "Ol",
+    "page": "319",
+    "grebobase_id": "17984"
+  },
+  {
+    "incipit": "Hæc est dies",
+    "season_code": "15/10",
+    "office_part": "V",
+    "page": "456",
+    "grebobase_id": "12680"
+  },
+  {
+    "incipit": "Hæc femina laudabilis",
+    "season_code": "Mul",
+    "office_part": "Ol",
+    "page": "318",
+    "grebobase_id": "17984"
+  },
+  {
+    "incipit": "Hæc hora (TP)",
+    "season_code": "TP",
+    "office_part": "N",
+    "page": "87",
+    "grebobase_id": "15492"
+  },
+  {
+    "incipit": "Hæc hora (Pent)",
+    "season_code": "Pent",
+    "office_part": "N",
+    "page": "104",
+    "grebobase_id": "17811"
+  },
+  {
+    "incipit": "Hi sacerdotes",
+    "season_code": "PastPl",
+    "office_part": "L",
+    "page": "296",
+    "grebobase_id": "17985"
+  },
+  {
+    "incipit": "Hic est dies",
+    "season_code": "P ante Asc",
+    "office_part": "Ol",
+    "page": "79",
+    "grebobase_id": "15086"
+  },
+  {
+    "incipit": "Horis peractis",
+    "season_code": "2.4H6",
+    "office_part": "V",
+    "page": "236",
+    "grebobase_id": "15693"
+  },
+  {
+    "incipit": "Hostis Herodes",
+    "season_code": "Ep N post Ep",
+    "office_part": "V",
+    "page": "36",
+    "grebobase_id": "8426"
+  },
+  {
+    "incipit": "Hymnum canentes",
+    "season_code": "28/12",
+    "office_part": "Ol",
+    "page": "484",
+    "grebobase_id": "11726"
+  },
+  {
+    "incipit": "Iam bone pastor",
+    "season_code": "22/2",
+    "office_part": "Ol",
+    "page": "351",
+    "grebobase_id": "4329"
+  },
+  {
+    "incipit": "Iam bone pastor",
+    "season_code": "18/11",
+    "office_part": "L V",
+    "page": "468",
+    "grebobase_id": "4329"
+  },
+  {
+    "incipit": "Iam cæca vis",
+    "season_code": "25/3",
+    "office_part": "Ol",
+    "page": "361",
+    "grebobase_id": "17688"
+  },
+  {
+    "incipit": "Iam Christe sol",
+    "season_code": "0-5Q2-7",
+    "office_part": "L",
+    "page": "56",
+    "grebobase_id": "7266"
+  },
+  {
+    "incipit": "Iam Christus astra",
+    "season_code": "Pent",
+    "office_part": "T",
+    "page": "101",
+    "grebobase_id": "17849"
+  },
+  {
+    "incipit": "Iam lucis",
+    "season_code": "2.4H5",
+    "office_part": "L",
+    "page": "233",
+    "grebobase_id": "15509"
+  },
+  {
+    "incipit": "Iam surgit",
+    "season_code": "P",
+    "office_part": "T",
+    "page": "85",
+    "grebobase_id": "15488"
+  },
+  {
+    "incipit": "Iesu auctor",
+    "season_code": "Cord",
+    "office_part": "L",
+    "page": "120",
+    "grebobase_id": "8737"
+  },
+  {
+    "incipit": "Iesu corona celsior",
+    "season_code": "Vir",
+    "office_part": "L",
+    "page": "312",
+    "grebobase_id": "8828"
+  },
+  {
+    "incipit": "Iesu corona virginum",
+    "season_code": "Virg",
+    "office_part": "L V",
+    "page": "310",
+    "grebobase_id": "9085"
+  },
+  {
+    "incipit": "Iesu nostra redemptio",
+    "season_code": "Asc",
+    "office_part": "V",
+    "page": "88",
+    "grebobase_id": "1227"
+  },
+  {
+    "incipit": "Iesu quadragenariæ",
+    "season_code": "0-5Q2-6",
+    "office_part": "V",
+    "page": "49",
+    "grebobase_id": "16931"
+  },
+  {
+    "incipit": "Iesu redemptor omnium",
+    "season_code": "Vir",
+    "office_part": "Ol V",
+    "page": "315",
+    "grebobase_id": "12971"
+  },
+  {
+    "incipit": "Iesu redemptor sæculi (TP)",
+    "season_code": "PC",
+    "office_part": "C",
+    "page": "77",
+    "grebobase_id": "15084"
+  },
+  {
+    "incipit": "Iesu redemptor sæculi (Pent)",
+    "season_code": "Pent C",
+    "office_part": "C",
+    "page": "96",
+    "grebobase_id": "4676"
+  },
+  {
+    "incipit": "Iesu rex admirabilis",
+    "season_code": "Reg",
+    "office_part": "Ol",
+    "page": "124",
+    "grebobase_id": "16104"
+  },
+  {
+    "incipit": "Iesu salvator",
+    "season_code": "1/11",
+    "office_part": "L",
+    "page": "463",
+    "grebobase_id": "16213"
+  },
+  {
+    "incipit": "Iesus refulsit",
+    "season_code": "Bapt",
+    "office_part": "L",
+    "page": "46",
+    "grebobase_id": "9665"
+  },
+  {
+    "incipit": "Igne divini",
+    "season_code": "21/1",
+    "office_part": "Ol",
+    "page": "340",
+    "grebobase_id": "16975"
+  },
+  {
+    "incipit": "Immensa et una",
+    "season_code": "Trn",
+    "office_part": "V",
+    "page": "105",
+    "grebobase_id": "15453"
+  },
+  {
+    "incipit": "Immensæ rex",
+    "season_code": "Def",
+    "office_part": "V",
+    "page": "334",
+    "grebobase_id": "4636"
+  },
+  {
+    "incipit": "Immense cæli",
+    "season_code": "1.3H2",
+    "office_part": "V",
+    "page": "195",
+    "grebobase_id": "12470"
+  },
+  {
+    "incipit": "Implente munus",
+    "season_code": "Bapt",
+    "office_part": "Ol 2V",
+    "page": "45",
+    "grebobase_id": "8703"
+  },
+  {
+    "incipit": "In cælesti collegio",
+    "season_code": "4/10",
+    "office_part": "L V",
+    "page": "453",
+    "grebobase_id": "17989"
+  },
+  {
+    "incipit": "In martyris Laurentii",
+    "season_code": "10/8",
+    "office_part": "L",
+    "page": "411",
+    "grebobase_id": "10556"
+  },
+  {
+    "incipit": "In plausu grati",
+    "season_code": "8/12",
+    "office_part": "L",
+    "page": "477",
+    "grebobase_id": "16157"
+  },
+  {
+    "incipit": "Inclitos Christi",
+    "season_code": "VirPl",
+    "office_part": "Ol V",
+    "page": "316",
+    "grebobase_id": "8841"
+  },
+  {
+    "incipit": "Inclitus rector",
+    "season_code": "Past",
+    "office_part": "L",
+    "page": "293",
+    "grebobase_id": "8817"
+  },
+  {
+    "incipit": "Inter æternas",
+    "season_code": "11/7",
+    "office_part": "Ol V",
+    "page": "396",
+    "grebobase_id": "9826"
+  },
+  {
+    "incipit": "Ipsum nunc nobis",
+    "season_code": "2.4H2",
+    "office_part": "Ol",
+    "page": "217",
+    "grebobase_id": "4615"
+  },
+  {
+    "incipit": "Iste confessor",
+    "season_code": "11/11",
+    "office_part": "L V",
+    "page": "466",
+    "grebobase_id": "9111"
+  },
+  {
+    "incipit": "Iste quem læti",
+    "season_code": "19/3",
+    "office_part": "L",
+    "page": "357",
+    "grebobase_id": "17655"
+  },
+  {
+    "incipit": "Lætare cælum",
+    "season_code": "P2-7 Ante Asc",
+    "office_part": "Ol",
+    "page": "81",
+    "grebobase_id": "10293"
+  },
+  {
+    "incipit": "Læti colentes",
+    "season_code": "Rel",
+    "office_part": "Ol V",
+    "page": "326",
+    "grebobase_id": "8826"
+  },
+  {
+    "incipit": "Laude te cives",
+    "season_code": "13/9",
+    "office_part": "L V",
+    "page": "430",
+    "grebobase_id": "15702"
+  },
+  {
+    "incipit": "Legifer prudens",
+    "season_code": "11/7",
+    "office_part": "L",
+    "page": "395",
+    "grebobase_id": "17990"
+  },
+  {
+    "incipit": "Legis sacratæ",
+    "season_code": "2/2",
+    "office_part": "Ol",
+    "page": "345",
+    "grebobase_id": "16967"
+  },
+  {
+    "incipit": "Lucis creator",
+    "season_code": "1.3H1",
+    "office_part": "2V",
+    "page": "188",
+    "grebobase_id": "15605"
+  },
+  {
+    "incipit": "Lucis largitor",
+    "season_code": "2.4H2",
+    "office_part": "L",
+    "page": "218",
+    "grebobase_id": "7502"
+  },
+  {
+    "incipit": "Luminis fons",
+    "season_code": "2.4H2",
+    "office_part": "V",
+    "page": "223",
+    "grebobase_id": "15699"
+  },
+  {
+    "incipit": "Lux æterna",
+    "season_code": "2.4H7",
+    "office_part": "Ol",
+    "page": "237",
+    "grebobase_id": "4621"
+  },
+  {
+    "incipit": "Lux iucunda",
+    "season_code": "Pent",
+    "office_part": "Ol",
+    "page": "98",
+    "grebobase_id": "15367"
+  },
+  {
+    "incipit": "Magdalæ sidus",
+    "season_code": "22/7",
+    "office_part": "L V",
+    "page": "399",
+    "grebobase_id": "9154"
+  },
+  {
+    "incipit": "Magi videntes",
+    "season_code": "Ep N post Ep",
+    "office_part": "Ol",
+    "page": "38",
+    "grebobase_id": "8702"
+  },
+  {
+    "incipit": "Magnæ cohortis",
+    "season_code": "31/7",
+    "office_part": "L",
+    "page": "406",
+    "grebobase_id": "17991"
+  },
+  {
+    "incipit": "Magnæ Deus",
+    "season_code": "1.3H5",
+    "office_part": "V",
+    "page": "202",
+    "grebobase_id": "15637"
+  },
+  {
+    "incipit": "Magnis prophetæ",
+    "season_code": "Adv post 17/12",
+    "office_part": "L",
+    "page": "11",
+    "grebobase_id": "4243"
+  },
+  {
+    "incipit": "Maria quæ mortalium",
+    "season_code": "BMV",
+    "office_part": "1V",
+    "page": "253",
+    "grebobase_id": "16851"
+  },
+  {
+    "incipit": "Maria virgo regia",
+    "season_code": "21/11",
+    "office_part": "L",
+    "page": "471",
+    "grebobase_id": "17999"
+  },
+  {
+    "incipit": "Martine par apostolis",
+    "season_code": "11/11",
+    "office_part": "L",
+    "page": "466",
+    "grebobase_id": "4026"
+  },
+  {
+    "incipit": "Martyr Dei",
+    "season_code": "Mart",
+    "office_part": "L",
+    "page": "283",
+    "grebobase_id": "8814"
+  },
+  {
+    "incipit": "Martyris Christi",
+    "season_code": "10/8",
+    "office_part": "Ol V",
+    "page": "412",
+    "grebobase_id": "10557"
+  },
+  {
+    "incipit": "Matthia sacratissimo",
+    "season_code": "14/5",
+    "office_part": "Ol",
+    "page": "373",
+    "grebobase_id": "10222"
+  },
+  {
+    "incipit": "Mediæ noctis",
+    "season_code": "2.4H1",
+    "office_part": "Ol",
+    "page": "209",
+    "grebobase_id": "4610"
+  },
+  {
+    "incipit": "Mentibus lætis",
+    "season_code": "25/4",
+    "office_part": "L V",
+    "page": "366",
+    "grebobase_id": "17997"
+  },
+  {
+    "incipit": "Mole gravati",
+    "season_code": "22/8",
+    "office_part": "V",
+    "page": "422",
+    "grebobase_id": "4613"
+  },
+  {
+    "incipit": "Nobilem Christi",
+    "season_code": "Mul",
+    "office_part": "L",
+    "page": "320",
+    "grebobase_id": "16057"
+  },
+  {
+    "incipit": "Nobiles Christi",
+    "season_code": "MulPl",
+    "office_part": "L",
+    "page": "321",
+    "grebobase_id": "17959"
+  },
+  {
+    "incipit": "Nocte surgentes",
+    "season_code": "2.4H3",
+    "office_part": "Ol",
+    "page": "224",
+    "grebobase_id": "4616"
+  },
+  {
+    "incipit": "Nocti succedit",
+    "season_code": "26/7",
+    "office_part": "L",
+    "page": "401",
+    "grebobase_id": "18003"
+  },
+  {
+    "incipit": "Novus athleta",
+    "season_code": "8/8",
+    "office_part": "L V",
+    "page": "410",
+    "grebobase_id": "17960"
+  },
+  {
+    "incipit": "Nox atra rerum",
+    "season_code": "1.3H5",
+    "office_part": "Ol",
+    "page": "201",
+    "grebobase_id": "15620"
+  },
+  {
+    "incipit": "Nox et tenebræ",
+    "season_code": "1.3H4",
+    "office_part": "L",
+    "page": "199",
+    "grebobase_id": "12147"
+  },
+  {
+    "incipit": "Nunc Sancte (Adv)",
+    "season_code": "Adv ante 17/12",
+    "office_part": "T",
+    "page": "7",
+    "grebobase_id": "18010"
+  },
+  {
+    "incipit": "Nunc Sancte (Nat)",
+    "season_code": "N ante Ep",
+    "office_part": "T",
+    "page": "24",
+    "grebobase_id": "16389"
+  },
+  {
+    "incipit": "Nunc Sancte (dom.)",
+    "season_code": "1.3H1",
+    "office_part": "T",
+    "page": "185",
+    "grebobase_id": "15602"
+  },
+  {
+    "incipit": "Nunc Sancte (soll.)",
+    "season_code": "1.3H soll.",
+    "office_part": "T",
+    "page": "186",
+    "grebobase_id": "8878"
+  },
+  {
+    "incipit": "Nunc Sancte (fer.)",
+    "season_code": "1.3H2-7",
+    "office_part": "T",
+    "page": "192",
+    "grebobase_id": "4557"
+  },
+  {
+    "incipit": "Nunc Sancte (mem.)",
+    "season_code": "1.3H mem.",
+    "office_part": "T",
+    "page": "192",
+    "grebobase_id": "18011"
+  },
+  {
+    "incipit": "Nunc Sancte (fest.)",
+    "season_code": "1.3H fest.",
+    "office_part": "T",
+    "page": "192",
+    "grebobase_id": "8877"
+  },
+  {
+    "incipit": "Nunc tempus",
+    "season_code": "0-5Q2-7",
+    "office_part": "Ol",
+    "page": "54",
+    "grebobase_id": "16933"
+  },
+  {
+    "incipit": "O castitatis signifer",
+    "season_code": "Virg Una mart",
+    "office_part": "L",
+    "page": "284",
+    "grebobase_id": "8827"
+  },
+  {
+    "incipit": "O Christe flos",
+    "season_code": "Virg Una mart",
+    "office_part": "Ol",
+    "page": "282",
+    "grebobase_id": "17920"
+  },
+  {
+    "incipit": "O gloriosa Domina",
+    "season_code": "BMV",
+    "office_part": "L",
+    "page": "257",
+    "grebobase_id": "16852"
+  },
+  {
+    "incipit": "O lux beata cælitum",
+    "season_code": "Fam",
+    "office_part": "V",
+    "page": "26",
+    "grebobase_id": "13131"
+  },
+  {
+    "incipit": "O lux beata Trinitas",
+    "season_code": "2.4H1",
+    "office_part": "2V",
+    "page": "215",
+    "grebobase_id": "16705"
+  },
+  {
+    "incipit": "O lux salutis",
+    "season_code": "25/3",
+    "office_part": "L",
+    "page": "363",
+    "grebobase_id": "17707"
+  },
+  {
+    "incipit": "O nata lux",
+    "season_code": "6/8",
+    "office_part": "V",
+    "page": "409",
+    "grebobase_id": "10537"
+  },
+  {
+    "incipit": "O nimis felix",
+    "season_code": "24/6 29/8",
+    "office_part": "L",
+    "page": "386",
+    "grebobase_id": "15663"
+  },
+  {
+    "incipit": "O quam glorifica",
+    "season_code": "22/8",
+    "office_part": "L",
+    "page": "420",
+    "grebobase_id": "4073"
+  },
+  {
+    "incipit": "O redemptoris pietas",
+    "season_code": "Rel",
+    "office_part": "L",
+    "page": "325",
+    "grebobase_id": "10561"
+  },
+  {
+    "incipit": "O rex æterne",
+    "season_code": "P2-6 ante Asc",
+    "office_part": "V",
+    "page": "76",
+    "grebobase_id": "4541"
+  },
+  {
+    "incipit": "O Roma felix",
+    "season_code": "29/6",
+    "office_part": "V",
+    "page": "392",
+    "grebobase_id": "10407"
+  },
+  {
+    "incipit": "O sacrosancta Trinitas",
+    "season_code": "1.3H3",
+    "office_part": "Ol",
+    "page": "196",
+    "grebobase_id": "15617"
+  },
+  {
+    "incipit": "O sancta mundi",
+    "season_code": "8/9",
+    "office_part": "L",
+    "page": "428",
+    "grebobase_id": "10611"
+  },
+  {
+    "incipit": "O sator rerum",
+    "season_code": "2.4H4",
+    "office_part": "Ol",
+    "page": "228",
+    "grebobase_id": "4617"
+  },
+  {
+    "incipit": "O sempiternæ curiæ",
+    "season_code": "Ap",
+    "office_part": "Ol",
+    "page": "267",
+    "grebobase_id": "10482"
+  },
+  {
+    "incipit": "O vir beate",
+    "season_code": "25/4 11/618/10",
+    "office_part": "Ol",
+    "page": "365",
+    "grebobase_id": "17817"
+  },
+  {
+    "incipit": "O virgo mater",
+    "season_code": "BMV Sab",
+    "office_part": "Ol",
+    "page": "263",
+    "grebobase_id": "16850"
+  },
+  {
+    "incipit": "Optatus votis omnium",
+    "season_code": "Asc",
+    "office_part": "L",
+    "page": "94",
+    "grebobase_id": "15200"
+  },
+  {
+    "incipit": "Orbis patrator",
+    "season_code": "2/10",
+    "office_part": "L",
+    "page": "450",
+    "grebobase_id": "7922"
+  },
+  {
+    "incipit": "Pange lingua... corporis 1",
+    "season_code": "Corp",
+    "office_part": "V",
+    "page": "110",
+    "grebobase_id": "8671"
+  },
+  {
+    "incipit": "Pange lingua... corporis 2",
+    "season_code": "Corp",
+    "office_part": "V",
+    "page": "112",
+    "grebobase_id": "8785"
+  },
+  {
+    "incipit": "Pange lingua... prœlium",
+    "season_code": "6Q1-5",
+    "office_part": "Ol",
+    "page": "61",
+    "grebobase_id": "17737"
+  },
+  {
+    "incipit": "Peccatricem",
+    "season_code": "34H2-6",
+    "office_part": "V",
+    "page": "129",
+    "grebobase_id": "16849"
+  },
+  {
+    "incipit": "Per crucem Christe",
+    "season_code": "6Q6",
+    "office_part": "N",
+    "page": "69",
+    "grebobase_id": "17790"
+  },
+  {
+    "incipit": "Pergrata mundo",
+    "season_code": "1.3H3",
+    "office_part": "L",
+    "page": "197",
+    "grebobase_id": "15629"
+  },
+  {
+    "incipit": "Petrus beatus",
+    "season_code": "22/2",
+    "office_part": "L",
+    "page": "351",
+    "grebobase_id": "17500"
+  },
+  {
+    "incipit": "Philippe summæ",
+    "season_code": "3/5",
+    "office_part": "Ol",
+    "page": "372",
+    "grebobase_id": "18004"
+  },
+  {
+    "incipit": "Plasmator hominis",
+    "season_code": "1.3H6",
+    "office_part": "V",
+    "page": "205",
+    "grebobase_id": "15638"
+  },
+  {
+    "incipit": "Plausibus Luca",
+    "season_code": "18/10",
+    "office_part": "L V",
+    "page": "457",
+    "grebobase_id": "16324"
+  },
+  {
+    "incipit": "Præcessor almus",
+    "season_code": "29/8",
+    "office_part": "Ol V",
+    "page": "426",
+    "grebobase_id": "4623"
+  },
+  {
+    "incipit": "Præclara custos",
+    "season_code": "8/12",
+    "office_part": "V",
+    "page": "475",
+    "grebobase_id": "16123"
+  },
+  {
+    "incipit": "Præclara qua tu",
+    "season_code": "21/9",
+    "office_part": "L",
+    "page": "440",
+    "grebobase_id": "9132"
+  },
+  {
+    "incipit": "Precemur omnes",
+    "season_code": "1-5Q1",
+    "office_part": "L",
+    "page": "55",
+    "grebobase_id": "16934"
+  },
+  {
+    "incipit": "Pressi malorum",
+    "season_code": "25/1",
+    "office_part": "Ol",
+    "page": "342",
+    "grebobase_id": "18005"
+  },
+  {
+    "incipit": "Primo dierum",
+    "season_code": "1.3H1",
+    "office_part": "Ol",
+    "page": "182",
+    "grebobase_id": "4556"
+  },
+  {
+    "incipit": "Qua Christus hora",
+    "season_code": "Q",
+    "office_part": "S",
+    "page": "57",
+    "grebobase_id": "9921"
+  },
+  {
+    "incipit": "Quæ caritatis",
+    "season_code": "BMV Sab",
+    "office_part": "L",
+    "page": "264",
+    "grebobase_id": "9831"
+  },
+  {
+    "incipit": "Quas tibi laudes",
+    "season_code": "29/7",
+    "office_part": "L",
+    "page": "404",
+    "grebobase_id": "18006"
+  },
+  {
+    "incipit": "Quem terra pontus",
+    "season_code": "BMV",
+    "office_part": "Ol",
+    "page": "255",
+    "grebobase_id": "4062"
+  },
+  {
+    "incipit": "Qui lacrimatus",
+    "season_code": "Def Hm",
+    "office_part": "Hm",
+    "page": "333",
+    "grebobase_id": "18007"
+  },
+  {
+    "incipit": "Qui luce splendes",
+    "season_code": "3/7",
+    "office_part": "L",
+    "page": "394",
+    "grebobase_id": "18008"
+  },
+  {
+    "incipit": "Qui vivis ante",
+    "season_code": "Def",
+    "office_part": "Ol",
+    "page": "328",
+    "grebobase_id": "18009"
+  },
+  {
+    "incipit": "Quicumque Christum",
+    "season_code": "Ep 1V N post Ep",
+    "office_part": "L",
+    "page": "40",
+    "grebobase_id": "11934"
+  },
+  {
+    "incipit": "Quid sum miser",
+    "season_code": "34H2-7",
+    "office_part": "L",
+    "page": "128",
+    "grebobase_id": "16848"
+  },
+  {
+    "incipit": "Quod chorus vatum",
+    "season_code": "2/2",
+    "office_part": "2V",
+    "page": "348",
+    "grebobase_id": "4307"
+  },
+  {
+    "incipit": "Radix Iesse",
+    "season_code": "N-1/1",
+    "office_part": "Ol",
+    "page": "33",
+    "grebobase_id": "16731"
+  },
+  {
+    "incipit": "Rector potens (Adv)",
+    "season_code": "Adv ante 17/12",
+    "office_part": "S",
+    "page": "8",
+    "grebobase_id": "18012"
+  },
+  {
+    "incipit": "Rector potens (Nat)",
+    "season_code": "N ante Ep",
+    "office_part": "S",
+    "page": "25",
+    "grebobase_id": "16390"
+  },
+  {
+    "incipit": "Rector potens (dom.)",
+    "season_code": "1.3H1",
+    "office_part": "S",
+    "page": "186",
+    "grebobase_id": "15603"
+  },
+  {
+    "incipit": "Rector potens (soll.)",
+    "season_code": "1.3H soll.",
+    "office_part": "S",
+    "page": "187",
+    "grebobase_id": "18013"
+  },
+  {
+    "incipit": "Rector potens (fer.)",
+    "season_code": "1.3H2-7",
+    "office_part": "S",
+    "page": "193",
+    "grebobase_id": "8879"
+  },
+  {
+    "incipit": "Rector potens (mem.)",
+    "season_code": "1.3H mem.",
+    "office_part": "S",
+    "page": "193",
+    "grebobase_id": "8880"
+  },
+  {
+    "incipit": "Rector potens (fest.)",
+    "season_code": "1.3H fest.",
+    "office_part": "S",
+    "page": "193",
+    "grebobase_id": "8881"
+  },
+  {
+    "incipit": "Regis superni",
+    "season_code": "15/10",
+    "office_part": "L",
+    "page": "455",
+    "grebobase_id": "13035"
+  },
+  {
+    "incipit": "Relucens inter principes",
+    "season_code": "24/8",
+    "office_part": "L",
+    "page": "423",
+    "grebobase_id": "9089"
+  },
+  {
+    "incipit": "Rerum creator",
+    "season_code": "1.3H4",
+    "office_part": "Ol",
+    "page": "198",
+    "grebobase_id": "15618"
+  },
+  {
+    "incipit": "Rerum Deus fons",
+    "season_code": "2.4H1",
+    "office_part": "1V",
+    "page": "208",
+    "grebobase_id": "10403"
+  },
+  {
+    "incipit": "Rerum Deus tenax (Adv.)",
+    "season_code": "Adv ante 17/12",
+    "office_part": "N",
+    "page": "8",
+    "grebobase_id": "18015"
+  },
+  {
+    "incipit": "Rerum Deus tenax (Nat)",
+    "season_code": "N ante Ep",
+    "office_part": "N",
+    "page": "25",
+    "grebobase_id": "8891"
+  },
+  {
+    "incipit": "Rerum Deus tenax (dom.)",
+    "season_code": "1.3H1",
+    "office_part": "N",
+    "page": "187",
+    "grebobase_id": "15604"
+  },
+  {
+    "incipit": "Rerum Deus tenax (soll.)",
+    "season_code": "1.3H soll.",
+    "office_part": "N",
+    "page": "188",
+    "grebobase_id": "8885"
+  },
+  {
+    "incipit": "Rerum Deus tenax (fer.)",
+    "season_code": "1.3H2-7",
+    "office_part": "N",
+    "page": "194",
+    "grebobase_id": "15610"
+  },
+  {
+    "incipit": "Rerum Deus tenax (mem.)",
+    "season_code": "1.3H mem.",
+    "office_part": "N",
+    "page": "194",
+    "grebobase_id": "8883"
+  },
+  {
+    "incipit": "Rerum Deus tenax (fest.)",
+    "season_code": "1.3H fest.",
+    "office_part": "N",
+    "page": "194",
+    "grebobase_id": "8884"
+  },
+  {
+    "incipit": "Rerum supremo",
+    "season_code": "22/8",
+    "office_part": "Ol",
+    "page": "420",
+    "grebobase_id": "4619"
+  },
+  {
+    "incipit": "Rex gloriose martyrum",
+    "season_code": "PlM",
+    "office_part": "Ol",
+    "page": "274",
+    "grebobase_id": "10560"
+  },
+  {
+    "incipit": "Sacrata nobis",
+    "season_code": "PastPl",
+    "office_part": "V",
+    "page": "299",
+    "grebobase_id": "17949"
+  },
+  {
+    "incipit": "Sacris sollemniis",
+    "season_code": "Corp",
+    "office_part": "Ol",
+    "page": "113",
+    "grebobase_id": "15552"
+  },
+  {
+    "incipit": "Salva Redemptor",
+    "season_code": "6Q6",
+    "office_part": "T",
+    "page": "67",
+    "grebobase_id": "17788"
+  },
+  {
+    "incipit": "Salve crux",
+    "season_code": "14/9",
+    "office_part": "Ol",
+    "page": "431",
+    "grebobase_id": "10642"
+  },
+  {
+    "incipit": "Salve dies",
+    "season_code": "2.4H1",
+    "office_part": "Ol",
+    "page": "210",
+    "grebobase_id": "10458"
+  },
+  {
+    "incipit": "Salve mater",
+    "season_code": "21/11",
+    "office_part": "Ol",
+    "page": "470",
+    "grebobase_id": "18016"
+  },
+  {
+    "incipit": "Sanctorum meritis 1",
+    "season_code": "PlM",
+    "office_part": "2V",
+    "page": "277",
+    "grebobase_id": "4229"
+  },
+  {
+    "incipit": "Sanctorum meritis 2",
+    "season_code": "PlM",
+    "office_part": "2V",
+    "page": "279",
+    "grebobase_id": "18017"
+  },
+  {
+    "incipit": "Sator princepsque",
+    "season_code": "2.4H3",
+    "office_part": "V",
+    "page": "227",
+    "grebobase_id": "16712"
+  },
+  {
+    "incipit": "Scientiarum Domino",
+    "season_code": "1.3H4",
+    "office_part": "Ol",
+    "page": "199",
+    "grebobase_id": "15619"
+  },
+  {
+    "incipit": "Signum crucis",
+    "season_code": "14/9",
+    "office_part": "L",
+    "page": "432",
+    "grebobase_id": "4626"
+  },
+  {
+    "incipit": "Sol ecce lentus",
+    "season_code": "2.4H4",
+    "office_part": "V",
+    "page": "231",
+    "grebobase_id": "16746"
+  },
+  {
+    "incipit": "Sol ecce surgit",
+    "season_code": "1.3H5",
+    "office_part": "L",
+    "page": "202",
+    "grebobase_id": "15631"
+  },
+  {
+    "incipit": "Solis o Virgo",
+    "season_code": "15/8",
+    "office_part": "L",
+    "page": "416",
+    "grebobase_id": "12309"
+  },
+  {
+    "incipit": "Somno refectis",
+    "season_code": "1.3H2",
+    "office_part": "Ol",
+    "page": "190",
+    "grebobase_id": "15627"
+  },
+  {
+    "incipit": "Spes Christe",
+    "season_code": "Def",
+    "office_part": "L",
+    "page": "330",
+    "grebobase_id": "15716"
+  },
+  {
+    "incipit": "Splendor paternæ",
+    "season_code": "1.3H2",
+    "office_part": "L",
+    "page": "191",
+    "grebobase_id": "15781"
+  },
+  {
+    "incipit": "Stabat mater 1",
+    "season_code": "15/9",
+    "office_part": "Ol",
+    "page": "434",
+    "grebobase_id": "18018"
+  },
+  {
+    "incipit": "Stabat mater 2",
+    "season_code": "15/9",
+    "office_part": "Ol",
+    "page": "435",
+    "grebobase_id": "13198"
+  },
+  {
+    "incipit": "Summæ Deus",
+    "season_code": "1.3H7",
+    "office_part": "Ol",
+    "page": "206",
+    "grebobase_id": "15625"
+  },
+  {
+    "incipit": "Te Catharina",
+    "season_code": "29/4",
+    "office_part": "L V",
+    "page": "369",
+    "grebobase_id": "7288"
+  },
+  {
+    "incipit": "Te dicimus... mater Dei",
+    "season_code": "8/12",
+    "office_part": "Ol",
+    "page": "476",
+    "grebobase_id": "8243"
+  },
+  {
+    "incipit": "Te gestientem",
+    "season_code": "7/10",
+    "office_part": "L V",
+    "page": "454",
+    "grebobase_id": "11786"
+  },
+  {
+    "incipit": "Te gratulantes",
+    "season_code": "29/7",
+    "office_part": "Ol V",
+    "page": "405",
+    "grebobase_id": "18019"
+  },
+  {
+    "incipit": "Te Ioseph",
+    "season_code": "19/3",
+    "office_part": "V",
+    "page": "355",
+    "grebobase_id": "17636"
+  },
+  {
+    "incipit": "Te lucis (Adv)",
+    "season_code": "Adv ante 17/12",
+    "office_part": "C",
+    "page": "4",
+    "grebobase_id": "7413"
+  },
+  {
+    "incipit": "Te lucis (Nat)",
+    "season_code": "N ante Ep",
+    "office_part": "C",
+    "page": "16",
+    "grebobase_id": "8892"
+  },
+  {
+    "incipit": "Te lucis (Quad)",
+    "season_code": "1.3.5Q",
+    "office_part": "C",
+    "page": "51",
+    "grebobase_id": "17589"
+  },
+  {
+    "incipit": "Te lucis (fer.)",
+    "season_code": "1.3H2-6",
+    "office_part": "C",
+    "page": "241",
+    "grebobase_id": "4680"
+  },
+  {
+    "incipit": "Te lucis (mem.)",
+    "season_code": "1.3H mem.",
+    "office_part": "C",
+    "page": "241",
+    "grebobase_id": "4681"
+  },
+  {
+    "incipit": "Te lucis (fest.)",
+    "season_code": "1.3H fest.",
+    "office_part": "C",
+    "page": "241",
+    "grebobase_id": "4682"
+  },
+  {
+    "incipit": "Te lucis (dom.)",
+    "season_code": "1.3H1",
+    "office_part": "C",
+    "page": "242",
+    "grebobase_id": "4677"
+  },
+  {
+    "incipit": "Te lucis (soll.)",
+    "season_code": "1.3H soll.",
+    "office_part": "C",
+    "page": "242",
+    "grebobase_id": "4683"
+  },
+  {
+    "incipit": "Te nostra lætis",
+    "season_code": "25/7",
+    "office_part": "L",
+    "page": "400",
+    "grebobase_id": "10481"
+  },
+  {
+    "incipit": "Te pater Ioseph",
+    "season_code": "1/5",
+    "office_part": "Ol",
+    "page": "370",
+    "grebobase_id": "15727"
+  },
+  {
+    "incipit": "Te Patrem summum",
+    "season_code": "Trn",
+    "office_part": "Ol",
+    "page": "107",
+    "grebobase_id": "15454"
+  },
+  {
+    "incipit": "Te sæculorum",
+    "season_code": "Reg",
+    "office_part": "1V",
+    "page": "122",
+    "grebobase_id": "12902"
+  },
+  {
+    "incipit": "Telluris ingens",
+    "season_code": "1.3H3",
+    "office_part": "V",
+    "page": "198",
+    "grebobase_id": "15635"
+  },
+  {
+    "incipit": "Ternis horarum (Adv)",
+    "season_code": "Adv post 17/12",
+    "office_part": "N",
+    "page": "13",
+    "grebobase_id": "4240"
+  },
+  {
+    "incipit": "Ternis horarum (Nat)",
+    "season_code": "N post Ep",
+    "office_part": "N",
+    "page": "42",
+    "grebobase_id": "16772"
+  },
+  {
+    "incipit": "Ternis horarum (dom.)",
+    "season_code": "2.4H1",
+    "office_part": "N",
+    "page": "215",
+    "grebobase_id": "16827"
+  },
+  {
+    "incipit": "Ternis horarum (soll.)",
+    "season_code": "2.4H soll.",
+    "office_part": "N",
+    "page": "215",
+    "grebobase_id": "16829"
+  },
+  {
+    "incipit": "Ternis horarum (fer.)",
+    "season_code": "2.4H2-7",
+    "office_part": "N",
+    "page": "221",
+    "grebobase_id": "16830"
+  },
+  {
+    "incipit": "Ternis horarum (mem.)",
+    "season_code": "2.4H mem.",
+    "office_part": "N",
+    "page": "222",
+    "grebobase_id": "16831"
+  },
+  {
+    "incipit": "Ternis horarum (fest.)",
+    "season_code": "2.4H fest.",
+    "office_part": "N",
+    "page": "222",
+    "grebobase_id": "16832"
+  },
+  {
+    "incipit": "Ternis ter horis",
+    "season_code": "Q",
+    "office_part": "N",
+    "page": "57",
+    "grebobase_id": "9911"
+  },
+  {
+    "incipit": "Tibi Christe",
+    "season_code": "29/9",
+    "office_part": "L",
+    "page": "443",
+    "grebobase_id": "9000"
+  },
+  {
+    "incipit": "Tibi Redemptor",
+    "season_code": "6Q7",
+    "office_part": "L",
+    "page": "71",
+    "grebobase_id": "17747"
+  },
+  {
+    "incipit": "Trinitas summo",
+    "season_code": "Trn",
+    "office_part": "L",
+    "page": "108",
+    "grebobase_id": "15455"
+  },
+  {
+    "incipit": "Tristes erant",
+    "season_code": "Ap TP",
+    "office_part": "V",
+    "page": "271",
+    "grebobase_id": "12675"
+  },
+  {
+    "incipit": "Tu Trinitatis",
+    "season_code": "1.3H6",
+    "office_part": "Ol",
+    "page": "203",
+    "grebobase_id": "15622"
+  },
+  {
+    "incipit": "Urbs Ierusalem",
+    "season_code": "Ded",
+    "office_part": "V",
+    "page": "247",
+    "grebobase_id": "8679"
+  },
+  {
+    "incipit": "Ut queant laxis",
+    "season_code": "24/6",
+    "office_part": "V",
+    "page": "382",
+    "grebobase_id": "15660"
+  },
+  {
+    "incipit": "Veni creator",
+    "season_code": "Pent P post Asc",
+    "office_part": "V",
+    "page": "90",
+    "grebobase_id": "13353"
+  },
+  {
+    "incipit": "Veni præcelsa",
+    "season_code": "31/5",
+    "office_part": "Ol",
+    "page": "376",
+    "grebobase_id": "18023"
+  },
+  {
+    "incipit": "Veni Redemptor",
+    "season_code": "Adv post 17/12",
+    "office_part": "Ol",
+    "page": "11",
+    "grebobase_id": "4241"
+  },
+  {
+    "incipit": "Veniens mater",
+    "season_code": "31/5",
+    "office_part": "L",
+    "page": "376",
+    "grebobase_id": "15524"
+  },
+  {
+    "incipit": "Venite servi (TP)",
+    "season_code": "P",
+    "office_part": "S",
+    "page": "86",
+    "grebobase_id": "15491"
+  },
+  {
+    "incipit": "Venite servi (Pent.)",
+    "season_code": "Pent",
+    "office_part": "S",
+    "page": "103",
+    "grebobase_id": "17810"
+  },
+  {
+    "incipit": "Verbum salutis",
+    "season_code": "Adv post 17/12",
+    "office_part": "V",
+    "page": "9",
+    "grebobase_id": "14187"
+  },
+  {
+    "incipit": "Verbum supernum... a Patre",
+    "season_code": "Adv ante 17/12",
+    "office_part": "Ol",
+    "page": "5",
+    "grebobase_id": "8227"
+  },
+  {
+    "incipit": "Verbum supernum... nec Patris",
+    "season_code": "Corp",
+    "office_part": "L",
+    "page": "115",
+    "grebobase_id": "53"
+  },
+  {
+    "incipit": "Vexilla regis 1",
+    "season_code": "6Q 14/9",
+    "office_part": "V",
+    "page": "58",
+    "grebobase_id": "10579"
+  },
+  {
+    "incipit": "Vexilla regis 2",
+    "season_code": "6Q 14/9",
+    "office_part": "V",
+    "page": "60",
+    "grebobase_id": "12999"
+  },
+  {
+    "incipit": "Vir celse",
+    "season_code": "Past",
+    "office_part": "V",
+    "page": "297",
+    "grebobase_id": "17946"
+  },
+  {
+    "incipit": "Virginis proles",
+    "season_code": "Vir Una mart",
+    "office_part": "V",
+    "page": "288",
+    "grebobase_id": "18024"
+  },
+  {
+    "incipit": "Virginis virgo",
+    "season_code": "27/12",
+    "office_part": "Ol",
+    "page": "481",
+    "grebobase_id": "16676"
+  },
+  {
+    "incipit": "Virgo prudentum",
+    "season_code": "29/4",
+    "office_part": "Ol",
+    "page": "368",
+    "grebobase_id": "18025"
+  },
+  {
+    "incipit": "Virgo virginum",
+    "season_code": "15/9",
+    "office_part": "V",
+    "page": "438",
+    "grebobase_id": "12383"
+  },
+  {
+    "incipit": "Virgo virginum",
+    "season_code": "15/9V",
+    "office_part": "V",
+    "page": "439",
+    "grebobase_id": "2949"
+  },
+  {
+    "incipit": "Vita sanctorum",
+    "season_code": "2.4H2",
+    "office_part": "Ol",
+    "page": "217",
+    "grebobase_id": "16745"
+  },
+  {
+    "incipit": "Vox clara ecce",
+    "season_code": "Adv ante 17/12",
+    "office_part": "L",
+    "page": "6",
+    "grebobase_id": "15711"
+  }
+]

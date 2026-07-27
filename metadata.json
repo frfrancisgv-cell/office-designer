@@ -1,0 +1,6 @@
+{
+  "name": "Divine Office Booklet Builder",
+  "description": "A modular layout editor for creating printable booklets for the sung Divine Office, featuring iBreviary text structures and Gregorio score substitution capabilities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
