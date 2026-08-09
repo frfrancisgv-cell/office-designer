@@ -1,0 +1,42 @@
+  0 heading                : VESPERS — Evening Prayer
+  1 subheading             : Monday, July 27, 2026
+  2 subheading             : Monday of the 17th week of Ordinary Time
+  3 subheading             : Evening Prayer
+  4 heading                : INTRODUCTION
+  5 text                   : God, + come to my assistance. — Lord, make haste to help me. Glory to 
+  6 heading                : HYMN
+  7 hymn                   : 1. O great Creator of the sky, Who, when the firmament on high Was for
+  8 heading                : PSALMODY
+  9 antiphon               : Ant. 1: Psalm 45
+ 10 rubric                 : Psalm 45
+ 11 psalm                  : My héart overflóws with nóble wórds. To the kíng I addréss the sóng I 
+ 12 rubric                 : Psalm Prayer
+ 13 psalm-prayer           : [Psalm prayer]
+ 14 antiphon               : Ant. 1: Psalm 45
+ 15 antiphon               : Ant. 2: Psalm 45 (cont.)
+ 16 rubric                 : Psalm 45 (cont.)
+ 17 psalm                  : Lísten, O dáughter; pay héed and give éar: forgét your own péople and 
+ 18 rubric                 : Psalm Prayer
+ 19 psalm-prayer           : [Psalm prayer]
+ 20 antiphon               : Ant. 2: Psalm 45 (cont.)
+ 21 antiphon               : Ant. 3: NT Canticle (Eph 1:4)
+ 22 rubric                 : NT Canticle (Eph 1:4)
+ 23 psalm                  : Bléssed be the Lórd Gód of Ísrael: for he has vísited his péople and r
+ 24 rubric                 : Psalm Prayer
+ 25 psalm-prayer           : [Psalm prayer]
+ 26 antiphon               : Ant. 3: NT Canticle (Eph 1:4)
+ 27 heading                : READING
+ 28 text                   : Bless the Lord, O my soul, and do not forget all his benefits. He forg
+ 29 antiphon               : Sana animam meam
+ 30 heading                : GOSPEL CANTICLE — MAGNIFICAT
+ 31 antiphon               : Ant. My soul proclaims the greatness of the Lord.
+ 32 psalm                  : Magníficat * ánima mea Dóminum. Et exsultávit spíritus meus * in Deo 
+ 33 antiphon               : Ant. My soul proclaims the greatness of the Lord.
+ 34 heading                : INTERCESSIONS
+ 35 text                   : Pray for the holy Church of God; for its members spread throughout the
+ 36 heading                : OUR FATHER
+ 37 text                   : Our Father, who art in heaven, hallowed be thy name; thy kingdom come,
+ 38 heading                : CONCLUDING PRAYER
+ 39 text                   : Let us pray. Lord God almighty, you have brought us safely to the begi
+ 40 heading                : DISMISSAL
+ 41 text                   : If a priest or deacon presides, he dismisses the people: The Lord be w

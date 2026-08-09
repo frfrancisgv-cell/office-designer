@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Block } from '@/lib/types';
 import { getToneNames, getVariants, getPresetGabc } from '@/lib/psalm-tones/tone-data';
-import { stripPointing } from '@/lib/psalm-tones/psalm-tone-engine';
+import { stripPointing } from '@/lib/psalm-tones/utils';
 import { autoPointPsalm } from '@/components/psalm-utils';
 
 export function useBlockPointing(
@@ -212,5 +212,9 @@ export function useBlockPointing(
     handleLoadStressedText,
     handleLoadLatinText,
     handleRestoreIbreviaryText,
+    handleAutoPoint: (n: 1 | 2 | 3) => {
+      const baseText = block.originalContent || stripPointing(block.content);
+      updateBlock(block.id, { content: autoPointPsalm(baseText, n), originalContent: baseText });
+    },
   };
 }

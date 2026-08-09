@@ -14,6 +14,8 @@ export function parseBlocks(
   let currentSection = 'NONE';
   let currentAntNum = 0;
   let nextIsPsalmPrayer = false;
+  // Track which gospel canticle we're currently in so psalm blocks get psalmNumber set
+  let currentCanticleName: string | null = null;
   
   $('#contenuto .inner').children().each((_, el) => {
     if (stopParsing) return false;
@@ -50,7 +52,14 @@ export function parseBlocks(
             else if (up.includes('INVITATORY') || up.includes('INVITATORIO')) currentSection = 'INVITATORY';
             else if (up.includes('READING') || up.includes('LETTURA') || up.includes('LECTIO')) currentSection = 'READING';
             else if (up.includes('RESPONSORY') || up.includes('RESPONSORIO')) currentSection = 'RESPONSORY';
-            else if (up.includes('CANTICLE') || up.includes('GOSPEL') || up.includes('MAGNIFICAT') || up.includes('BENEDICTUS') || up.includes('CANTICO')) currentSection = 'CANTICLE';
+            else if (up.includes('CANTICLE') || up.includes('GOSPEL') || up.includes('MAGNIFICAT') || up.includes('BENEDICTUS') || up.includes('CANTICO')) {
+              currentSection = 'CANTICLE';
+              // Detect which gospel canticle this is for psalmNumber stamping
+              if (up.includes('MAGNIFICAT')) currentCanticleName = 'Magnificat';
+              else if (up.includes('BENEDICTUS')) currentCanticleName = 'Benedictus';
+              else if (up.includes('NUNC')) currentCanticleName = 'Nunc dimittis';
+              // else keep previous canticleName or null
+            }
             else if (up.includes('HYMN') || up.includes('INNO') || up.includes('HYMNUS')) currentSection = 'HYMN';
             else if (up.includes('INTERCESSIONS') || up.includes('INTERCESSIONI') || up.includes('PRECES')) currentSection = 'INTERCESSIONS';
             else if (up.includes('CONCLUDING') || up.includes("LORD'S PRAYER") || up.includes('BLESSING') || up.includes('ORAZIONE') || up.includes('CONCLUSIO')) currentSection = 'CONCLUSION';
@@ -124,7 +133,12 @@ export function parseBlocks(
                if (isPsalmIntro) {
                  parsedBlocks.push({ id: generateId(), type: 'rubric', content: finalText });
                } else {
-                 parsedBlocks.push({ id: generateId(), type: 'psalm', content: finalText });
+                 const textNoNums = finalText.replace(/^\d+\s*/gm, '');
+                 const extra: Partial<Block> = {};
+                 if (currentSection === 'CANTICLE' && currentCanticleName) {
+                   extra.psalmNumber = currentCanticleName;
+                 }
+                 parsedBlocks.push({ id: generateId(), type: 'psalm', content: textNoNums, ...extra });
                }
             } else {
                parsedBlocks.push({ id: generateId(), type: 'text', content: finalText });

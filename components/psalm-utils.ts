@@ -6,6 +6,8 @@
  * be used in both client and server contexts.
  */
 
+import { englishPhoneticSyllabify } from '../lib/psalm-tones/english-phonetic';
+
 // ── Stress dictionaries ───────────────────────────────────────────────────────
 
 export const UNSTRESSED_WORDS = new Set([
@@ -23,40 +25,10 @@ export const UNSTRESSED_FIRST_SYLLS = new Set([
 // ── Syllabification ───────────────────────────────────────────────────────────
 
 /**
- * Naïve English syllabifier. Splits a single token into syllable parts.
- * Good enough for liturgical pointing of psalms.
+ * Uses the improved englishPhoneticSyllabify from psalm-tone-engine.
  */
 export function syllabify(word: string): string[] {
-  const m = word.match(/^([^a-zA-Z]*)([a-zA-Z']+)([^a-zA-Z]*)$/);
-  if (!m) return [word];
-  const [, pre, core, post] = m;
-  if (core.length <= 2) return [word];
-
-  const lower = core.toLowerCase();
-  const hasSilentE = lower.length > 2 && /[^aeiou]e$/.test(lower);
-  const work = hasSilentE ? lower.slice(0, -1) : lower;
-
-  const vRe = /[aeiouy]+/g;
-  const vowelRuns: Array<{ s: number; e: number }> = [];
-  let vm: RegExpExecArray | null;
-  while ((vm = vRe.exec(work)) !== null) vowelRuns.push({ s: vm.index, e: vm.index + vm[0].length });
-
-  if (vowelRuns.length <= 1) return [word];
-
-  const splitPts: number[] = [];
-  for (let i = 0; i < vowelRuns.length - 1; i++) {
-    const gap = work.substring(vowelRuns[i].e, vowelRuns[i + 1].s);
-    splitPts.push(gap.length <= 1 ? vowelRuns[i].e : vowelRuns[i].e + 1);
-  }
-
-  const parts: string[] = [];
-  let start = 0;
-  for (const sp of splitPts) { parts.push(core.substring(start, sp)); start = sp; }
-  parts.push(core.substring(start));
-
-  parts[0] = pre + parts[0];
-  parts[parts.length - 1] += post;
-  return parts.filter(s => s.length > 0);
+  return englishPhoneticSyllabify(word);
 }
 
 /** Return the stressed syllable index within a syllable array. */

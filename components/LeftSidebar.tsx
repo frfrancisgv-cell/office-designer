@@ -86,8 +86,8 @@ export function LeftSidebar({
             <button onClick={() => fetchIBreviary()} disabled={isLoading} className="w-full mt-2 flex items-center justify-center gap-2 p-2 bg-[#1a1a1a] hover:bg-black text-white border border-[#1a1a1a] rounded shadow-xs text-xs font-semibold transition">
               <FileDown size={14} />{isLoading ? 'Retrieving...' : 'Grab from iBreviary'}
             </button>
-            <button onClick={fetchOfflineLiturgy} disabled={isLoading} className="w-full mt-1.5 flex items-center justify-center gap-2 p-2 bg-emerald-700 hover:bg-emerald-800 text-white border border-emerald-700 rounded shadow-xs text-xs font-semibold transition disabled:opacity-50">
-              <Zap size={14} />{isLoading ? 'Generating...' : '⚡ Generate Offline (4-Wk Psalter)'}
+            <button onClick={fetchOfflineLiturgy} disabled={isLoading} className="w-full mt-2 flex items-center justify-center gap-2 p-2 bg-emerald-700 hover:bg-emerald-800 text-white border border-emerald-700 rounded shadow-xs text-xs font-semibold transition disabled:opacity-50">
+              <Zap size={14} />{isLoading ? 'Generating...' : 'Generate Office (Offline)'}
             </button>
           </div>
           <p className="text-[10px] text-[#999] leading-relaxed">Retrieves structure from iBreviary or generates offline from local 4-Week Psalter & psalm databases.</p>

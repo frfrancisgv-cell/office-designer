@@ -68,6 +68,7 @@ export function BlockEditor({
     handleLoadStressedText,
     handleLoadLatinText,
     handleRestoreIbreviaryText,
+    handleAutoPoint,
   } = useBlockPointing(block, updateBlock, finalePreps);
 
   return (
@@ -134,7 +135,7 @@ export function BlockEditor({
               ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'psalm' ? 'pl-4 -indent-4 mb-2' : ''}
               ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'psalm-prayer' ? 'mt-4 mb-2 text-justify' : ''}
               ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && (block.type === 'text' || block.type === 'antiphon') ? 'mb-1 text-justify' : ''}
-              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'hymn' ? 'pl-8 text-left mb-2' : ''}
+              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'hymn' ? 'pl-8 -indent-8 text-left mb-2' : ''}
             `}
             style={{
               color: (block.type === 'rubric' || block.type === 'heading') ? rubricColor : 'inherit',
@@ -202,7 +203,7 @@ export function BlockEditor({
                       onClick={handleLoadStressedText}
                       disabled={isLoadingStress}
                       className="text-[10px] px-2 py-0.5 bg-amber-50 border border-amber-300 text-amber-700 rounded hover:bg-amber-100 disabled:opacity-50"
-                      title={`Load stressed English text for Psalm ${block.psalmNumber} from lypsautier`}
+                      title={`Load stressed English text for ${typeof block.psalmNumber === 'number' ? 'Psalm ' : ''}${block.psalmNumber}`}
                     >
                       {isLoadingStress ? '…' : `Lypsautierant (EN)`}
                     </button>
@@ -210,7 +211,7 @@ export function BlockEditor({
                       onClick={handleLoadLatinText}
                       disabled={isLoadingLatin}
                       className="text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-300 text-emerald-700 font-medium rounded hover:bg-emerald-100 disabled:opacity-50"
-                      title={`Load Latin psalm text for Psalm ${block.psalmNumber} from local jgabc database`}
+                      title={`Load Latin text for ${typeof block.psalmNumber === 'number' ? 'Psalm ' : ''}${block.psalmNumber} (jgabc)`}
                     >
                       {isLoadingLatin ? '…' : `✝ Latin (jgabc)`}
                     </button>
@@ -267,7 +268,12 @@ export function BlockEditor({
                   {([1, 2, 3] as const).map(n => (
                     <button
                       key={n}
-                      onClick={() => setFinalePreps(n)}
+                      onClick={() => {
+                        setFinalePreps(n);
+                        if (!showPointEditor) {
+                          handleAutoPoint(n);
+                        }
+                      }}
                       className={`text-[10px] w-5 h-5 rounded font-mono ${finalePreps === n ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                       title={`Finale: ${n} italic prep syllable${n > 1 ? 's' : ''}`}
                     >

@@ -110,6 +110,103 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   if (searchParams.has('psalm')) {
     const psalmNum = searchParams.get('psalm')!;
+    
+    const canticleMatch = psalmNum.match(/^(OT|NT)\s+(\d+)$/i);
+    if (canticleMatch) {
+      if (collection === 'jgabc' || lang === 'la') {
+        const type = canticleMatch[1].toLowerCase() as 'ot' | 'nt';
+        const num = parseInt(canticleMatch[2], 10);
+        let latinFileName = '';
+        if (type === 'ot') {
+          const otMap: Record<number, string> = {
+            1: 'Canticum Trium puerorum.txt',
+            2: 'Canticum David.txt',
+            3: 'Canticum Tobiae.txt',
+            4: 'Canticum Judith.txt',
+            5: 'Canticum Isaiae 12.txt',
+            6: 'Canticum Habacuc 3, 1-6.txt',
+            7: 'Canticum Moysis.1 (Deut 32, 1-21).txt',
+            8: 'Canticum Annae.txt',
+            9: 'Canticum Ezechiae.txt',
+            10: 'Canticum Moysis (Exod).txt',
+            11: 'Canticum Annae.txt'
+          };
+          latinFileName = otMap[num] || '';
+        }
+        if (latinFileName) {
+          const p = path.join(process.cwd(), 'jgabc-psalms', latinFileName);
+          if (fs.existsSync(p)) {
+            const text = fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '').trim();
+            return NextResponse.json({
+              key: `jgabc-${type}-${num}`,
+              title: `Canticum ${type.toUpperCase()} ${num}`,
+              rawText: text,
+              lang: 'la',
+              source: 'jgabc-local',
+            });
+          }
+        }
+        // We don't have a reliable mapping to Latin jgabc files for all OT/NT canticles by number yet.
+        return NextResponse.json({ error: 'Latin canticle not mapped' }, { status: 404 });
+      }
+      const type = canticleMatch[1].toLowerCase() as 'ot' | 'nt';
+      const num = parseInt(canticleMatch[2], 10);
+      const entry = getCanticleText(type, num);
+      if (!entry) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      return NextResponse.json(cleanEntry(entry));
+    }
+
+    // Check if it's a Gospel canticle
+    const gospelMatch = psalmNum.match(/^(Magnificat|Benedictus|Nunc dimittis)$/i);
+    if (gospelMatch) {
+      if (collection === 'jgabc' || lang === 'la') {
+        const canticleName = gospelMatch[1];
+        const p = path.join(process.cwd(), 'jgabc-psalms', `${canticleName.charAt(0).toUpperCase() + canticleName.slice(1)}.txt`);
+        if (fs.existsSync(p)) {
+          const text = fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '').trim();
+          return NextResponse.json({
+            key: `jgabc-canticle-${canticleName.toLowerCase().replace(' ', '-')}`,
+            title: canticleName,
+            rawText: text,
+            lang: 'la',
+            source: 'jgabc-local',
+          });
+        }
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      } else {
+        const mappings: Record<string, string> = {
+          'benedictus': 'benedictus',
+          'magnificat': 'magnificat',
+          'nunc dimittis': 'nunc-dimittis',
+        };
+        const grailKey = mappings[gospelMatch[1].toLowerCase()];
+        if (grailKey) {
+          const entry = getPsalmText(grailKey, (collection ?? 'grail') as PsalmCollection);
+          if (entry) return NextResponse.json(cleanEntry(entry));
+          
+          // English Fallback if not found in indexed collection
+          const englishFallbacks: Record<string, string> = {
+            'benedictus': 'Bléssed be the Lórd, the Gód of Ísrael;\nhe has cóme to his péople and sét them frée.',
+            'magnificat': 'My sóul glorífies the Lórd,\nmy spírit rejóices in Gód, my Sávior.',
+            'nunc dimittis': 'Lórd, now you lét your sérvant gó in péace;\nyour wórd has béen fulfílled.'
+          };
+          const fallbackText = englishFallbacks[gospelMatch[1].toLowerCase()];
+          
+          if (fallbackText) {
+            return NextResponse.json({
+              key: `canticle-${grailKey}`,
+              title: gospelMatch[1],
+              rawText: fallbackText,
+              lang: 'en',
+              source: 'fallback'
+            });
+          }
+        }
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
+    }
+
+    // Standard psalm fallback
     if (collection === 'jgabc' || lang === 'la') {
       const latinEntry = await fetchJgabcLatinPsalm(psalmNum);
       if (latinEntry) return NextResponse.json(latinEntry);
