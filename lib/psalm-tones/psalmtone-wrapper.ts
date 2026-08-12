@@ -11,6 +11,9 @@ if (typeof global !== 'undefined') {
   (global as any).Hypher.languages['la'] = new Hypher(la);
   (global as any).Hypher.languages['en'] = new Hypher(en);
   (global as any).Hypher.languages['en-us'] = new Hypher(en);
+  if (typeof (global as any).location === 'undefined') {
+    (global as any).location = { search: '' };
+  }
 }
 
 // Use eval to prevent webpack from bundling psalmtone.js.

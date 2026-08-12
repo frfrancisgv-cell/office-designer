@@ -7,7 +7,9 @@ import { autoPointPsalm } from '@/components/psalm-utils';
 export function useBlockPointing(
   block: Block,
   updateBlock: (id: string, updates: Partial<Block>) => void,
-  finalePreps: 1 | 2 | 3
+  finalePreps: 1 | 2 | 3,
+  insertBlock?: (index: number, newBlock: Omit<Block, 'id'>) => void,
+  index?: number
 ) {
   const [showPointEditor, setShowPointEditor] = useState(false);
   const toneNames = useMemo(() => [...getToneNames(), 'Custom'], []);
@@ -109,12 +111,64 @@ export function useBlockPointing(
           customMediant: (isCustomMode || customMediant) ? customMediant : undefined,
           customTermination: (isCustomMode || customTermination) ? customTermination : undefined,
           lang: block.lang || 'en',
+          solemn: ['Magnificat', 'Benedictus', 'Nunc dimittis'].includes(String(block.psalmNumber)),
         }),
       });
       if (res.ok) {
         const data = await res.json();
         if (data.result) {
-          updateBlock(block.id, { content: data.result, originalContent: baseText });
+          if (data.gabcScore && insertBlock && index !== undefined && (block.type === 'psalm' || block.type === 'psalm-prayer')) {
+            // Split the returned HTML by newline
+            const lines = data.result.split('\n');
+            const firstVerseIdx = lines.findIndex((l: string) => l.trim().length > 0);
+            
+            if (firstVerseIdx !== -1) {
+              const firstVerseHtml = lines[firstVerseIdx];
+              lines.splice(firstVerseIdx, 1);
+              const remainingHtml = lines.join('\n');
+              
+              // Base text split (original raw text)
+              const baseLines = baseText.split('\n');
+              const baseFirstVerseIdx = baseLines.findIndex((l: string) => l.trim().length > 0);
+              const baseFirstVerse = baseFirstVerseIdx !== -1 ? baseLines[baseFirstVerseIdx] : baseText;
+              let baseRemaining = baseText;
+              if (baseFirstVerseIdx !== -1) {
+                 const newBaseLines = [...baseLines];
+                 newBaseLines.splice(baseFirstVerseIdx, 1);
+                 baseRemaining = newBaseLines.join('\n');
+              }
+              
+              // 1. Turn CURRENT block into an antiphon
+              updateBlock(block.id, {
+                type: 'antiphon',
+                content: firstVerseHtml,
+                originalContent: baseFirstVerse,
+                gabcScore: data.gabcScore,
+                psalmTone: selectedTone,
+                psalmVariant: selectedVariant
+              });
+              
+              // 2. Insert NEW block below for the rest of the psalm
+              insertBlock(index + 1, {
+                type: block.type, // remains psalm or psalm-prayer
+                content: remainingHtml,
+                originalContent: baseRemaining,
+                psalmNumber: block.psalmNumber,
+                psalmTone: selectedTone,
+                psalmVariant: selectedVariant,
+                lang: block.lang,
+                // Do not attach gabcScore to the remaining block
+              });
+              
+              setShowPointEditor(true);
+              return;
+            }
+          }
+          
+          // Fallback if no split needed
+          const updates: Partial<Block> = { content: data.result, originalContent: baseText };
+          if (data.gabcScore) updates.gabcScore = data.gabcScore;
+          updateBlock(block.id, updates);
           setShowPointEditor(true);
           return;
         }

@@ -41,7 +41,15 @@ export function parseBlocks(
             // sezione = date/service line — treat as a subheading (label row)
             parsedBlocks.push({ id: generateId(), type: 'subheading', content: rawText });
           } else if (part.includes('class="sottotitolo"') || part.includes('class="subtitle"')) {
-            // Psalm/canticle subtitle (e.g. "God stands by us in dangers") — always rubric
+            // Psalm/canticle subtitle (e.g. "God stands by us in dangers") — always rubric.
+            // Also detect canticle name here (e.g. iBreviary subtitle says "Magnificat" after
+            // a generic "GOSPEL CANTICLE" heading).
+            if (currentSection === 'CANTICLE' && !currentCanticleName) {
+              const upSub = rawText.toUpperCase();
+              if (upSub.includes('MAGNIFICAT') || upSub.includes('MARY')) currentCanticleName = 'Magnificat';
+              else if (upSub.includes('BENEDICTUS') || upSub.includes('ZECHARIAH')) currentCanticleName = 'Benedictus';
+              else if (upSub.includes('NUNC DIMITTIS') || upSub.includes('NUNC DIMITIS') || upSub.includes('SIMEON')) currentCanticleName = 'Nunc dimittis';
+            }
             parsedBlocks.push({ id: generateId(), type: 'rubric', content: rawText });
           } else if (part.includes('class="capolettera_piccolo"') || part.includes('class="titoletto"')) {
             // Major liturgical section heading (HYMN, PSALMODY, READING, etc.)
@@ -55,9 +63,9 @@ export function parseBlocks(
             else if (up.includes('CANTICLE') || up.includes('GOSPEL') || up.includes('MAGNIFICAT') || up.includes('BENEDICTUS') || up.includes('CANTICO')) {
               currentSection = 'CANTICLE';
               // Detect which gospel canticle this is for psalmNumber stamping
-              if (up.includes('MAGNIFICAT')) currentCanticleName = 'Magnificat';
-              else if (up.includes('BENEDICTUS')) currentCanticleName = 'Benedictus';
-              else if (up.includes('NUNC')) currentCanticleName = 'Nunc dimittis';
+              if (up.includes('MAGNIFICAT') || up.includes('MARY')) currentCanticleName = 'Magnificat';
+              else if (up.includes('BENEDICTUS') || up.includes('ZECHARIAH')) currentCanticleName = 'Benedictus';
+              else if (up.includes('NUNC') || up.includes('SIMEON')) currentCanticleName = 'Nunc dimittis';
               // else keep previous canticleName or null
             }
             else if (up.includes('HYMN') || up.includes('INNO') || up.includes('HYMNUS')) currentSection = 'HYMN';
@@ -126,6 +134,13 @@ export function parseBlocks(
                // Responsory text: ritornello (refrain), versetto (versicle), or plain text
                if (finalText) parsedBlocks.push({ id: generateId(), type: 'text', content: finalText });
             } else if (currentSection === 'PSALMODY' || currentSection === 'CANTICLE' || currentSection === 'INVITATORY') {
+                // Detect canticle name from any text element if not yet determined
+                if (currentSection === 'CANTICLE' && !currentCanticleName) {
+                  const upFt = finalText.toUpperCase();
+                  if (upFt.includes('MAGNIFICAT') || upFt.includes('MARY')) currentCanticleName = 'Magnificat';
+                  else if (upFt.includes('BENEDICTUS') || upFt.includes('ZECHARIAH')) currentCanticleName = 'Benedictus';
+                  else if (upFt.includes('NUNC DIMITTIS') || upFt.includes('NUNC DIMITIS') || upFt.includes('SIMEON')) currentCanticleName = 'Nunc dimittis';
+                }
                 // Psalm/canticle intro lines → rubric (not psalm text)
                  const isPsalmIntro = /^(Psalm |Canticle[: ]|Luke |Col |Eph |Phil |Rev |Ap |Dan |Is |Jer |Hab |Ez |Ex |Deut |Sam |Chr |Tob |Jud |Wis |Sir |I{1,3}V?\s*$|IV\s*$|\d+:\d)/i.test(finalText)
                   || (finalText.length < 80 && /^[A-Z][a-z]+ \d|^\d+[,.]\d/.test(finalText))
@@ -134,6 +149,17 @@ export function parseBlocks(
                  parsedBlocks.push({ id: generateId(), type: 'rubric', content: finalText });
                } else {
                  const textNoNums = finalText.replace(/^\d+\s*/gm, '');
+                 // Last-resort: detect canticle from opening verse content
+                 if (currentSection === 'CANTICLE' && !currentCanticleName) {
+                   const opening = textNoNums.slice(0, 80).toUpperCase();
+                   if (opening.includes('MAGNIFICAT') || opening.includes('MY SOUL GLORIFIES') || opening.includes('MY SOUL PROCLAIMS') || opening.includes('MY SOUL MAGNIF')) {
+                     currentCanticleName = 'Magnificat';
+                   } else if (opening.includes('BENEDICTUS') || opening.includes('BLESSED BE THE LORD') || opening.includes('BLESSED BE GOD')) {
+                     currentCanticleName = 'Benedictus';
+                   } else if (opening.includes('NUNC') || opening.includes('LORD, NOW') || opening.includes('LORD NOW LET')) {
+                     currentCanticleName = 'Nunc dimittis';
+                   }
+                 }
                  const extra: Partial<Block> = {};
                  if (currentSection === 'CANTICLE' && currentCanticleName) {
                    extra.psalmNumber = currentCanticleName;

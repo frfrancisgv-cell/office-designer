@@ -18,6 +18,15 @@ export function useOfficeBlocks(initialBlocks: Block[] = []) {
     });
   }, [insertAfterIdx]);
 
+  const insertBlock = useCallback((index: number, newBlockData: Omit<Block, 'id'>) => {
+    setBlocks(current => {
+      const newBlock: Block = { id: generateId(), ...newBlockData };
+      const newBlocks = [...current];
+      newBlocks.splice(index, 0, newBlock);
+      return newBlocks;
+    });
+  }, []);
+
   const updateBlock = useCallback((id: string, updates: Partial<Block>) => {
     setBlocks(current => current.map(b => b.id === id ? { ...b, ...updates } : b));
   }, []);
@@ -113,11 +122,8 @@ export function useOfficeBlocks(initialBlocks: Block[] = []) {
   return {
     blocks,
     setBlocks,
-    insertAfterIdx,
-    setInsertAfterIdx,
-    addBlock,
-    updateBlock,
-    removeBlock,
+    insertAfterIdx, setInsertAfterIdx,
+    addBlock, insertBlock, updateBlock, removeBlock,
     deleteSection,
     moveSection,
     moveBlock,

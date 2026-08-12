@@ -19,6 +19,7 @@ interface BlockEditorProps {
   total: number;
   rubricColor: string;
   updateBlock: (id: string, updates: Partial<Block>) => void;
+  insertBlock?: (index: number, newBlockData: Omit<Block, 'id'>) => void;
   removeBlock: (id: string) => void;
   moveBlock: (index: number, direction: 'up' | 'down') => void;
   reorderBlock: (sourceIndex: number, destIndex: number) => void;
@@ -35,6 +36,7 @@ export function BlockEditor({
   total,
   rubricColor,
   updateBlock,
+  insertBlock,
   removeBlock,
   moveBlock,
   reorderBlock,
@@ -69,7 +71,7 @@ export function BlockEditor({
     handleLoadLatinText,
     handleRestoreIbreviaryText,
     handleAutoPoint,
-  } = useBlockPointing(block, updateBlock, finalePreps);
+  } = useBlockPointing(block, updateBlock, finalePreps, insertBlock, index);
 
   return (
     <div
@@ -301,7 +303,7 @@ export function BlockEditor({
             </div>
           )}
 
-          {block.type === 'psalm' && showPointEditor && (
+          {block.type === 'psalm' && showPointEditor && block.lang !== 'la' && (
             <PsalmSyllableEditor
               content={block.content}
               finalePreps={finalePreps}
@@ -309,8 +311,8 @@ export function BlockEditor({
             />
           )}
 
-          {/* GABC score panel */}
-          {(block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon') && (
+          {/* GABC Text Editor */}
+          {(block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon' || ((block.type === 'psalm' || block.type === 'psalm-prayer') && (showPointEditor || block.gabcScore))) && (
             <div className={`no-print mt-2 p-2 bg-gray-50 border border-gray-100 rounded transition-all ${isActive ? 'block opacity-100' : 'hidden opacity-0'}`}>
               <label className="text-[10px] uppercase font-bold text-gray-500 mb-1 block">GABC Score</label>
 
@@ -380,13 +382,13 @@ export function BlockEditor({
           )}
 
           {/* GABC SVG render */}
-          {(block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon') &&
+          {(block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon' || block.type === 'psalm' || block.type === 'psalm-prayer') &&
             block.gabcScore && !block.musicDataUri && (
               <GabcRenderer gabc={block.gabcScore} />
             )}
 
           {/* Uploaded image score */}
-          {(block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon') &&
+          {(block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon' || block.type === 'psalm' || block.type === 'psalm-prayer') &&
             block.musicDataUri && (
               <div className="relative group/img text-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}

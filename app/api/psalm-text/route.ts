@@ -51,10 +51,12 @@ function getLocalLatinPsalm(hebrewNumStr: string) {
         .filter(Boolean)
         .join('\n');
 
+      const doxology = "\n\nGlória Patri, et Fílio, * et Spirítui Sancto.\nSicut erat in princípio, et nunc, et semper, * et in sǽcula sæculórum. Amen.";
+
       return {
         key: `jgabc-psalm-${hebrewNumStr}`,
         title: `Psalmus ${vulgateNum}`,
-        rawText: cleanText,
+        rawText: cleanText + doxology,
         lang: 'la',
         source: 'jgabc-local',
       };
@@ -84,10 +86,12 @@ async function fetchJgabcLatinPsalm(hebrewNumStr: string) {
       .filter(Boolean)
       .join('\n');
       
+    const doxology = "\n\nGlória Patri, et Fílio, * et Spirítui Sancto.\nSicut erat in princípio, et nunc, et semper, * et in sǽcula sæculórum. Amen.";
+
     return {
       key: `jgabc-psalm-${hebrewNumStr}`,
       title: `Psalmus ${vulgateNum}`,
-      rawText: cleanText,
+      rawText: cleanText + doxology,
       lang: 'la',
       source: 'jgabc-remote',
     };
@@ -137,10 +141,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           const p = path.join(process.cwd(), 'jgabc-psalms', latinFileName);
           if (fs.existsSync(p)) {
             const text = fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '').trim();
+            const hasSpecialDoxology = latinFileName === 'Canticum Trium puerorum.txt';
+            const doxology = hasSpecialDoxology ? '' : "\n\nGlória Patri, et Fílio, * et Spirítui Sancto.\nSicut erat in princípio, et nunc, et semper, * et in sǽcula sæculórum. Amen.";
             return NextResponse.json({
               key: `jgabc-${type}-${num}`,
               title: `Canticum ${type.toUpperCase()} ${num}`,
-              rawText: text,
+              rawText: text + doxology,
               lang: 'la',
               source: 'jgabc-local',
             });
@@ -164,10 +170,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const p = path.join(process.cwd(), 'jgabc-psalms', `${canticleName.charAt(0).toUpperCase() + canticleName.slice(1)}.txt`);
         if (fs.existsSync(p)) {
           const text = fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '').trim();
+          const doxology = "\n\nGlória Patri, et Fílio, * et Spirítui Sancto.\nSicut erat in princípio, et nunc, et semper, * et in sǽcula sæculórum. Amen.";
           return NextResponse.json({
             key: `jgabc-canticle-${canticleName.toLowerCase().replace(' ', '-')}`,
             title: canticleName,
-            rawText: text,
+            rawText: text + doxology,
             lang: 'la',
             source: 'jgabc-local',
           });

@@ -13,7 +13,7 @@ export default function OfficeEditor() {
   const {
     blocks, setBlocks,
     insertAfterIdx, setInsertAfterIdx,
-    addBlock, updateBlock, removeBlock,
+    addBlock, insertBlock, updateBlock, removeBlock,
     deleteSection, moveSection, moveBlock, reorderBlock,
     uploadMusicScore
   } = useOfficeBlocks();
@@ -229,7 +229,7 @@ export default function OfficeEditor() {
                     <BlockEditor
                       block={block} index={idx} total={blocks.length}
                       rubricColor={settings.rubricColor}
-                      updateBlock={updateBlock} removeBlock={removeBlock}
+                      updateBlock={updateBlock} insertBlock={insertBlock} removeBlock={removeBlock}
                       moveBlock={moveBlock} reorderBlock={reorderBlock}
                       uploadMusicScore={uploadMusicScore}
                       finalePreps={finalePreps} setFinalePreps={setFinalePreps}

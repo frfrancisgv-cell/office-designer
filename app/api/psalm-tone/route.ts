@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToneNames, getVariants, PSALM_TONES } from '@/lib/psalm-tones/tone-data';
 import { parseToneFromAnnotation } from '@/lib/psalm-tones/parse-annotation';
 import { pointPsalm } from '@/lib/psalm-tones/psalm-tone-engine';
+import { applyPsalmTone } from '@/lib/psalm-tones/psalmtone-wrapper';
 
 /**
  * POST /api/psalm-tone
@@ -79,7 +80,53 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         lang: (lang === 'la' ? 'la' : 'en'),
         solemn: Boolean(solemn),
       });
-      return NextResponse.json({ result: pointed });
+
+      // Generate GABC for the first verse (first non-empty line)
+      let gabcScore = '';
+      const lines = String(text).split('\n');
+      const firstVerseLine = lines.find(line => line.trim().length > 0) || '';
+      
+      if (firstVerseLine) {
+        try {
+          const spec = tone ? PSALM_TONES[String(tone)] : undefined;
+          let med = customMediant ? String(customMediant) : '';
+          let term = customTermination ? String(customTermination) : '';
+          
+          if (!med && !term && spec) {
+            med = (Boolean(solemn) && spec.solemn) ? spec.solemn : spec.mediant;
+            term = spec.terminations ? (spec.terminations[String(variant)] || Object.values(spec.terminations)[0] || spec.mediant) : (spec.termination || spec.mediant);
+          }
+          
+          const clef = spec?.clef || 'c4';
+          const textLanguage = lang === 'la' ? 'la' : 'en';
+
+          // Split the text into mediant and termination halves based on `*`
+          const parts = firstVerseLine.split('*');
+          
+          if (parts.length > 1) {
+            // It has an asterisk
+            const p1 = parts[0].trim();
+            const p2 = parts[1].trim();
+            
+            const gabc1 = applyPsalmTone({ text: p1, gabc: med, clef, useBoldItalic: false, lang: textLanguage });
+            const gabc2 = applyPsalmTone({ text: p2, gabc: term, clef, useBoldItalic: false, lang: textLanguage });
+            
+            if (gabc1 && gabc2) {
+              gabcScore = `(${clef}) ${gabc1} *(:) ${gabc2}`;
+            }
+          } else {
+            // No asterisk, just apply mediant
+            const gabc1 = applyPsalmTone({ text: firstVerseLine.trim(), gabc: med, clef, useBoldItalic: false, lang: textLanguage });
+            if (gabc1) {
+              gabcScore = `(${clef}) ${gabc1}`;
+            }
+          }
+        } catch (err) {
+          console.warn('[psalm-tone] Failed to generate first verse GABC:', err);
+        }
+      }
+
+      return NextResponse.json({ result: pointed, gabcScore });
     } catch (e) {
       console.error('[psalm-tone] pointPsalm error:', e);
       return NextResponse.json({ error: 'Pointing failed: ' + (e instanceof Error ? e.message : String(e)) }, { status: 500 });
