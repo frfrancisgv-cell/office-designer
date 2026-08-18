@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Block, GabcCandidate } from '@/lib/types';
 import { ChevronUp, ChevronDown, Trash2, GripVertical } from 'lucide-react';
 import { PsalmSyllableEditor } from './PsalmSyllableEditor';
@@ -47,6 +47,69 @@ export function BlockEditor({
   onClick,
 }: BlockEditorProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // ── Lypsautierant panel state ──
+  const [showLypsPanel, setShowLypsPanel] = useState(false);
+  const [lypsFamily, setLypsFamily] = useState<string>(block.lypsautierantFamily ?? 'english');
+  const [lypsMode, setLypsMode] = useState<string>(block.lypsautierantMode ?? 'eight');
+  const [lypsVariation, setLypsVariation] = useState<string>(block.lypsautierantVariation ?? 'a');
+  const [lypsVariations, setLypsVariations] = useState<string[]>([]);
+  const [isApplyingLyps, setIsApplyingLyps] = useState(false);
+
+  // Fetch available variations when family/mode changes
+  useEffect(() => {
+    if (!showLypsPanel) return;
+    fetch('/api/lypsautierant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'variations', family: lypsFamily, mode: lypsMode }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        const vars: string[] = data.variations ?? [];
+        setLypsVariations(vars);
+        if (!vars.includes(lypsVariation)) setLypsVariation(vars[0] ?? '');
+      })
+      .catch(console.error);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lypsFamily, lypsMode, showLypsPanel]);
+
+  async function handleApplyLypsautierant() {
+    setIsApplyingLyps(true);
+    try {
+      // Use current block content as text source
+      // Strip any existing HTML tags to get plain text
+      const plainText = block.content.replace(/<[^>]+>/g, '');
+      const res = await fetch('/api/lypsautierant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'point',
+          text: plainText,
+          family: lypsFamily,
+          mode: lypsMode,
+          variation: lypsVariation,
+        }),
+      });
+      const data = await res.json();
+      if (data.html) {
+        // Store original if not already stored
+        const original = block.originalContent ?? block.content;
+        updateBlock(block.id, {
+          content: data.html,
+          originalContent: original,
+          lypsautierantFamily: lypsFamily,
+          lypsautierantMode: lypsMode,
+          lypsautierantVariation: lypsVariation,
+          lypsautierantLatex: data.latex,
+        });
+      }
+    } catch (err) {
+      console.error('Lypsautierant apply error:', err);
+    } finally {
+      setIsApplyingLyps(false);
+    }
+  }
 
   const {
     showPointEditor,
@@ -231,6 +294,17 @@ export function BlockEditor({
 
               </div>
 
+              {/* ── Lypsautierant toggle button ── */}
+              <button
+                onClick={() => setShowLypsPanel(v => !v)}
+                className={`text-[10px] px-1.5 py-0.5 border rounded transition-colors ${
+                  showLypsPanel ? 'bg-orange-600 text-white border-orange-600 font-semibold' : 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
+                }`}
+                title="Toggle Lypsautierant mode pointing panel"
+              >
+                {showLypsPanel ? 'Hide Lyps' : '♩ Lypsautierant'}
+              </button>
+
               {/* ── Custom Tone GABC formulas panel ── */}
               {showCustomTonePanel && (
                 <div className="w-full mt-1.5 p-2 bg-purple-50/80 border border-purple-200 rounded flex flex-col gap-1.5 text-[11px] no-print">
@@ -260,6 +334,64 @@ export function BlockEditor({
                       className="flex-1 font-mono text-[10px] px-2 py-0.5 border border-purple-300 rounded bg-white text-purple-950 focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
                   </div>
+                </div>
+              )}
+
+              {/* ── Lypsautierant mode panel ── */}
+              {showLypsPanel && (
+                <div className="w-full mt-1.5 p-2 bg-orange-50/80 border border-orange-200 rounded flex flex-col gap-2 text-[11px] no-print">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Family */}
+                    <label className="text-[10px] font-semibold text-orange-900 shrink-0">Family:</label>
+                    <select
+                      value={lypsFamily}
+                      onChange={e => setLypsFamily(e.target.value)}
+                      className="text-[10px] px-1.5 py-0.5 border border-orange-300 rounded bg-white text-orange-950 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    >
+                      <option value="english">english</option>
+                      <option value="gregorian">gregorian</option>
+                      <option value="modes">modes</option>
+                      <option value="french">french</option>
+                    </select>
+
+                    {/* Mode */}
+                    <label className="text-[10px] font-semibold text-orange-900 shrink-0">Mode:</label>
+                    <select
+                      value={lypsMode}
+                      onChange={e => setLypsMode(e.target.value)}
+                      className="text-[10px] px-1.5 py-0.5 border border-orange-300 rounded bg-white text-orange-950 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    >
+                      {['one','two','three','four','five','six','seven','eight','peregrinus'].map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+
+                    {/* Variation */}
+                    <label className="text-[10px] font-semibold text-orange-900 shrink-0">Variation:</label>
+                    <select
+                      value={lypsVariation}
+                      onChange={e => setLypsVariation(e.target.value)}
+                      className="text-[10px] px-1.5 py-0.5 border border-orange-300 rounded bg-white text-orange-950 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    >
+                      {lypsVariations.map(v => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+
+                    <button
+                      onClick={handleApplyLypsautierant}
+                      disabled={isApplyingLyps || !lypsVariation}
+                      className="text-[10px] px-2 py-0.5 bg-orange-600 border border-orange-600 text-white font-semibold rounded hover:bg-orange-700 disabled:opacity-50"
+                      title={`Apply ${lypsFamily}/${lypsMode}/${lypsVariation} pointing`}
+                    >
+                      {isApplyingLyps ? '…' : 'Apply Lypsautierant'}
+                    </button>
+                  </div>
+                  {(lypsFamily === 'english' || lypsFamily === 'gregorian') && !block.ibreviaryContent && (
+                    <p className="text-[9px] text-orange-600 italic">
+                      ⓘ Accent-aware families work best with pre-stressed text. Load it via the &ldquo;Lypsautierant (EN)&rdquo; button above.
+                    </p>
+                  )}
                 </div>
               )}
 

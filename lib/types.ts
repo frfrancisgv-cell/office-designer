@@ -47,6 +47,14 @@ export interface Block {
   ibreviaryContent?: string;
   /** Language for pointing engine ('en' | 'la') */
   lang?: 'en' | 'la';
+  /** Lypsautierant mode family ('modes'|'french'|'english'|'gregorian') */
+  lypsautierantFamily?: string;
+  /** Lypsautierant mode name ('one'|'two'|...|'peregrinus') */
+  lypsautierantMode?: string;
+  /** Lypsautierant termination variation ('a'|'b'|'a_prime'|...) */
+  lypsautierantVariation?: string;
+  /** Stored lypsautierant pointed output (LaTeX string) for PDF export */
+  lypsautierantLatex?: string;
 }
 
 
