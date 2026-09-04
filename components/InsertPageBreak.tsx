@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react';
 
 export function InsertPageBreak({ onInsert }: { onInsert: () => void }) {
   return (
-    <div className="relative h-2 group/ins no-print flex items-center">
+    <div className="relative h-1 group/ins no-print flex items-center">
       <button
         onClick={onInsert}
         className="absolute inset-x-0 flex items-center justify-center opacity-0 group-hover/ins:opacity-100 transition-opacity"

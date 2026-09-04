@@ -23,18 +23,18 @@
  *      - Post-accentual notes (after last accent) do NOT count as preparatory
  *   2. If text has no markers (* / †), inferMediants() inserts them per line structure.
  *   3. Process line-by-line: each colon is pointed independently with its assigned cadence.
- *   4. Syllabification uses Hypher (TeX Liang) while preserving acute-accent stress marks.
+ *   4. Syllabification (syllabifyWord) preserves acute-accent stress marks:
+ *      Latin uses regexLatin, scraped from psalmtone.js; English uses
+ *      englishPhoneticSyllabify from ./english-phonetic.
  */
-
-const Hypher = require('hypher');
-const enUs = require('hyphenation.en-us');
-
-
-const hypherEn = new Hypher(enUs);
 
 import { PSALM_TONES, ToneSpec } from './tone-data';
 
 import { englishPhoneticSyllabify, inferEnglishWordStress } from './english-phonetic';
+// stripPointing lives in ./strip so client code can use it without pulling
+// this module in — it reads psalmtone.js off disk at import time.
+import { stripPointing } from './strip';
+export { stripPointing };
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface GabcToneCounts {
@@ -356,6 +356,15 @@ export function inferMediants(text: string): string {
 
 // ─── Full Psalm Pointing ───────────────────────────────────────────────────────
 
+/**
+ * Prefix on the error pointPsalm throws when it has no GABC formula to point
+ * with. Callers use it to tell "you asked for something impossible" (a 400)
+ * apart from "the engine broke" (a 500). It used to return the text unchanged,
+ * so the API answered 200 with the *unpointed* psalm and the UI happily
+ * displayed it as though the tone had been applied.
+ */
+export const NO_FORMULA_PREFIX = 'No tone formula: ';
+
 export interface PointingParams {
   text: string;
   tone?: string;
@@ -366,17 +375,7 @@ export interface PointingParams {
   solemn?: boolean;
 }
 
-/**
- * Strip all HTML pointing tags (<strong>, <em>) and clean up formatting.
- */
-export function stripPointing(text: string): string {
-  if (!text) return '';
-  return text
-    .replace(/<\/?(strong|em|b|i)[^>]*>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, '\u00a0');
-}
+
 
 /**
  * Point an entire psalm block using Gregorian tone cadences.
@@ -393,16 +392,23 @@ export function pointPsalm(params: PointingParams): string {
   const { text, tone, variant = '', customMediant, customTermination, lang, solemn = false } = params;
   const spec: ToneSpec | undefined = tone ? PSALM_TONES[tone] : undefined;
 
-  const mediStr = customMediant
+  // Trim before testing: a custom GABC field the user cleared but left a
+  // space in is truthy, and used to slip past the emptiness check below to
+  // produce a formula with no accents — i.e. the psalm came back unpointed.
+  const mediStr = (customMediant?.trim()
     || ((solemn && spec?.solemn) ? spec.solemn : spec?.mediant)
-    || '';
-  const termStr = customTermination
+    || '').trim();
+  const termStr = (customTermination?.trim()
     || (spec?.terminations
       ? (spec.terminations[variant] ?? Object.values(spec.terminations)[0] ?? spec.mediant)
       : spec?.termination)
-    || mediStr;
+    || mediStr).trim();
 
-  if (!mediStr && !termStr) return text;
+  if (!mediStr && !termStr) {
+    throw new Error(
+      `${NO_FORMULA_PREFIX}${tone ? `tone "${tone}"${variant ? ` variant "${variant}"` : ''} has no mediant or termination GABC` : 'no tone was given and both custom formulas are blank'}.`
+    );
+  }
 
   const mediCounts = parseGabcToneCounts(mediStr);
   const termCounts = parseGabcToneCounts(termStr);

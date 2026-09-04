@@ -27,6 +27,11 @@ export interface LatexJob {
   texContent: string;
   /** Map of filename → content for auxiliary files (e.g. .gabc scores) */
   auxFiles: Record<string, string>;
+  /**
+   * Map of filename → base64 payload for binary files (uploaded score
+   * images). Kept apart from auxFiles so precompileGabc never sees them.
+   */
+  binaryFiles?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,11 +108,14 @@ export async function renderPdf(job: LatexJob): Promise<Buffer> {
 
   try {
     // Write auxiliary files (.gabc scores, etc.)
-    await Promise.all(
-      Object.entries(job.auxFiles).map(([filename, content]) =>
+    await Promise.all([
+      ...Object.entries(job.auxFiles).map(([filename, content]) =>
         writeFile(join(tmpDir, filename), content, 'utf8'),
       ),
-    );
+      ...Object.entries(job.binaryFiles ?? {}).map(([filename, base64]) =>
+        writeFile(join(tmpDir, filename), base64, 'base64'),
+      ),
+    ]);
 
     // Write the main .tex file
     const texFile = 'office.tex';

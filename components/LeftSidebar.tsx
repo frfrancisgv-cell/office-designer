@@ -1,6 +1,6 @@
 import React from 'react';
 import { PaperSize, OfficeSettings, BlockType } from '@/lib/types';
-import { FileDown, Printer, Zap, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileDown, Printer, Zap, Plus } from 'lucide-react';
 
 interface LeftSidebarProps {
   selectedDate: string;
@@ -22,6 +22,8 @@ interface LeftSidebarProps {
   handleDownloadTex: () => Promise<void>;
   isPdfLoading: boolean;
   hasBlocks: boolean;
+  isCollapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
 export function LeftSidebar({
@@ -32,10 +34,22 @@ export function LeftSidebar({
   fetchIBreviary, fetchOfflineLiturgy, isLoading,
   settings, setSettings,
   addBlock,
-  handleServerPdf, handleDownloadTex, isPdfLoading, hasBlocks
+  handleServerPdf, handleDownloadTex, isPdfLoading, hasBlocks,
+  isCollapsed, onToggleCollapsed
 }: LeftSidebarProps) {
   return (
-    <div className="w-72 fixed left-0 top-0 bottom-0 bg-[#fafafa] border-r border-[#e5e5e5] h-screen overflow-y-auto flex flex-col no-print z-40">
+    <div className={`${isCollapsed ? 'w-12 overflow-hidden' : 'w-72 overflow-y-auto'} fixed left-0 top-0 bottom-0 bg-[#fafafa] border-r border-[#e5e5e5] h-screen flex flex-col no-print z-40 transition-[width] duration-200`}>
+      {isCollapsed ? (
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          className="m-2 flex h-8 w-8 items-center justify-center rounded border border-[#ddd] bg-white text-[#666] shadow-sm hover:bg-[#f0f0f0] hover:text-[#111]"
+          aria-label="Expand Office Layout sidebar"
+          title="Expand Office Layout"
+        >
+          <ChevronRight size={18} />
+        </button>
+      ) : <>
       <div className="p-4 flex items-center justify-between border-b border-[#eee] bg-white">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-[#c00] rounded-sm flex items-center justify-center text-white font-serif italic text-xl">O</div>
@@ -44,6 +58,15 @@ export function LeftSidebar({
             <p className="text-[10px] text-[#888] uppercase tracking-widest">Booklet Editor</p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded text-[#777] hover:bg-[#f0f0f0] hover:text-[#111]"
+          aria-label="Collapse Office Layout sidebar"
+          title="Collapse sidebar"
+        >
+          <ChevronLeft size={18} />
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         <div className="space-y-3">
@@ -113,7 +136,17 @@ export function LeftSidebar({
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-2">
               <label className="text-[11px] font-semibold text-[#444] block">Font Size (pt)</label>
-              <input type="number" value={settings.baseFontSize} onChange={e => setSettings({ ...settings, baseFontSize: parseInt(e.target.value) })} className="w-full border border-[#ddd] p-2 text-sm rounded focus:ring-0 bg-white" />
+              {/* Only the sizes extarticle implements; anything else is
+                  snapped to the nearest of these by the PDF renderer. */}
+              <select
+                value={settings.baseFontSize}
+                onChange={e => setSettings({ ...settings, baseFontSize: parseInt(e.target.value, 10) })}
+                className="w-full border border-[#ddd] p-2 text-sm rounded focus:ring-0 bg-white"
+              >
+                {[8, 9, 10, 11, 12, 14, 17, 20].map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
             </div>
             <div className="space-y-2">
               <label className="text-[11px] font-semibold text-[#444] block">Typography</label>
@@ -146,6 +179,7 @@ export function LeftSidebar({
           <FileDown size={14} /> Download .tex source
         </button>
       </div>
+      </>}
     </div>
   );
 }

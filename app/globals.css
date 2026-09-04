@@ -1,14 +1,84 @@
 @import "tailwindcss";
 
+/* --font-serif and --font-sans are set on <html> by next/font in
+   app/layout.tsx (EB Garamond and Inter). These used to read
+   `--font-serif: var(--font-serif)`, which is self-referential and resolves
+   to nothing, so the Typography selector had no visible effect at all.
+   The trailing stacks are what renders before the webfont arrives. */
 @theme {
-  --font-serif: var(--font-serif);
-  --font-sans: var(--font-sans);
+  --font-serif: var(--font-eb-garamond), Georgia, 'Times New Roman', serif;
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
 }
 
 @layer utilities {
   .text-rubric {
     @apply text-[#C00000] italic;
   }
+}
+
+/* ── Lypsautierant psalm pointing ─────────────────────────────────────────
+   Marks sit centred UNDERNEATH their syllable, as psautier/psalter.sty sets
+   them with \oalign. The wrapper is an inline-flex column so its baseline is
+   the syllable's baseline, keeping pointed and unpointed words on the same
+   line; the mark rows then add their height below it, uniformly for every
+   line of a pointed psalm.
+
+   A syllable may carry more than one mark row: the rules sometimes re-mark a
+   syllable that is already marked, which in print nests one \oalign inside
+   another. Marks are not selectable, so copying a psalm yields clean text. */
+.lyps-pt {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  /* Keep pointing wrappers independent of any text-indent inherited from
+     pasted or user-authored content. */
+  text-indent: 0;
+}
+
+.lyps-mk {
+  font-size: 0.5em;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-top: 0.05em;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Verse number, set in the margin by \flagverse. */
+.lyps-verse {
+  font-size: 0.65em;
+  vertical-align: super;
+  color: #777;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Mediant asterisk and the flex dagger. */
+.lyps-star {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lyps-flex {
+  font-size: 0.7em;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* \rule{2ex}{.5pt} — a short lengthening stroke after a syllable. */
+.lyps-rule {
+  display: inline-block;
+  width: 1em;
+  border-bottom: 1px solid currentColor;
+  vertical-align: 0.25em;
+}
+
+/* "* * *", which divides a long psalm into portions. */
+.lyps-divider {
+  letter-spacing: 0.4em;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 @media print {

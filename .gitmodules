@@ -1,0 +1,4 @@
+[submodule "lypsautierant"]
+	path = lypsautierant
+	url = https://github.com/frfrancisgv-cell/lypsautierant.git
+	branch = master

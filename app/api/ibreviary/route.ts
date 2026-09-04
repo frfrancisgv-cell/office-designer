@@ -72,7 +72,6 @@ export async function GET(request: NextRequest) {
 
     const mainHtml = await mainResponse.text();
     const html = await response.text();
-    const laHtml = ''; // Can be fetched if needed using sessions.laFetchHeaders
 
     if (!html.includes('<div id="contenuto">')) {
       throw new Error('Could not find content container in the returned HTML.');
@@ -108,7 +107,6 @@ export async function GET(request: NextRequest) {
     // Call the populateGabc module to attach GABC notation where possible
     const enrichedBlocks = await populateGabc(
       finalBlocks,
-      laHtml,
       hour,
       ctx.occasionCode,
       ctx.otWeekNum,

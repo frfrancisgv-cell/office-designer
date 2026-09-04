@@ -33,7 +33,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Build LaTeX source
-  const { texContent, gabcFiles } = buildLatexDocument(blocks, settings);
+  const { texContent, gabcFiles, imageFiles } = buildLatexDocument(blocks, settings);
 
   // Return raw .tex + .gabc files as a zip-like text bundle when format=tex
   if (format === 'tex') {
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Run lualatex
   let pdfBuffer: Buffer;
   try {
-    pdfBuffer = await renderPdf({ texContent, auxFiles: gabcFiles });
+    pdfBuffer = await renderPdf({ texContent, auxFiles: gabcFiles, binaryFiles: imageFiles });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[api/pdf] lualatex error:', message);

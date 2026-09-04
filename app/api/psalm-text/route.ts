@@ -21,7 +21,12 @@ function cleanEntry(entry: any) {
 }
 
 function hebrewToVulgate(psalm: number | string): number {
-  const n = parseInt(String(psalm).replace(/\D/g, ''), 10);
+  // Take the LEADING integer only. psalmNumber may be a subdivision such as
+  // "119.1-8" (see lib/types.ts and propagate.ts); stripping all non-digits
+  // turned that into 11918, which fell into the n >= 148 branch and looked
+  // for a psalm file that cannot exist. Every subdivided psalm's Latin text
+  // was therefore unreachable.
+  const n = parseInt(String(psalm).match(/\d+/)?.[0] ?? '', 10);
   if (isNaN(n)) return 1;
   if (n <= 8) return n;
   if (n >= 10 && n <= 113) return n - 1;
@@ -110,6 +115,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const collection = searchParams.get('collection');
+  // `collection` may legitimately be 'jgabc', which is a *source* of Latin
+  // text and not one of the indexed English collections. Narrowing it here
+  // keeps that value from being cast straight into getPsalmText, where it
+  // matched nothing and the caller saw a bare 404.
+  const englishCollection: PsalmCollection = collection === 'abbey' ? 'abbey' : 'grail';
   const lang = searchParams.get('lang');
 
   if (searchParams.has('psalm')) {
@@ -153,12 +163,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           }
         }
         // We don't have a reliable mapping to Latin jgabc files for all OT/NT canticles by number yet.
-        return NextResponse.json({ error: 'Latin canticle not mapped' }, { status: 404 });
+        return NextResponse.json({ error: `Canticle ${psalmNum} has no Latin text mapped yet` }, { status: 404 });
       }
       const type = canticleMatch[1].toLowerCase() as 'ot' | 'nt';
       const num = parseInt(canticleMatch[2], 10);
       const entry = getCanticleText(type, num);
-      if (!entry) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      if (!entry) return NextResponse.json({ error: `No text for canticle ${type.toUpperCase()} ${num}` }, { status: 404 });
       return NextResponse.json(cleanEntry(entry));
     }
 
@@ -179,7 +189,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             source: 'jgabc-local',
           });
         }
-        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+        return NextResponse.json({ error: `No Latin text on file for ${canticleName}` }, { status: 404 });
       } else {
         const mappings: Record<string, string> = {
           'benedictus': 'benedictus',
@@ -188,7 +198,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         };
         const grailKey = mappings[gospelMatch[1].toLowerCase()];
         if (grailKey) {
-          const entry = getPsalmText(grailKey, (collection ?? 'grail') as PsalmCollection);
+          const entry = getPsalmText(grailKey, englishCollection);
           if (entry) return NextResponse.json(cleanEntry(entry));
           
           // English Fallback if not found in indexed collection
@@ -209,7 +219,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             });
           }
         }
-        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+        return NextResponse.json({ error: `No English text for ${gospelMatch[1]}` }, { status: 404 });
       }
     }
 
@@ -217,27 +227,31 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (collection === 'jgabc' || lang === 'la') {
       const latinEntry = await fetchJgabcLatinPsalm(psalmNum);
       if (latinEntry) return NextResponse.json(latinEntry);
+      // Do not fall through to the English index. The caller asked for Latin
+      // and marks the block lang='la' on any 200, so an English psalm handed
+      // back here was pointed and typeset as though it were Latin.
+      return NextResponse.json({ error: `No Latin text on file for Psalm ${psalmNum}` }, { status: 404 });
     }
-    const entry = getPsalmText(psalmNum, (collection ?? 'grail') as PsalmCollection);
-    if (!entry) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const entry = getPsalmText(psalmNum, englishCollection);
+    if (!entry) return NextResponse.json({ error: `No ${englishCollection} text for Psalm ${psalmNum}` }, { status: 404 });
     return NextResponse.json(cleanEntry(entry));
   }
 
   if (searchParams.has('key')) {
     const entry = getEntryByKey(searchParams.get('key')!);
-    if (!entry) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (!entry) return NextResponse.json({ error: `No entry for key "${searchParams.get('key')}"` }, { status: 404 });
     return NextResponse.json(cleanEntry(entry));
   }
 
   if (searchParams.has('ot')) {
     const entry = getCanticleText('ot', parseInt(searchParams.get('ot')!, 10));
-    if (!entry) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (!entry) return NextResponse.json({ error: `No text for canticle OT ${searchParams.get('ot')}` }, { status: 404 });
     return NextResponse.json(cleanEntry(entry));
   }
 
   if (searchParams.has('nt')) {
     const entry = getCanticleText('nt', parseInt(searchParams.get('nt')!, 10));
-    if (!entry) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (!entry) return NextResponse.json({ error: `No text for canticle NT ${searchParams.get('nt')}` }, { status: 404 });
     return NextResponse.json(cleanEntry(entry));
   }
 

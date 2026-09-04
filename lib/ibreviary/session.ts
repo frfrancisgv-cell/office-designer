@@ -58,10 +58,7 @@ export async function getIBreviarySessions(
   // 1) Fetch main language cookie
   const cookieStr = await fetchSessionCookie(lang, day, month, year);
 
-  // 2) Fetch Latin cookie for GABC notes
-  const laCookieStr = await fetchSessionCookie('la', day, month, year);
-
-  // 3) Fetch English cookie for deriving context based on text matching
+  // 2) Fetch English cookie for deriving context based on text matching
   let enCookieStr = cookieStr;
   if (lang !== 'en') {
     enCookieStr = await fetchSessionCookie('en', day, month, year);
@@ -71,10 +68,6 @@ export async function getIBreviarySessions(
     fetchHeaders: {
       'User-Agent': 'Mozilla/5.0',
       'Cookie': cookieStr,
-    },
-    laFetchHeaders: {
-      'User-Agent': 'Mozilla/5.0',
-      'Cookie': laCookieStr || cookieStr,
     },
     enFetchHeaders: {
       'User-Agent': 'Mozilla/5.0',

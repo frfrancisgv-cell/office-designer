@@ -9,6 +9,8 @@ import { GabcSearchPanel } from './GabcSearchPanel';
 import { EditableText } from './EditableText';
 import { InsertPageBreak } from './InsertPageBreak';
 import { useBlockPointing } from '@/hooks/useBlockPointing';
+import { stripLypsautierantHtml } from '@/lib/psalm-tones/lypsautierant-strip';
+import { hasPointingMarkup } from '@/lib/psalm-tones/strip';
 
 // Re-export for convenience since other files import it from here
 export { InsertPageBreak };
@@ -23,9 +25,9 @@ interface BlockEditorProps {
   removeBlock: (id: string) => void;
   moveBlock: (index: number, direction: 'up' | 'down') => void;
   reorderBlock: (sourceIndex: number, destIndex: number) => void;
-  uploadMusicScore: (id: string, file: File) => void;
   finalePreps: 1 | 2 | 3;
   setFinalePreps: (n: 1 | 2 | 3) => void;
+  centerRubric?: boolean;
   isActive: boolean;
   onClick: () => void;
 }
@@ -40,9 +42,9 @@ export function BlockEditor({
   removeBlock,
   moveBlock,
   reorderBlock,
-  uploadMusicScore,
   finalePreps,
   setFinalePreps,
+  centerRubric = false,
   isActive,
   onClick,
 }: BlockEditorProps) {
@@ -55,6 +57,8 @@ export function BlockEditor({
   const [lypsVariation, setLypsVariation] = useState<string>(block.lypsautierantVariation ?? 'a');
   const [lypsVariations, setLypsVariations] = useState<string[]>([]);
   const [isApplyingLyps, setIsApplyingLyps] = useState(false);
+  const [lypsWarnings, setLypsWarnings] = useState<string[]>([]);
+  const [lypsError, setLypsError] = useState<string | null>(null);
 
   // Fetch available variations when family/mode changes
   useEffect(() => {
@@ -76,10 +80,18 @@ export function BlockEditor({
 
   async function handleApplyLypsautierant() {
     setIsApplyingLyps(true);
+    setLypsError(null);
+    setLypsWarnings([]);
     try {
-      // Use current block content as text source
-      // Strip any existing HTML tags to get plain text
-      const plainText = block.content.replace(/<[^>]+>/g, '');
+      // Point the text the block started with, not the pointed HTML: the
+      // mark glyphs are real text nodes, so plain tag-stripping would feed
+      // "of+" back in and compound the damage on every re-point.
+      // stripLypsautierantHtml keeps the verse numbers and the '*' and
+      // dagger markers, so re-pointing preserves the verse structure —
+      // including any of it the user fixed by hand.
+      const source = block.originalContent ?? block.content;
+      const plainText = stripLypsautierantHtml(source);
+
       const res = await fetch('/api/lypsautierant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -92,20 +104,25 @@ export function BlockEditor({
         }),
       });
       const data = await res.json();
-      if (data.html) {
-        // Store original if not already stored
-        const original = block.originalContent ?? block.content;
-        updateBlock(block.id, {
-          content: data.html,
-          originalContent: original,
-          lypsautierantFamily: lypsFamily,
-          lypsautierantMode: lypsMode,
-          lypsautierantVariation: lypsVariation,
-          lypsautierantLatex: data.latex,
-        });
+
+      if (!res.ok || !data.html) {
+        setLypsError(data.error ?? 'Pointing failed');
+        if (Array.isArray(data.variations)) setLypsVariations(data.variations);
+        return;
       }
+
+      setLypsWarnings(data.warnings ?? []);
+      updateBlock(block.id, {
+        content: data.html,
+        // Keep the unpointed text so a later change of mode starts clean.
+        originalContent: block.originalContent ?? block.content,
+        lypsautierantFamily: lypsFamily,
+        lypsautierantMode: lypsMode,
+        lypsautierantVariation: lypsVariation,
+      });
     } catch (err) {
       console.error('Lypsautierant apply error:', err);
+      setLypsError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsApplyingLyps(false);
     }
@@ -127,6 +144,8 @@ export function BlockEditor({
     isApplyingTone,
     isLoadingStress,
     isLoadingLatin,
+    pointingError,
+    clearPointingError,
     handleToneChange,
     handleVariantChange,
     handleApplyTone,
@@ -134,12 +153,12 @@ export function BlockEditor({
     handleLoadLatinText,
     handleRestoreIbreviaryText,
     handleAutoPoint,
-  } = useBlockPointing(block, updateBlock, finalePreps, insertBlock, index);
+  } = useBlockPointing(block, updateBlock, insertBlock, index);
 
   return (
     <div
       data-block-id={block.id}
-      className={`group relative w-full mb-1 p-2 print:p-0 print:mb-0 rounded transition-colors border-2 hover:border-gray-200 ${
+      className={`group relative w-full ${isActive ? 'mb-1 p-2' : 'mb-0 px-1 py-0'} print:p-0 print:mb-0 rounded transition-[padding,margin,background-color,border-color] border-2 hover:border-gray-200 ${
         block.gabcCandidates && block.gabcCandidates.length > 0 && !block.gabcScore
           ? 'border-indigo-400 bg-indigo-50/30'
           : 'border-transparent hover:bg-gray-50'
@@ -166,7 +185,7 @@ export function BlockEditor({
       onClick={() => { if (onClick) onClick(); }}
     >
       {/* Floating toolbar */}
-      <div className={`absolute right-2 -top-4 opacity-0 ${isActive ? 'opacity-100 block' : 'group-hover:opacity-100'} transition-opacity flex flex-row gap-1 items-center bg-white shadow border border-gray-200 rounded p-1 no-print z-10`}>
+      <div className={`${isActive ? 'flex' : 'hidden'} absolute right-2 -top-4 flex-row gap-1 items-center bg-white shadow border border-gray-200 rounded p-1 no-print z-10`}>
         <div
           draggable
           className="cursor-move p-1 text-gray-400 hover:text-gray-900"
@@ -190,28 +209,42 @@ export function BlockEditor({
           {/* Editable Content */}
           <EditableText
             value={block.content}
-            onChange={(val: string) => updateBlock(block.id, { content: val, originalContent: val })}
+            onChange={(val: string) => {
+              // originalContent is the clean baseline both pointing paths
+              // re-point from, so it may only track the text while the text
+              // is unpointed. Syncing it on every keystroke overwrote the
+              // baseline with pointed HTML, and each later re-point then
+              // compounded on marked-up text. (Stripping on every keystroke
+              // is not the alternative: <div> boundaries strip without a
+              // newline and would collapse the psalm's line structure.)
+              updateBlock(
+                block.id,
+                hasPointingMarkup(val)
+                  ? { content: val }
+                  : { content: val, originalContent: val }
+              );
+            }}
             className={`
               w-full bg-transparent resize-none focus:outline-none focus:ring-1 focus:ring-[#e0e0e0] rounded
               ${(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) ? 'text-[0.82em] italic text-center text-[#555] mt-0.5' : ''}
-              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'heading' ? 'text-2xl font-serif text-center mt-3 mb-1 print:mt-1 print:mb-0 font-normal' : ''}
-              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'subheading' ? 'text-lg font-bold text-center mb-1' : ''}
-              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'rubric' ? 'text-[0.9em] italic mb-1' : ''}
-              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'psalm' ? 'pl-4 -indent-4 mb-2' : ''}
-              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'psalm-prayer' ? 'mt-4 mb-2 text-justify' : ''}
-              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && (block.type === 'text' || block.type === 'antiphon') ? 'mb-1 text-justify' : ''}
-              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'hymn' ? 'pl-8 -indent-8 text-left mb-2' : ''}
+              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'heading' ? 'text-2xl leading-tight font-serif text-center mt-2 mb-0 font-normal' : ''}
+              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'subheading' ? 'text-lg leading-tight font-bold text-center mb-0' : ''}
+              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'rubric' ? `text-[0.9em] italic mb-0 ${centerRubric ? 'text-center' : ''}` : ''}
+              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'psalm' ? 'mb-1' : ''}
+              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'psalm-prayer' ? 'mt-2 mb-1 text-justify' : ''}
+              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && (block.type === 'text' || block.type === 'antiphon') ? 'mb-0 text-justify' : ''}
+              ${!(block.gabcScore && (block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon')) && block.type === 'hymn' ? 'text-left mb-1' : ''}
             `}
             style={{
               color: (block.type === 'rubric' || block.type === 'heading') ? rubricColor : 'inherit',
-              minHeight: '1.5em',
+              minHeight: block.content ? undefined : '1.25em',
             }}
             placeholder={`Enter ${block.type} text...`}
           />
 
           {/* Psalm Pointing Toolbar */}
           {block.type === 'psalm' && (
-            <div className="no-print mt-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100 flex-wrap">
+            <div className={`${isActive ? 'flex' : 'hidden'} no-print mt-1 items-center gap-2 flex-wrap`}>
 
               {/* ── Tone selector row ── */}
               <div className="flex items-center gap-1 flex-wrap">
@@ -294,6 +327,19 @@ export function BlockEditor({
 
               </div>
 
+              {pointingError && (
+                <div className="w-full flex items-start gap-2 px-2 py-1 bg-red-50 border border-red-200 rounded text-[10px] text-red-700">
+                  <span className="flex-1 font-semibold">{pointingError}</span>
+                  <button
+                    onClick={clearPointingError}
+                    className="text-red-500 hover:text-red-800 leading-none px-1"
+                    title="Dismiss"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
               {/* ── Lypsautierant toggle button ── */}
               <button
                 onClick={() => setShowLypsPanel(v => !v)}
@@ -366,12 +412,15 @@ export function BlockEditor({
                       ))}
                     </select>
 
-                    {/* Variation */}
-                    <label className="text-[10px] font-semibold text-orange-900 shrink-0">Variation:</label>
+                    {/* Termination. The list comes from the API because it
+                        differs per mode: gregorian/two has only 'd',
+                        gregorian/four 'a' and 'e', gregorian/six 'f' and 'd'. */}
+                    <label className="text-[10px] font-semibold text-orange-900 shrink-0">Termination:</label>
                     <select
                       value={lypsVariation}
                       onChange={e => setLypsVariation(e.target.value)}
-                      className="text-[10px] px-1.5 py-0.5 border border-orange-300 rounded bg-white text-orange-950 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                      disabled={lypsVariations.length === 0}
+                      className="text-[10px] px-1.5 py-0.5 border border-orange-300 rounded bg-white text-orange-950 focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:opacity-50"
                     >
                       {lypsVariations.map(v => (
                         <option key={v} value={v}>{v}</option>
@@ -389,9 +438,18 @@ export function BlockEditor({
                   </div>
                   {(lypsFamily === 'english' || lypsFamily === 'gregorian') && !block.ibreviaryContent && (
                     <p className="text-[9px] text-orange-600 italic">
-                      ⓘ Accent-aware families work best with pre-stressed text. Load it via the &ldquo;Lypsautierant (EN)&rdquo; button above.
+                      ⓘ The english and gregorian tones read acute accents to find the stresses. Load accented text via the &ldquo;Lypsautierant (EN)&rdquo; button above.
                     </p>
                   )}
+                  <p className="text-[9px] text-orange-700 italic">
+                    ⓘ The selected termination applies to the second half of each verse. Mediant lines (*) and flex lines (†) use their own cadences; accent-aware families may also combine cadence notes (= or −−) when the final syllable is stressed.
+                  </p>
+                  {lypsError && (
+                    <p className="text-[10px] text-red-700 font-semibold">{lypsError}</p>
+                  )}
+                  {lypsWarnings.map((w, i) => (
+                    <p key={i} className="text-[10px] text-amber-800">⚠ {w}</p>
+                  ))}
                 </div>
               )}
 

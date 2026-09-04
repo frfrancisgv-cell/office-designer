@@ -100,7 +100,6 @@ export async function GET(request: NextRequest) {
     const { populateGabc, responsoryByOccasion } = require('@/app/api/ibreviary/gabc-lookup');
     const blocks = await populateGabc(
       rawBlocks,
-      '', // No latin HTML needed for offline mode
       hour,
       occasionCode,
       computedWeek,

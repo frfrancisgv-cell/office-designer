@@ -8,6 +8,7 @@ import { BlockEditor, InsertPageBreak } from './BlockEditor';
 import { LeftSidebar } from './LeftSidebar';
 import { RightSidebar } from './RightSidebar';
 import { useOfficeBlocks } from '@/hooks/useOfficeBlocks';
+import { isPsalmRubric, isSuppressedAttribution } from '@/lib/blocks';
 
 export default function OfficeEditor() {
   const {
@@ -15,7 +16,6 @@ export default function OfficeEditor() {
     insertAfterIdx, setInsertAfterIdx,
     addBlock, insertBlock, updateBlock, removeBlock,
     deleteSection, moveSection, moveBlock, reorderBlock,
-    uploadMusicScore
   } = useOfficeBlocks();
 
   const [settings, setSettings] = useState<OfficeSettings>({
@@ -32,6 +32,8 @@ export default function OfficeEditor() {
   const [finalePreps, setFinalePreps] = useState<1 | 2 | 3>(2);
   const [fetchVersion, setFetchVersion] = useState(0);
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
+  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
 
   const toggleSection = (id: string) => {
     setCollapsedSections(prev => {
@@ -89,10 +91,19 @@ export default function OfficeEditor() {
   const [selectedLang, setSelectedLang] = useState('en');
   const [availableOccasions, setAvailableOccasions] = useState<{ label: string; value: string }[]>([]);
   const [selectedOccasion, setSelectedOccasion] = useState('');
-  useEffect(() => {
+
+  const handleSelectedDateChange = (date: string) => {
+    setSelectedDate(date);
     setSelectedOccasion('');
     setAvailableOccasions([]);
-  }, [selectedDate, selectedHour]);
+  };
+
+  const handleSelectedHourChange = (hour: string) => {
+    setSelectedHour(hour);
+    setSelectedOccasion('');
+    setAvailableOccasions([]);
+  };
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsClient(true);
@@ -146,6 +157,17 @@ export default function OfficeEditor() {
   };
 
   const [isPdfLoading, setIsPdfLoading] = useState(false);
+  /**
+   * A failed PDF build, with the captured lualatex log.
+   *
+   * /api/pdf already returns the last 4000 characters of office.log as
+   * `detail`, but this component used to read only `err.error` and show it
+   * through alert(), so every failure looked like "PDF generation failed:
+   * PDF rendering failed" — and a real TeX error is far too long for an
+   * alert() anyway. Without the log a single stray character in one psalm is
+   * effectively undiagnosable.
+   */
+  const [pdfError, setPdfError] = useState<{ message: string; detail?: string } | null>(null);
 
   const getBaseFilename = () => {
     const parts = ['office', selectedDate, selectedHour];
@@ -156,14 +178,19 @@ export default function OfficeEditor() {
 
   const handleServerPdf = async () => {
     setIsPdfLoading(true);
+    setPdfError(null);
     try {
       const filename = getBaseFilename();
       const res = await fetch(`/api/pdf?filename=${encodeURIComponent(filename)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ blocks, settings }) });
-      if (!res.ok) { const err = await res.json().catch(() => ({ error: res.statusText })); alert(`PDF generation failed: ${err.error ?? res.statusText}`); return; }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        setPdfError({ message: err.error ?? res.statusText, detail: err.detail });
+        return;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `${filename}.pdf`; a.click(); URL.revokeObjectURL(url);
-    } catch (e) { alert(`PDF generation failed: ${e instanceof Error ? e.message : String(e)}`); }
+    } catch (e) { setPdfError({ message: e instanceof Error ? e.message : String(e) }); }
     finally { setIsPdfLoading(false); }
   };
 
@@ -185,8 +212,8 @@ export default function OfficeEditor() {
     <div className="flex print:block min-h-screen bg-[#fdfdfd] text-[#1a1a1a] font-sans print:bg-white">
 
       <LeftSidebar
-        selectedDate={selectedDate} setSelectedDate={setSelectedDate}
-        selectedHour={selectedHour} setSelectedHour={setSelectedHour}
+        selectedDate={selectedDate} setSelectedDate={handleSelectedDateChange}
+        selectedHour={selectedHour} setSelectedHour={handleSelectedHourChange}
         selectedLang={selectedLang} setSelectedLang={setSelectedLang}
         availableOccasions={availableOccasions} selectedOccasion={selectedOccasion} setSelectedOccasion={setSelectedOccasion}
         fetchIBreviary={fetchIBreviary} fetchOfflineLiturgy={fetchOfflineLiturgy} isLoading={isLoading}
@@ -194,9 +221,35 @@ export default function OfficeEditor() {
         addBlock={addBlock}
         handleServerPdf={handleServerPdf} handleDownloadTex={handleDownloadTex} isPdfLoading={isPdfLoading}
         hasBlocks={blocks.length > 0}
+        isCollapsed={isLeftSidebarCollapsed}
+        onToggleCollapsed={() => setIsLeftSidebarCollapsed(collapsed => !collapsed)}
       />
 
-      <div className="flex-1 ml-72 mr-80 flex flex-col items-center p-8 print:mx-0 print:p-0 bg-[#dcdcdc] print:bg-transparent relative pb-32 min-h-screen print:min-h-0">
+      <div className={`flex-1 ${isLeftSidebarCollapsed ? 'ml-12' : 'ml-72'} ${isRightSidebarCollapsed ? 'mr-12' : 'mr-80'} flex flex-col items-center p-8 print:mx-0 print:p-0 bg-[#dcdcdc] print:bg-transparent relative pb-32 min-h-screen print:min-h-0 transition-[margin] duration-200`}>
+        {pdfError && (
+          <div className="no-print w-full max-w-3xl mb-4 rounded border border-red-300 bg-red-50 p-3 text-[12px] text-red-900">
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-semibold">PDF generation failed: {pdfError.message}</p>
+              <button
+                onClick={() => setPdfError(null)}
+                className="shrink-0 text-red-700 hover:text-red-900 font-bold leading-none"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+            {pdfError.detail && (
+              <details className="mt-2">
+                <summary className="cursor-pointer select-none text-red-800">
+                  Show the LaTeX log
+                </summary>
+                <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded bg-white/70 p-2 text-[11px] leading-snug text-red-950">
+                  {pdfError.detail}
+                </pre>
+              </details>
+            )}
+          </div>
+        )}
         <style dangerouslySetInnerHTML={{ __html: `@media print { @page { size: ${settings.paperSize === 'HalfLetter' ? '5.5in 8.5in' : settings.paperSize === 'Letter' ? '8.5in 11in' : settings.paperSize === 'A5' ? 'A5' : 'A4'}; margin: 15mm; } .page-sheet { width:100%!important;min-height:0!important;padding:0!important;margin:0!important;box-shadow:none!important;border:none!important; } }` }} />
         <div className="print:block flex flex-col items-center w-full pb-32">
           <div
@@ -220,9 +273,7 @@ export default function OfficeEditor() {
                 </div>
               )}
               {blocks.map((block, idx) => {
-                const ATTR_RE = /^(Tune|Text|Music|Mode|Melody|Copyright):/i;
-                const prev = idx > 0 ? blocks[idx - 1] : null;
-                if (block.type === 'rubric' && ATTR_RE.test(block.content) && prev?.type === 'hymn' && prev?.gabcScore) return null;
+                if (isSuppressedAttribution(blocks, idx)) return null;
                 return (
                   <React.Fragment key={block.id}>
                     <InsertPageBreak onInsert={() => addBlock('page-break', idx)} />
@@ -231,8 +282,8 @@ export default function OfficeEditor() {
                       rubricColor={settings.rubricColor}
                       updateBlock={updateBlock} insertBlock={insertBlock} removeBlock={removeBlock}
                       moveBlock={moveBlock} reorderBlock={reorderBlock}
-                      uploadMusicScore={uploadMusicScore}
                       finalePreps={finalePreps} setFinalePreps={setFinalePreps}
+                      centerRubric={isPsalmRubric(blocks, idx)}
                       isActive={activeBlockId === block.id}
                       onClick={() => { setActiveBlockId(block.id); scrollSidebarToBlock(block.id); setInsertAfterIdx(idx); }}
                     />
@@ -260,6 +311,8 @@ export default function OfficeEditor() {
         moveSection={moveSection}
         deleteSection={deleteSection}
         scrollToBlock={scrollToBlock}
+        isCollapsed={isRightSidebarCollapsed}
+        onToggleCollapsed={() => setIsRightSidebarCollapsed(collapsed => !collapsed)}
       />
     </div>
   );

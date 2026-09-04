@@ -113,12 +113,6 @@ export function useOfficeBlocks(initialBlocks: Block[] = []) {
     });
   }, []);
 
-  const uploadMusicScore = useCallback((id: string, file: File) => {
-    const reader = new FileReader();
-    reader.onload = e => updateBlock(id, { musicDataUri: e.target?.result as string });
-    reader.readAsDataURL(file);
-  }, [updateBlock]);
-
   return {
     blocks,
     setBlocks,
@@ -128,6 +122,5 @@ export function useOfficeBlocks(initialBlocks: Block[] = []) {
     moveSection,
     moveBlock,
     reorderBlock,
-    uploadMusicScore
   };
 }

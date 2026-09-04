@@ -271,15 +271,6 @@ export function getVariants(tone: string): string[] {
   return [''];
 }
 
-/** Get termination GABC for a tone + variant */
-export function getTermination(tone: string, variant: string): string | null {
-  const spec = PSALM_TONES[tone];
-  if (!spec) return null;
-  if (spec.terminations) return spec.terminations[variant] ?? null;
-  if (spec.termination) return spec.termination;
-  return null;
-}
-
 /** Get default mediant & termination GABC strings for a given tone + variant */
 export function getPresetGabc(tone: string, variant: string): { mediant: string; termination: string } {
   const spec = PSALM_TONES[tone];

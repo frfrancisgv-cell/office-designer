@@ -5,3 +5,16 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# TypeScript incremental build state
+tsconfig.tsbuildinfo
+
+# Reference checkout, cloned locally for consultation; not part of this app.
+/divinum-officium/
+
+# Scratch
+/scratch*.ts
+/patch*.js
+/test-*.ts
+/test-*.js
+/*.html

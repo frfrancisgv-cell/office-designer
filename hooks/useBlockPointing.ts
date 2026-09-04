@@ -1,13 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Block } from '@/lib/types';
 import { getToneNames, getVariants, getPresetGabc } from '@/lib/psalm-tones/tone-data';
-import { stripPointing } from '@/lib/psalm-tones/utils';
+import { stripPointing } from '@/lib/psalm-tones/strip';
 import { autoPointPsalm } from '@/components/psalm-utils';
 
 export function useBlockPointing(
   block: Block,
   updateBlock: (id: string, updates: Partial<Block>) => void,
-  finalePreps: 1 | 2 | 3,
   insertBlock?: (index: number, newBlock: Omit<Block, 'id'>) => void,
   index?: number
 ) {
@@ -34,6 +33,25 @@ export function useBlockPointing(
   const [isApplyingTone, setIsApplyingTone] = useState(false);
   const [isLoadingStress, setIsLoadingStress] = useState(false);
   const [isLoadingLatin, setIsLoadingLatin] = useState(false);
+
+  /**
+   * The last failure from any of the three server round-trips, for display
+   * next to the buttons. Every one of these used to fail silently: the tone
+   * path quietly substituted a different client-side algorithm, and the two
+   * text loaders had no `else` at all, so a 404 just made the button flicker.
+   */
+  const [pointingError, setPointingError] = useState<string | null>(null);
+
+  /** Read `error` out of a failed response body, falling back to the status. */
+  async function errorFrom(res: Response, fallback: string): Promise<string> {
+    try {
+      const data = await res.json();
+      if (typeof data?.error === 'string' && data.error) return data.error;
+    } catch {
+      // Not JSON — fall through to the status line.
+    }
+    return `${fallback} (HTTP ${res.status} ${res.statusText})`;
+  }
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -85,6 +103,7 @@ export function useBlockPointing(
 
   const handleApplyTone = async () => {
     setIsApplyingTone(true);
+    setPointingError(null);
     const baseText = block.originalContent || stripPointing(block.content);
     const isCustomMode = selectedTone === 'Custom' || showCustomTonePanel;
 
@@ -114,72 +133,73 @@ export function useBlockPointing(
           solemn: ['Magnificat', 'Benedictus', 'Nunc dimittis'].includes(String(block.psalmNumber)),
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.result) {
-          if (data.gabcScore && insertBlock && index !== undefined && (block.type === 'psalm' || block.type === 'psalm-prayer')) {
-            // Split the returned HTML by newline
-            const lines = data.result.split('\n');
-            const firstVerseIdx = lines.findIndex((l: string) => l.trim().length > 0);
-            
-            if (firstVerseIdx !== -1) {
-              const firstVerseHtml = lines[firstVerseIdx];
-              lines.splice(firstVerseIdx, 1);
-              const remainingHtml = lines.join('\n');
-              
-              // Base text split (original raw text)
-              const baseLines = baseText.split('\n');
-              const baseFirstVerseIdx = baseLines.findIndex((l: string) => l.trim().length > 0);
-              const baseFirstVerse = baseFirstVerseIdx !== -1 ? baseLines[baseFirstVerseIdx] : baseText;
-              let baseRemaining = baseText;
-              if (baseFirstVerseIdx !== -1) {
-                 const newBaseLines = [...baseLines];
-                 newBaseLines.splice(baseFirstVerseIdx, 1);
-                 baseRemaining = newBaseLines.join('\n');
-              }
-              
-              // 1. Turn CURRENT block into an antiphon
-              updateBlock(block.id, {
-                type: 'antiphon',
-                content: firstVerseHtml,
-                originalContent: baseFirstVerse,
-                gabcScore: data.gabcScore,
-                psalmTone: selectedTone,
-                psalmVariant: selectedVariant
-              });
-              
-              // 2. Insert NEW block below for the rest of the psalm
-              insertBlock(index + 1, {
-                type: block.type, // remains psalm or psalm-prayer
-                content: remainingHtml,
-                originalContent: baseRemaining,
-                psalmNumber: block.psalmNumber,
-                psalmTone: selectedTone,
-                psalmVariant: selectedVariant,
-                lang: block.lang,
-                // Do not attach gabcScore to the remaining block
-              });
-              
-              setShowPointEditor(true);
-              return;
-            }
-          }
-          
-          // Fallback if no split needed
-          const updates: Partial<Block> = { content: data.result, originalContent: baseText };
-          if (data.gabcScore) updates.gabcScore = data.gabcScore;
-          updateBlock(block.id, updates);
-          setShowPointEditor(true);
-          return;
-        }
+      if (!res.ok) {
+        // Leave the text exactly as it was. Substituting autoPointPsalm here
+        // silently handed the user a different algorithm's pointing.
+        setPointingError(await errorFrom(res, 'Could not point this psalm'));
+        return;
       }
-      console.warn('[ApplyTone] API failed, falling back to auto-point');
-      updateBlock(block.id, { content: autoPointPsalm(baseText, finalePreps), originalContent: baseText });
-      setShowPointEditor(true);
+      const data = await res.json();
+      if (data.result) {
+        if (data.gabcScore && insertBlock && index !== undefined && (block.type === 'psalm' || block.type === 'psalm-prayer')) {
+          // Split the returned HTML by newline
+          const lines = data.result.split('\n');
+          const firstVerseIdx = lines.findIndex((l: string) => l.trim().length > 0);
+          
+          if (firstVerseIdx !== -1) {
+            const firstVerseHtml = lines[firstVerseIdx];
+            lines.splice(firstVerseIdx, 1);
+            const remainingHtml = lines.join('\n');
+            
+            // Base text split (original raw text)
+            const baseLines = baseText.split('\n');
+            const baseFirstVerseIdx = baseLines.findIndex((l: string) => l.trim().length > 0);
+            const baseFirstVerse = baseFirstVerseIdx !== -1 ? baseLines[baseFirstVerseIdx] : baseText;
+            let baseRemaining = baseText;
+            if (baseFirstVerseIdx !== -1) {
+               const newBaseLines = [...baseLines];
+               newBaseLines.splice(baseFirstVerseIdx, 1);
+               baseRemaining = newBaseLines.join('\n');
+            }
+            
+            // 1. Turn CURRENT block into an antiphon
+            updateBlock(block.id, {
+              type: 'antiphon',
+              content: firstVerseHtml,
+              originalContent: baseFirstVerse,
+              gabcScore: data.gabcScore,
+              psalmTone: selectedTone,
+              psalmVariant: selectedVariant
+            });
+            
+            // 2. Insert NEW block below for the rest of the psalm
+            insertBlock(index + 1, {
+              type: block.type, // remains psalm or psalm-prayer
+              content: remainingHtml,
+              originalContent: baseRemaining,
+              psalmNumber: block.psalmNumber,
+              psalmTone: selectedTone,
+              psalmVariant: selectedVariant,
+              lang: block.lang,
+              // Do not attach gabcScore to the remaining block
+            });
+            
+            setShowPointEditor(true);
+            return;
+          }
+        }
+        
+        // Fallback if no split needed
+        const updates: Partial<Block> = { content: data.result, originalContent: baseText };
+        if (data.gabcScore) updates.gabcScore = data.gabcScore;
+        updateBlock(block.id, updates);
+        setShowPointEditor(true);
+        return;
+      }
+      setPointingError('The pointing service returned no text.');
     } catch (e) {
       console.error('[ApplyTone] Error:', e);
-      updateBlock(block.id, { content: autoPointPsalm(baseText, finalePreps), originalContent: baseText });
-      setShowPointEditor(true);
+      setPointingError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsApplyingTone(false);
     }
@@ -188,23 +208,29 @@ export function useBlockPointing(
   const handleLoadStressedText = async () => {
     if (!block.psalmNumber) return;
     setIsLoadingStress(true);
+    setPointingError(null);
     try {
       const res = await fetch(`/api/psalm-text?psalm=${encodeURIComponent(String(block.psalmNumber))}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.rawText) {
-          const ibreviaryText = block.ibreviaryContent || stripPointing(block.content);
-          updateBlock(block.id, {
-            content: data.rawText,
-            originalContent: data.rawText,
-            ibreviaryContent: ibreviaryText,
-            lang: 'en',
-          });
-          setShowPointEditor(true);
-        }
+      if (!res.ok) {
+        setPointingError(await errorFrom(res, `No stressed English text for ${block.psalmNumber}`));
+        return;
       }
+      const data = await res.json();
+      if (!data.rawText) {
+        setPointingError(`No stressed English text for ${block.psalmNumber}.`);
+        return;
+      }
+      const ibreviaryText = block.ibreviaryContent || stripPointing(block.content);
+      updateBlock(block.id, {
+        content: data.rawText,
+        originalContent: data.rawText,
+        ibreviaryContent: ibreviaryText,
+        lang: 'en',
+      });
+      setShowPointEditor(true);
     } catch (e) {
       console.error('[LoadStressedText] Error:', e);
+      setPointingError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsLoadingStress(false);
     }
@@ -213,23 +239,29 @@ export function useBlockPointing(
   const handleLoadLatinText = async () => {
     if (!block.psalmNumber) return;
     setIsLoadingLatin(true);
+    setPointingError(null);
     try {
       const res = await fetch(`/api/psalm-text?psalm=${encodeURIComponent(String(block.psalmNumber))}&collection=jgabc`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.rawText) {
-          const ibreviaryText = block.ibreviaryContent || stripPointing(block.content);
-          updateBlock(block.id, {
-            content: data.rawText,
-            originalContent: data.rawText,
-            ibreviaryContent: ibreviaryText,
-            lang: 'la',
-          });
-          setShowPointEditor(true);
-        }
+      if (!res.ok) {
+        setPointingError(await errorFrom(res, `No Latin text for ${block.psalmNumber}`));
+        return;
       }
+      const data = await res.json();
+      if (!data.rawText) {
+        setPointingError(`No Latin text for ${block.psalmNumber}.`);
+        return;
+      }
+      const ibreviaryText = block.ibreviaryContent || stripPointing(block.content);
+      updateBlock(block.id, {
+        content: data.rawText,
+        originalContent: data.rawText,
+        ibreviaryContent: ibreviaryText,
+        lang: 'la',
+      });
+      setShowPointEditor(true);
     } catch (e) {
       console.error('[LoadLatinText] Error:', e);
+      setPointingError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsLoadingLatin(false);
     }
@@ -260,6 +292,8 @@ export function useBlockPointing(
     isApplyingTone,
     isLoadingStress,
     isLoadingLatin,
+    pointingError,
+    clearPointingError: () => setPointingError(null),
     handleToneChange,
     handleVariantChange,
     handleApplyTone,

@@ -380,7 +380,6 @@ function hymnByOccasion(occasionCode: string, hour: string, isFirstVespers: bool
 
 export async function populateGabc(
   blocks: Block[],
-  latinHtml: string,
   hour: string,
   occasionCode?: string | null,
   otWeekNum?: number | null,

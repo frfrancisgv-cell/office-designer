@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pointPsalmText, getModeNames, getVariations, ModeFamily, ModeName } from '@/lib/psalm-tones/lypsautierant-engine';
+import {
+  pointPsalmText,
+  getVariations,
+  hasVariation,
+  ModeFamily,
+  ModeName,
+} from '@/lib/psalm-tones/lypsautierant-engine';
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,6 +24,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Missing required fields: text, family, mode, variation' }, { status: 400 });
       }
 
+      // The variations differ per mode — gregorian/two has only 'd', for
+      // instance — so reject an unknown one with the list rather than
+      // pointing the psalm with a silently wrong rule.
+      if (!hasVariation(family, mode, variation)) {
+        return NextResponse.json({
+          error: `${family}/${mode} has no termination "${variation}"`,
+          variations: getVariations(family, mode),
+        }, { status: 400 });
+      }
+
       const result = pointPsalmText(text, family, mode, variation);
       return NextResponse.json(result);
     }
@@ -27,17 +43,12 @@ export async function POST(req: NextRequest) {
       if (!family || !mode) {
         return NextResponse.json({ error: 'Missing required fields: family, mode' }, { status: 400 });
       }
-      const variations = getVariations(family, mode);
-      return NextResponse.json({ variations });
-    }
-
-    if (action === 'modes') {
-      return NextResponse.json({ modes: getModeNames() });
+      return NextResponse.json({ variations: getVariations(family, mode) });
     }
 
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
   } catch (err) {
     console.error('lypsautierant API error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }

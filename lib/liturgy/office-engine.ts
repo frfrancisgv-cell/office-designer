@@ -84,7 +84,6 @@ interface RomcalEvent {
 
 function getRomcalEvent(date: Date): RomcalEvent | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const romcal = require('romcal');
     const dateStr = date.toISOString().split('T')[0];
 

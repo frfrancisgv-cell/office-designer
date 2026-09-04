@@ -29,7 +29,10 @@ type PsalmIndex = Map<string, PsalmEntry>;
 
 // ─── Build the index ──────────────────────────────────────────────────────────
 
-const LYPSAUTIER_ROOT = path.join(process.cwd(), 'lypsautierant', 'psautier');
+// vendor/psautier, not the lypsautierant submodule: this is read on every
+// request, and a clone without --recurse-submodules must still serve psalms.
+// See vendor/psautier/VENDORED.md.
+const LYPSAUTIER_ROOT = path.join(process.cwd(), 'vendor', 'psautier');
 const GRAIL_DIR = path.join(LYPSAUTIER_ROOT, 'revisedGrailPsalter');
 const ABBEY_DIR = path.join(LYPSAUTIER_ROOT, 'theAbbeyPsalmsAndCanticles');
 

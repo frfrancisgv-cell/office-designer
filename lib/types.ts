@@ -29,7 +29,6 @@ export interface Block {
   musicDataUri?: string;
   gabcScore?: string;
   gabcCandidates?: GabcCandidate[]; // Multiple OCO options; user picks one
-  dropCap?: boolean;
   place?: string | null;
   /** Psalm number parsed from iBreviary rubric (e.g. 117, "119.1-8") */
   psalmNumber?: number | string;
@@ -53,8 +52,6 @@ export interface Block {
   lypsautierantMode?: string;
   /** Lypsautierant termination variation ('a'|'b'|'a_prime'|...) */
   lypsautierantVariation?: string;
-  /** Stored lypsautierant pointed output (LaTeX string) for PDF export */
-  lypsautierantLatex?: string;
 }
 
 
