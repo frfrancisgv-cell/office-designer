@@ -149,7 +149,7 @@
   {
     "incipit": "Anglorum iam apostolus",
     "season_code": "3/9",
-    "office_part": "1V",
+    "office_part": "L V",
     "page": "427",
     "grebobase_id": "9195"
   },
@@ -219,7 +219,7 @@
   {
     "incipit": "Aurea luce",
     "season_code": "29/6",
-    "office_part": "1V",
+    "office_part": "V",
     "page": "388",
     "grebobase_id": "8745"
   },
@@ -253,7 +253,7 @@
   },
   {
     "incipit": "Aurora velut",
-    "season_code": "18/8",
+    "season_code": "15/8",
     "office_part": "Ol",
     "page": "416",
     "grebobase_id": "10574"
@@ -296,7 +296,7 @@
   {
     "incipit": "Beata Dei genetrix",
     "season_code": "8/9",
-    "office_part": "Ol",
+    "office_part": "V",
     "page": "429",
     "grebobase_id": "10612"
   },
@@ -358,7 +358,7 @@
   },
   {
     "incipit": "Captator olim piscium",
-    "season_code": "30/3",
+    "season_code": "30/11",
     "office_part": "L",
     "page": "472",
     "grebobase_id": "7412"
@@ -575,7 +575,7 @@
   },
   {
     "incipit": "Commune vos apostoli",
-    "season_code": "28/12",
+    "season_code": "28/10",
     "office_part": "L",
     "page": "459",
     "grebobase_id": "17961"
@@ -904,8 +904,8 @@
   },
   {
     "incipit": "Fulget in cælis",
-    "season_code": "28/12",
-    "office_part": "L",
+    "season_code": "28/8",
+    "office_part": "L V",
     "page": "424",
     "grebobase_id": "8822"
   },
@@ -1220,7 +1220,7 @@
   {
     "incipit": "Iste quem læti",
     "season_code": "19/3",
-    "office_part": "L",
+    "office_part": "Ol",
     "page": "357",
     "grebobase_id": "17655"
   },
@@ -1311,7 +1311,7 @@
   {
     "incipit": "Magnæ cohortis",
     "season_code": "31/7",
-    "office_part": "L",
+    "office_part": "L V",
     "page": "406",
     "grebobase_id": "17991"
   },
@@ -1611,7 +1611,7 @@
   },
   {
     "incipit": "O vir beate",
-    "season_code": "25/4 11/618/10",
+    "season_code": "25/4 11/6 18/10",
     "office_part": "Ol",
     "page": "365",
     "grebobase_id": "17817"
@@ -2136,7 +2136,7 @@
   },
   {
     "incipit": "Te Ioseph",
-    "season_code": "19/3",
+    "season_code": "19/3 1/5",
     "office_part": "V",
     "page": "355",
     "grebobase_id": "17636"
@@ -2221,7 +2221,7 @@
   {
     "incipit": "Te sæculorum",
     "season_code": "Reg",
-    "office_part": "1V",
+    "office_part": "V",
     "page": "122",
     "grebobase_id": "12902"
   },
@@ -2451,7 +2451,7 @@
   },
   {
     "incipit": "Virgo virginum",
-    "season_code": "15/9V",
+    "season_code": "15/9",
     "office_part": "V",
     "page": "439",
     "grebobase_id": "2949"

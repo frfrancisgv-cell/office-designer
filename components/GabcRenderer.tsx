@@ -72,6 +72,13 @@ export function GabcRenderer({ gabc }: { gabc: string }) {
 
         score.performLayoutAsync(ctxt, function () {
           score.layoutChantLines(ctxt, width, function () {
+            // Exsurge places the annotation only three staff intervals above
+            // the staff, which can make it collide with a tall drop cap.
+            // layoutChantLines sets this position, so apply the extra clearance
+            // afterwards and before generating the SVG.
+            if (score.annotation) {
+              score.annotation.bounds.y -= ctxt.staffInterval;
+            }
             container.innerHTML = score.createSvg(ctxt);
           });
         });

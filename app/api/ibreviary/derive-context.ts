@@ -26,6 +26,27 @@ export interface DerivedContext {
   liturgicalYear: 'a' | 'b' | 'c';
 }
 
+const CELEBRATION_NAME_FILLER = new Set([
+  'saint', 'saints', 'the', 'of', 'and', 'apostle', 'apostles', 'evangelist',
+  'bishop', 'doctor', 'church', 'virgin', 'martyr', 'martyrs', 'priest',
+  'deacon', 'abbot', 'blessed', 'lord',
+]);
+
+function celebrationNameWords(name: string): string[] {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/)
+    .filter(word => word && !CELEBRATION_NAME_FILLER.has(word));
+}
+
+/** True when two calendar titles refer to the same named celebration. */
+export function celebrationNamesMatch(expected: string, actual: string): boolean {
+  const expectedWords = celebrationNameWords(expected);
+  const actualWords = new Set(celebrationNameWords(actual));
+  if (!expectedWords.length || !actualWords.size) return false;
+  const overlap = expectedWords.filter(word => actualWords.has(word)).length;
+  return overlap >= Math.ceil(Math.min(expectedWords.length, actualWords.size) / 2);
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -68,6 +89,18 @@ export function deriveContext(liturgicalName: string, hour: string, date: Date):
     const cal = romcal.calendarFor({ year: date.getUTCFullYear(), country: 'unitedStates' });
     const dateStr = date.toISOString().split('T')[0];
     const todayEvents = cal.filter((d: any) => d.moment.startsWith(dateStr));
+
+    // A fixed sanctoral date does not automatically outrank the celebration
+    // actually observed that year. For example, Ss. Philip and James (May 3)
+    // can be displaced by an Easter Sunday, and St. Stephen can be displaced
+    // by Holy Family. Romcal has already resolved that precedence.
+    if (feastCode) {
+      const configuredName = FEAST_CALENDAR[feastCode];
+      const observedNames = [liturgicalName, ...todayEvents.map((event: any) => event.name)];
+      const isObserved = observedNames.some(name => celebrationNamesMatch(configuredName, name));
+      const hasCompetingObservance = todayEvents.some((event: any) => event.type !== 'FERIA');
+      if (hasCompetingObservance && !isObserved) feastCode = null;
+    }
 
     if (ferialCode) {
       let shortName = liturgicalName.length > 40 ? liturgicalName.substring(0, 37) + '...' : liturgicalName;

@@ -239,6 +239,27 @@ function officeMatches(officeStr: string, filters: string[]): boolean {
   return filters.some(f => tokens.includes(f));
 }
 
+/**
+ * Match an OCO hymn season to the requested occasion.
+ *
+ * Most rows contain one season code. Some proper hymns are deliberately shared
+ * by several feasts (for example, "25/4 11/6 18/10"). Date lookups must match
+ * one complete date token instead of requiring the whole metadata field to be
+ * identical.
+ */
+export function hymnSeasonMatches(entrySeasonCode: string, requestedSeasonCode: string): boolean {
+  const entry = entrySeasonCode.trim().toLowerCase();
+  const requested = requestedSeasonCode.trim().toLowerCase();
+  if (entry === requested) return true;
+
+  if (/^\d{1,2}\/\d{1,2}$/.test(requested)) {
+    const dateCodes: string[] = entry.match(/\b\d{1,2}\/\d{1,2}\b/g) ?? [];
+    return dateCodes.includes(requested);
+  }
+
+  return false;
+}
+
 
 
 
@@ -356,16 +377,17 @@ function hymnByOccasion(occasionCode: string, hour: string, isFirstVespers: bool
 
   return getHyms()
     .filter(e =>
-      e.seasonCode.toLowerCase() === seasonCode.toLowerCase() &&
+      hymnSeasonMatches(e.seasonCode, seasonCode) &&
       officeMatches(e.officePart, validFilters)
     )
     .flatMap(e => {
       const g = grego[e.gregobaseId];
+      if (!g?.gabc) return [];
       // Use 'Hymn.' as the annotation label for hymns since gregobase cache
       // does not store mode; the annotation still appears in the rendered SVG.
       return [{
         incipit: e.incipit,
-        gabc: g?.gabc ? withAnnotation(g.gabc, e.incipit, 'Hymn.') : '',
+        gabc: withAnnotation(g.gabc, e.incipit, 'Hymn.'),
         office: e.page ? `${e.officePart} (Liber Hymnarius p. ${e.page})` : e.officePart,
         occasion: e.seasonCode,
         source: 'gregobase',

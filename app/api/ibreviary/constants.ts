@@ -12,7 +12,7 @@
 // These dates have specific entries in OCO (INDEX_HYM2.json / IDX_ANT.csv).
 // Used to override iBreviary's generic ferial name with the proper feast title.
 export const FEAST_CALENDAR: Record<string, string> = {
-  '1/5':   'Saints Philip and James, Apostles',
+  '1/5':   'Saint Joseph the Worker',
   '1/11':  'All Saints',
   '2/2':   'Presentation of the Lord',
   '2/10':  'Guardian Angels',
@@ -23,6 +23,7 @@ export const FEAST_CALENDAR: Record<string, string> = {
   '6/8':   'Transfiguration of the Lord',
   '7/10':  'Our Lady of the Rosary',
   '7/12':  'Saint Ambrose',
+  '8/8':   'Saint Dominic, Priest',
   '8/9':   'Nativity of the Blessed Virgin Mary',
   '8/12':  'Immaculate Conception of the Blessed Virgin Mary',
   '10/8':  'Saint Lawrence, Deacon and Martyr',
@@ -35,7 +36,6 @@ export const FEAST_CALENDAR: Record<string, string> = {
   '15/8':  'Assumption of the Blessed Virgin Mary',
   '15/9':  'Our Lady of Sorrows',
   '15/10': 'Saint Teresa of Ávila',
-  '18/8':  'Saint Helena',
   '18/10': 'Saint Luke, Evangelist',
   '18/11': 'Dedication of the Basilicas of Saints Peter and Paul',
   '19/3':  'Saint Joseph, Spouse of the Blessed Virgin Mary',
@@ -56,12 +56,15 @@ export const FEAST_CALENDAR: Record<string, string> = {
   '26/12': 'Saint Stephen, First Martyr',
   '27/12': 'Saint John, Apostle and Evangelist',
   '28/12': 'Holy Innocents, Martyrs',
+  '28/8':  'Saint Augustine of Hippo, Bishop and Doctor',
+  '28/10': 'Saints Simon and Jude, Apostles',
   '29/4':  'Saint Catherine of Siena',
   '29/6':  'Saints Peter and Paul, Apostles',
   '29/7':  'Saint Martha',
   '29/8':  'Martyrdom of Saint John the Baptist',
   '29/9':  'Saints Michael, Gabriel, and Raphael, Archangels',
   '30/9':  'Saint Jerome, Priest and Doctor',
+  '30/11': 'Saint Andrew, Apostle',
   '31/5':  'Visitation of the Blessed Virgin Mary',
   '31/7':  'Saint Ignatius of Loyola',
 };

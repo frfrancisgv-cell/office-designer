@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Block, OfficeSettings } from '@/lib/types';
+import { isPsalmRubric } from '@/lib/blocks';
 
 interface SharePayload {
   blocks: Block[];
@@ -52,6 +53,11 @@ function GabcViewRenderer({ gabc }: { gabc: string }) {
         if (annotation) score.annotation = new ex.Annotation(ctxt, annotation);
         score.performLayoutAsync(ctxt, () => {
           score.layoutChantLines(ctxt, width, () => {
+            // Keep the annotation clear of the large initial. Exsurge assigns
+            // its default position during layoutChantLines, so adjust it here.
+            if (score.annotation) {
+              score.annotation.bounds.y -= ctxt.staffInterval;
+            }
             container.innerHTML = score.createSvg(ctxt);
           });
         });
@@ -63,7 +69,7 @@ function GabcViewRenderer({ gabc }: { gabc: string }) {
   return <div ref={ref} className="w-full my-1" />;
 }
 
-function BlockView({ block, rubricColor }: { block: Block; rubricColor: string }) {
+function BlockView({ block, rubricColor, centerRubric = false }: { block: Block; rubricColor: string; centerRubric?: boolean }) {
   const isRubric = block.type === 'rubric' || block.type === 'subheading';
   const style = isRubric || block.type === 'heading' ? { color: rubricColor } : {};
 
@@ -73,7 +79,7 @@ function BlockView({ block, rubricColor }: { block: Block; rubricColor: string }
     case 'subheading':
       return <h3 className="text-center text-base italic mb-1" style={style}>{block.content}</h3>;
     case 'rubric':
-      return <p className="text-[0.9em] italic mb-1" style={style}>{block.content}</p>;
+      return <p className={`text-[0.9em] italic mb-1 ${centerRubric ? 'text-center' : ''}`} style={style}>{block.content}</p>;
     case 'antiphon':
     case 'hymn':
       return (
@@ -89,7 +95,7 @@ function BlockView({ block, rubricColor }: { block: Block; rubricColor: string }
       );
     case 'psalm':
       return (
-        <div className="pl-4 mb-2 text-justify whitespace-pre-wrap"
+        <div className="mb-2 text-justify whitespace-pre-wrap"
           dangerouslySetInnerHTML={{ __html: block.content }} />
       );
     case 'psalm-prayer':
@@ -155,9 +161,9 @@ export default function SharePage({ params }: { params: Promise<{ id: string }> 
           className="mx-auto bg-white shadow-xl px-10 py-10 print:shadow-none print:px-0 print:py-0"
           style={{ maxWidth: pageWidth, fontFamily, fontSize, lineHeight: '1.3' }}
         >
-          {blocks.map((block) => (
+          {blocks.map((block, idx) => (
             <React.Fragment key={block.id}>
-              <BlockView block={block} rubricColor={rubricColor} />
+              <BlockView block={block} rubricColor={rubricColor} centerRubric={isPsalmRubric(blocks, idx)} />
             </React.Fragment>
           ))}
         </div>
