@@ -1,0 +1,90 @@
+/**
+ * escLtx — the LaTeX escape pass.
+ *
+ * Two live bugs motivated these: a missing '_' rule, which killed the whole
+ * PDF for any block containing an underscore ("Missing $ inserted"), and a
+ * chained-.replace() implementation whose backslash rule ran first, so the
+ * braces it introduced were escaped again by the later brace rules and
+ * "a\b" came out as "a\textbackslash\{\}b".
+ *
+ * Run with: npm test
+ */
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { escLtx } from './renderer';
+
+test('escapes every LaTeX special character', () => {
+  assert.equal(escLtx('&'), '\\&');
+  assert.equal(escLtx('%'), '\\%');
+  assert.equal(escLtx('$'), '\\$');
+  assert.equal(escLtx('#'), '\\#');
+  assert.equal(escLtx('{'), '\\{');
+  assert.equal(escLtx('}'), '\\}');
+  assert.equal(escLtx('~'), '\\textasciitilde{}');
+  assert.equal(escLtx('^'), '\\textasciicircum{}');
+});
+
+test("'_' is escaped — the character that used to kill the document", () => {
+  assert.equal(escLtx('_'), '\\_');
+  assert.equal(escLtx('snake_case'), 'snake\\_case');
+  assert.equal(escLtx('a_b_c'), 'a\\_b\\_c');
+});
+
+test('a backslash does not have its own replacement re-escaped', () => {
+  // The braces in \textbackslash{} are output, not input: a second pass over
+  // them would give "a\textbackslash\{\}b" and a broken document.
+  assert.equal(escLtx('\\'), '\\textbackslash{}');
+  assert.equal(escLtx('a\\b'), 'a\\textbackslash{}b');
+});
+
+test('every special character at once, in one pass', () => {
+  assert.equal(
+    escLtx('\\&%$#_{}~^'),
+    '\\textbackslash{}\\&\\%\\$\\#\\_\\{\\}\\textasciitilde{}\\textasciicircum{}',
+  );
+});
+
+test('versicle and response glyphs become macros', () => {
+  assert.equal(escLtx('℣'), '\\versicle{}');
+  assert.equal(escLtx('℟'), '\\response{}');
+  assert.equal(escLtx('℣. Deus, in adiutórium'), '\\versicle{}. Deus, in adiutórium');
+});
+
+test('UTF-8 and ordinary text are left alone', () => {
+  // LuaLaTeX + fontspec handle these directly.
+  assert.equal(escLtx('Glória Patri, et Fílio'), 'Glória Patri, et Fílio');
+  assert.equal(escLtx('in sǽcula sæculórum'), 'in sǽcula sæculórum');
+  assert.equal(escLtx(''), '');
+});
+
+test('the \\x00 sentinel names contain no escapable character', () => {
+  // htmlToLatex turns <strong>/<em> into \x00NAME\x00 sentinels, runs escLtx
+  // over the result, and only then expands them into \textbf{...} etc. So a
+  // sentinel name holding any character in the escape table is rewritten
+  // ("BOLD_OPEN" -> "BOLD\_OPEN"), the expansion pass no longer matches it,
+  // and the raw \x00 reaches lualatex: "Text line contains an invalid
+  // character". That is exactly what happened when '_' was added.
+  //
+  // Read out of the source rather than duplicated here, so renaming a
+  // sentinel cannot quietly escape this check.
+  const source = fs.readFileSync(path.join(import.meta.dirname, 'renderer.ts'), 'utf8')
+    // Comments out first: the note above the escape table quotes the old
+    // "\x00BOLD_OPEN\x00" by name to explain what went wrong, and that is
+    // prose, not a sentinel in use.
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*$/gm, '');
+
+  // [^\\] rather than a class of the characters a name is *allowed* to hold:
+  // a name containing the very characters this test hunts for must not be
+  // able to hide from it by failing to match.
+  const names = [...source.matchAll(/\\x00([^\\]+?)\\x00/g)].map((m) => m[1]);
+
+  assert.ok(names.length >= 6, `expected to find the sentinels, found ${names.length}`);
+  for (const name of new Set(names)) {
+    assert.equal(escLtx(name), name, `sentinel "${name}" is altered by escLtx`);
+  }
+});

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEntryByKey, getPsalmText, getCanticleText, listAllKeys, PsalmCollection } from '@/lib/psalm-tones/psalm-index';
+import { hebrewToVulgate } from '@/lib/liturgy/psalm-numbering';
 
 /**
  * GET /api/psalm-text
@@ -20,23 +21,6 @@ function cleanEntry(entry: any) {
   return { ...entry, rawText };
 }
 
-function hebrewToVulgate(psalm: number | string): number {
-  // Take the LEADING integer only. psalmNumber may be a subdivision such as
-  // "119.1-8" (see lib/types.ts and propagate.ts); stripping all non-digits
-  // turned that into 11918, which fell into the n >= 148 branch and looked
-  // for a psalm file that cannot exist. Every subdivided psalm's Latin text
-  // was therefore unreachable.
-  const n = parseInt(String(psalm).match(/\d+/)?.[0] ?? '', 10);
-  if (isNaN(n)) return 1;
-  if (n <= 8) return n;
-  if (n >= 10 && n <= 113) return n - 1;
-  if (n === 114 || n === 115) return 113;
-  if (n === 116) return 114;
-  if (n >= 117 && n <= 146) return n - 1;
-  if (n === 147) return 146;
-  if (n >= 148) return n;
-  return n;
-}
 
 import fs from 'fs';
 import path from 'path';

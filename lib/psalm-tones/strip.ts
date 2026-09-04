@@ -24,13 +24,17 @@ export function stripPointing(text: string): string {
   if (text.includes('lyps-')) return stripLypsautierantHtml(text);
 
   return text
-    .replace(/<\/?(strong|em|b|i)[^>]*>/gi, '')
+    // The (?:\s[^>]*)? guard is load-bearing: "[^>]*" lets the 'b'
+    // alternative swallow <br>, so this rule consumed the line breaks before
+    // the rule below could turn them into newlines, and a multi-line psalm
+    // came back as one run-together line. Same trick renderer.ts uses.
+    .replace(/<\/?(?:strong|em|b|i)(?:\s[^>]*)?>/gi, '')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ');
+    .replace(/&nbsp;/g, ' ');
 }
 
 /**

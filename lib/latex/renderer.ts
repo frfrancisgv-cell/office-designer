@@ -69,7 +69,8 @@ const LTX_ESCAPES: Record<string, string> = {
   '^': '\\textasciicircum{}',
 };
 
-function escLtx(text: string): string {
+/** Exported for lib/latex/renderer.test.ts; not used outside this module. */
+export function escLtx(text: string): string {
   return text
     .replace(/[\\&%$#_{}~^]/g, c => LTX_ESCAPES[c])
     .replace(/℣/g, '\\versicle{}')

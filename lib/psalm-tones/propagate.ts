@@ -1,4 +1,4 @@
-import { Block } from '@/lib/types';
+import type { Block } from '@/lib/types';
 import { parseToneFromAnnotation } from './parse-annotation';
 
 export function propagateTones(enrichedBlocks: Block[]): Block[] {

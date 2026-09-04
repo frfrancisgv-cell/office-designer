@@ -70,16 +70,36 @@ They coexist deliberately and are chosen per block in the UI:
 npm run dev                          # next dev
 npm run build                        # next build
 npm run lint                         # eslint .
+npm test                             # unit tests + verify-lypsautierant.sh
+npm run test:unit                    # just the unit tests (~0.5s)
+npm run test:lyps                    # just verify-lypsautierant.sh (~1 min)
 npm run check:hymns                  # cross-check OCO/INDEX_HYM2.{json,tex}
-./scripts/verify-lypsautierant.sh    # port vs. upstream perl/sed, whole corpus
 node scripts/gen-lypsautierant.mjs   # regenerate lypsautierant-{syllabify,modes}.ts
 node scripts/build-gabc-cache.mjs    # rebuild gregobase-cache.json from the .sql
 ```
 
-`verify-lypsautierant.sh` is the real test suite: it runs every psalm in the
-submodule through both the perl original and the TypeScript port and requires
+### Tests
+
+`npm test` runs both halves.
+
+`verify-lypsautierant.sh` is the heavier one: it runs every psalm in the
+corpus through both the perl original and the TypeScript port and requires
 them to agree, line for line. It must print `PASS` before any change to
 `lib/psalm-tones/lypsautierant-*.ts` lands.
+
+The unit tests are `lib/**/*.test.ts`, run by `node --test`. Node 22 strips
+the types natively, so there is no build step and no test framework to
+install; `scripts/ts-resolve.mjs` supplies the two things plain Node does not
+know — extensionless imports and the `@/*` alias — which Next.js otherwise
+provides at build time.
+
+They cover the places where a silent wrong answer is expensive and a wrong
+answer is easy to make: `escLtx` (an unescaped character kills the whole
+PDF), `hebrewToVulgate` (a wrong number reads the wrong psalm, or none), and
+`stripPointing` (a bad strip corrupts the text the user is editing, and
+compounds on every re-point). Import a module from a test and it must be
+importable outside Next, which is why `lib/` imports types with
+`import type`.
 
 Both `lypsautierant-syllabify.ts` and `lypsautierant-modes.ts` are **generated**
 — edit `scripts/gen-lypsautierant.mjs` instead.
