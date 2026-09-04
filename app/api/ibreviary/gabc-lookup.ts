@@ -19,7 +19,7 @@ import * as cheerio from 'cheerio';
 import {
   AntEntry, HymEntry, InvEntry, RbEntry,
   getAnts, getHyms, getInvs, getRbs, getGrego,
-  
+  normalize,
 } from './gabc-loaders';
 
 // Re-export InvEntry so external callers (gabc-search route) don't need to
@@ -147,9 +147,39 @@ export function withAnnotation(gabc: string, incipit: string, mode: string): str
 
 
 /** Find the short responsory for a given occasion code (e.g. "1H4") and hour. */
-export function responsoryByOccasion(occasionCode: string, hour: string): { gabc: string; incipit: string } | null {
+export function responsoryByOccasion(
+  occasionCode: string,
+  hour: string,
+  hasAlleluia?: boolean,
+): { gabc: string; incipit: string } | null {
   let seasonCode = '';
   const offPart = hour.toLowerCase().includes('laud') ? 'L' : 'V';
+
+  // Commons and proper celebrations use their OCO code directly (for
+  // example Doct, Past, or 29/9).  These used to be skipped entirely because
+  // the code below only translated temporal occasion codes.  Prefer the
+  // office-specific row before applying the temporal translations.
+  const directHits = getRbs().filter(e => {
+    const separator = e.seasonCode.lastIndexOf('|');
+    const occasion = e.seasonCode.slice(0, separator).trim();
+    const office = e.seasonCode.slice(separator + 1).trim();
+    const occasionTokens: string[] = occasion.match(/\d{1,2}\/\d{1,2}|[^\s]+/g) ?? [];
+    const occasionMatches = occasionCode.includes(' ')
+      ? occasion.includes(occasionCode)
+      : occasionTokens.includes(occasionCode);
+    return occasionMatches &&
+      officeMatches(office, officeFilters(hour));
+  });
+  const directHit = (hasAlleluia === undefined
+    ? null
+    : directHits.find(entry => /\.\.\.\s*all\./i.test(entry.incipit) === hasAlleluia)) ||
+    directHits[0];
+  if (directHit) {
+    return {
+      incipit: directHit.incipit,
+      gabc: withAnnotation(directHit.gabc, directHit.incipit, directHit.mode),
+    };
+  }
 
   // 1. Ordinary Time: e.g. "1H4"
   const mH = occasionCode.match(/^(\d)H(\d)$/);
@@ -218,6 +248,44 @@ export function responsoryByOccasion(occasionCode: string, hour: string): { gabc
     return null;
   }
   return { incipit: hit.incipit, gabc: withAnnotation(hit.gabc, hit.incipit, hit.mode) };
+}
+
+/**
+ * Match a short responsory from its Latin iBreviary text.
+ *
+ * OCO incipits are Latin, so the parallel Latin import provides a reliable
+ * fallback for a single responsory, or whenever its alternatives align with
+ * those in the requested language.
+ */
+export function responsoryByText(latinText: string, hour: string): { gabc: string; incipit: string } | null {
+  const text = normalize(latinText);
+  if (!text) return null;
+  const hasAlleluia = /\balleluia\b/.test(text);
+
+  const matches = getRbs()
+    .filter(entry => {
+      const separator = entry.seasonCode.lastIndexOf('|');
+      const office = entry.seasonCode.slice(separator + 1).trim();
+      if (!officeMatches(office, officeFilters(hour))) return false;
+
+      // Display suffixes such as "... all." and "soll." distinguish OCO
+      // variants but are not part of the sung incipit printed by iBreviary.
+      const baseIncipit = normalize(entry.incipit.split('...')[0].replace(/\bsoll\.?$/i, ''));
+      return baseIncipit.length >= 5 && text.includes(baseIncipit);
+    })
+    .sort((a, b) => {
+      const aAlleluia = /\.\.\.\s*all\./i.test(a.incipit);
+      const bAlleluia = /\.\.\.\s*all\./i.test(b.incipit);
+      if (aAlleluia !== bAlleluia) {
+        return Number(bAlleluia === hasAlleluia) - Number(aAlleluia === hasAlleluia);
+      }
+      return normalize(b.incipit).length - normalize(a.incipit).length;
+    });
+
+  const hit = matches[0];
+  return hit
+    ? { incipit: hit.incipit, gabc: withAnnotation(hit.gabc, hit.incipit, hit.mode) }
+    : null;
 }
 
 // ── Office filter ─────────────────────────────────────────────────────────────

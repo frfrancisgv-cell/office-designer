@@ -59,7 +59,7 @@ export function parseBlocks(
             if (up.includes('PSALMODY') || up.includes('SALMODIA')) currentSection = 'PSALMODY';
             else if (up.includes('INVITATORY') || up.includes('INVITATORIO')) currentSection = 'INVITATORY';
             else if (up.includes('READING') || up.includes('LETTURA') || up.includes('LECTIO')) currentSection = 'READING';
-            else if (up.includes('RESPONSORY') || up.includes('RESPONSORIO')) currentSection = 'RESPONSORY';
+            else if (up.includes('RESPONSORY') || up.includes('RESPONSORIO') || up.includes('RESPONSORIUM')) currentSection = 'RESPONSORY';
             else if (up.includes('CANTICLE') || up.includes('GOSPEL') || up.includes('MAGNIFICAT') || up.includes('BENEDICTUS') || up.includes('CANTICO')) {
               currentSection = 'CANTICLE';
               // Detect which gospel canticle this is for psalmNumber stamping
@@ -80,7 +80,7 @@ export function parseBlocks(
               'GOSPEL CANTICLE', 'BENEDICTUS', 'MAGNIFICAT',
               'INTERCESSIONS', 'INTRODUCTION', 'INVITATORY', 'BLESSING',
               // Italian / Latin variants
-              'LETTURA', 'RESPONSORIO', 'SALMODIA', 'INNO',
+              'LETTURA', 'RESPONSORIO', 'RESPONSORIUM', 'SALMODIA', 'INNO',
               'CANTICO DEL VANGELO', 'CANTICO EVANGELICO',
               'INTERCESSIONI', 'INVITATORIO', 'ORAZIONE',
             ];

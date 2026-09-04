@@ -58,11 +58,13 @@ export async function getIBreviarySessions(
   // 1) Fetch main language cookie
   const cookieStr = await fetchSessionCookie(lang, day, month, year);
 
-  // 2) Fetch English cookie for deriving context based on text matching
-  let enCookieStr = cookieStr;
-  if (lang !== 'en') {
-    enCookieStr = await fetchSessionCookie('en', day, month, year);
-  }
+  // 2) Fetch the reference-language sessions in parallel. English is used
+  // for calendar parsing; Latin lets chant texts be matched directly to OCO
+  // even when the user imports a translated office.
+  const [enCookieStr, laCookieStr] = await Promise.all([
+    lang === 'en' ? Promise.resolve(cookieStr) : fetchSessionCookie('en', day, month, year),
+    lang === 'la' ? Promise.resolve(cookieStr) : fetchSessionCookie('la', day, month, year),
+  ]);
 
   return {
     fetchHeaders: {
@@ -72,6 +74,10 @@ export async function getIBreviarySessions(
     enFetchHeaders: {
       'User-Agent': 'Mozilla/5.0',
       'Cookie': enCookieStr,
+    },
+    laFetchHeaders: {
+      'User-Agent': 'Mozilla/5.0',
+      'Cookie': laCookieStr,
     },
   };
 }
