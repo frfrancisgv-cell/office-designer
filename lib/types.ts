@@ -36,6 +36,13 @@ export interface Block {
   psalmTone?: string;
   /** Tone variant/termination code (e.g. "G", "G*", "D") */
   psalmVariant?: string;
+  /**
+   * Sing the tone's solemn mediant rather than its simple one. Traditional
+   * for the Gospel canticles, which is why it defaults on for them — but it
+   * changes the chant, so it is stored and shown rather than inferred at the
+   * moment of pointing.
+   */
+  solemnTone?: boolean;
   /** Optional custom GABC string for mediant formula (e.g. "g h jr 'k jr j.") */
   customMediant?: string;
   /** Optional custom GABC string for termination formula (e.g. "jr i j 'h gr g.") */

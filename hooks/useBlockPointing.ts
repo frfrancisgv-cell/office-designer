@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Block } from '@/lib/types';
-import { getToneNames, getVariants, getPresetGabc } from '@/lib/psalm-tones/tone-data';
+import { getToneNames, getVariants, getPresetGabc, hasSolemnForm, SOLEMN_BY_DEFAULT } from '@/lib/psalm-tones/tone-data';
 import { stripPointing } from '@/lib/psalm-tones/strip';
 import { autoPointPsalm } from '@/components/psalm-utils';
 
@@ -14,6 +14,20 @@ export function useBlockPointing(
   const toneNames = useMemo(() => [...getToneNames(), 'Custom'], []);
   const [selectedTone, setSelectedTone] = useState<string>(block.psalmTone ?? '8.');
   const [selectedVariant, setSelectedVariant] = useState<string>(block.psalmVariant ?? '');
+
+  // The Gospel canticles are sung to the solemn mediant, so that stays the
+  // default — but it used to be decided inside handleApplyTone from the psalm
+  // number alone, which meant choosing "1f" silently sang tone 1 solemn while
+  // the selector still read "1f". It is now visible, overridable, and stored.
+  const [useSolemn, setUseSolemn] = useState<boolean>(
+    block.solemnTone ?? SOLEMN_BY_DEFAULT.includes(String(block.psalmNumber))
+  );
+  const solemnAvailable = useMemo(() => hasSolemnForm(selectedTone), [selectedTone]);
+  const solemn = solemnAvailable && useSolemn;
+
+  // The Gospel canticles take the intonation on the mediant of every strophe,
+  // not only the first, so those syllables stay marked throughout.
+  const intonationEveryVerse = SOLEMN_BY_DEFAULT.includes(String(block.psalmNumber));
 
   const initialPresets = useMemo(
     () => getPresetGabc(block.psalmTone ?? '8.', block.psalmVariant ?? ''),
@@ -110,6 +124,7 @@ export function useBlockPointing(
     const updatePayload: Partial<Block> = {
       psalmTone: selectedTone,
       psalmVariant: selectedVariant,
+      solemnTone: solemn,
       originalContent: baseText,
     };
     if (isCustomMode || customMediant || customTermination) {
@@ -130,7 +145,8 @@ export function useBlockPointing(
           customMediant: (isCustomMode || customMediant) ? customMediant : undefined,
           customTermination: (isCustomMode || customTermination) ? customTermination : undefined,
           lang: block.lang || 'en',
-          solemn: ['Magnificat', 'Benedictus', 'Nunc dimittis'].includes(String(block.psalmNumber)),
+          solemn,
+          intonationEveryVerse,
         }),
       });
       if (!res.ok) {
@@ -169,7 +185,8 @@ export function useBlockPointing(
               originalContent: baseFirstVerse,
               gabcScore: data.gabcScore,
               psalmTone: selectedTone,
-              psalmVariant: selectedVariant
+              psalmVariant: selectedVariant,
+              solemnTone: solemn,
             });
             
             // 2. Insert NEW block below for the rest of the psalm
@@ -180,6 +197,7 @@ export function useBlockPointing(
               psalmNumber: block.psalmNumber,
               psalmTone: selectedTone,
               psalmVariant: selectedVariant,
+              solemnTone: solemn,
               lang: block.lang,
               // Do not attach gabcScore to the remaining block
             });
@@ -283,6 +301,9 @@ export function useBlockPointing(
     selectedTone,
     selectedVariant,
     variantOptions,
+    useSolemn,
+    setUseSolemn,
+    solemnAvailable,
     customMediant,
     setCustomMediant,
     customTermination,

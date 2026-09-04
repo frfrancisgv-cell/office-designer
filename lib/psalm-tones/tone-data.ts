@@ -279,3 +279,11 @@ export function getPresetGabc(tone: string, variant: string): { mediant: string;
   const termination = (spec.terminations ? spec.terminations[variant] : spec.termination) || spec.mediant || '';
   return { mediant, termination };
 }
+
+/** Whether a tone has a solemn mediant, i.e. whether offering the choice makes sense. */
+export function hasSolemnForm(tone: string): boolean {
+  return Boolean(PSALM_TONES[tone]?.solemn);
+}
+
+/** The canticles that are sung to the solemn tone unless told otherwise. */
+export const SOLEMN_BY_DEFAULT = ['Magnificat', 'Benedictus', 'Nunc dimittis'];

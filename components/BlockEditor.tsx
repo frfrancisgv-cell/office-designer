@@ -134,6 +134,9 @@ export function BlockEditor({
     toneNames,
     selectedTone,
     selectedVariant,
+    useSolemn,
+    setUseSolemn,
+    solemnAvailable,
     variantOptions,
     customMediant,
     setCustomMediant,
@@ -278,6 +281,20 @@ export function BlockEditor({
                     ))}
                   </select>
                 )}
+                {solemnAvailable && (
+                  <label
+                    className="flex items-center gap-1 text-[10px] text-gray-600 select-none cursor-pointer"
+                    title="Sing the solemn mediant instead of the simple one. Traditional for the Gospel canticles."
+                  >
+                    <input
+                      type="checkbox"
+                      checked={useSolemn}
+                      onChange={e => setUseSolemn(e.target.checked)}
+                      className="w-3 h-3 accent-indigo-600"
+                    />
+                    solemn
+                  </label>
+                )}
                 <button
                   onClick={() => setShowCustomTonePanel(v => !v)}
                   className={`text-[10px] px-1.5 py-0.5 border rounded transition-colors ${
@@ -291,7 +308,7 @@ export function BlockEditor({
                   onClick={handleApplyTone}
                   disabled={isApplyingTone}
                   className="text-[10px] px-2 py-0.5 bg-indigo-600 border border-indigo-600 text-white font-semibold rounded hover:bg-indigo-700 disabled:opacity-50"
-                  title={`Point psalm to tone ${selectedTone}${selectedVariant ? ' ' + selectedVariant : ''}`}
+                  title={`Point psalm to tone ${selectedTone}${selectedVariant ? ' ' + selectedVariant : ''}${solemnAvailable && useSolemn ? ' (solemn)' : ''}`}
                 >
                   {isApplyingTone ? '…' : 'Apply Tone'}
                 </button>

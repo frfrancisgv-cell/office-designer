@@ -24,7 +24,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { action } = body;
 
   if (action === 'point') {
-    const { text, tone, variant = '', customMediant, customTermination, lang = 'en', solemn } = body as Record<string, string | boolean>;
+    const { text, tone, variant = '', customMediant, customTermination, lang = 'en', solemn, intonationEveryVerse } = body as Record<string, string | boolean>;
     if (!text || (!tone && !customMediant && !customTermination)) {
       return NextResponse.json({ error: 'text and either tone or custom GABC formulas are required' }, { status: 400 });
     }
@@ -37,6 +37,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         customTermination: customTermination ? String(customTermination) : undefined,
         lang: (lang === 'la' ? 'la' : 'en'),
         solemn: Boolean(solemn),
+        intonationEveryVerse: Boolean(intonationEveryVerse),
       });
 
       // Generate GABC for the first verse (first non-empty line)

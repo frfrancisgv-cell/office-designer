@@ -42,6 +42,13 @@ export interface GabcToneCounts {
   accents: number;
   preparatory: number;
   tenor: string;
+  /**
+   * Syllables the formula spends before it reaches the reciting tenor — the
+   * intonation. The cadence maths ignores it (it is scanned right-to-left
+   * from the end), but the Gospel canticles take the intonation on the
+   * mediant of *every* strophe, so the pointing has to be able to show it.
+   */
+  intonation: number;
 }
 
 interface Syll {
@@ -62,7 +69,7 @@ interface Syll {
  *     following the main accent; they are NOT preparatory syllables before the accent.
  */
 export function parseGabcToneCounts(gabc: string): GabcToneCounts {
-  if (!gabc) return { accents: 0, preparatory: 0, tenor: 'h' };
+  if (!gabc) return { accents: 0, preparatory: 0, tenor: 'h', intonation: 0 };
 
   const clean = gabc.replace(/\.+$/, '').trim();
   const groups = clean.split(/\s+/).filter(Boolean);
@@ -106,7 +113,9 @@ export function parseGabcToneCounts(gabc: string): GabcToneCounts {
     }
   }
 
-  return { accents, preparatory, tenor };
+  // Everything before the reciting group is intonation. A formula with no
+  // reciting group at all (tenorIdx < 0) has none to speak of.
+  return { accents, preparatory, tenor, intonation: tenorIdx > 0 ? tenorIdx : 0 };
 }
 
 // ─── Syllabification ─────────────────────────────────────────────────────────
@@ -282,11 +291,28 @@ function pickAccents(
  * Point a single line/colon of psalm text.
  * Syllabifies the line, places accent and preparatory tags, and assembles HTML.
  */
-export function pointHemistich(text: string, counts: GabcToneCounts, lang: 'en' | 'la'): string {
+export function pointHemistich(
+  text: string,
+  counts: GabcToneCounts,
+  lang: 'en' | 'la',
+  markIntonation = false,
+): string {
   if (!text.trim()) return text;
 
   const sylls = tokeniseSylls(text, lang);
   const { boldSet, italicSet } = pickAccents(sylls, counts);
+
+  // The intonation is italicised from the front, and never over a syllable
+  // the cadence has already claimed — on a hemistich short enough for the two
+  // to meet, the cadence is what is actually sung there.
+  if (markIntonation) {
+    let marked = 0;
+    for (let i = 0; i < sylls.length && marked < counts.intonation; i++) {
+      if (sylls[i].isGap) continue; // whitespace and punctuation carry no note
+      if (!boldSet.has(i) && !italicSet.has(i)) italicSet.add(i);
+      marked++;
+    }
+  }
 
   const out: string[] = [];
   for (let i = 0; i < sylls.length; i++) {
@@ -374,6 +400,12 @@ export interface PointingParams {
   customTermination?: string;
   lang: 'en' | 'la';
   solemn?: boolean;
+  /**
+   * Mark the intonation at the head of every strophe, not just the first.
+   * This is how the Gospel canticles are sung: the intonation returns on the
+   * mediant of each verse, so those syllables are italicised throughout.
+   */
+  intonationEveryVerse?: boolean;
 }
 
 
@@ -390,7 +422,10 @@ export interface PointingParams {
  * called first to assign * and † markers line by line.
  */
 export function pointPsalm(params: PointingParams): string {
-  const { text, tone, variant = '', customMediant, customTermination, lang, solemn = false } = params;
+  const {
+    text, tone, variant = '', customMediant, customTermination, lang,
+    solemn = false, intonationEveryVerse = false,
+  } = params;
   const spec: ToneSpec | undefined = tone ? PSALM_TONES[tone] : undefined;
 
   // Trim before testing: a custom GABC field the user cleared but left a
@@ -413,7 +448,9 @@ export function pointPsalm(params: PointingParams): string {
 
   const mediCounts = parseGabcToneCounts(mediStr);
   const termCounts = parseGabcToneCounts(termStr);
-  const flexCounts: GabcToneCounts = { accents: 1, preparatory: 0, tenor: mediCounts.tenor };
+  const flexCounts: GabcToneCounts = {
+    accents: 1, preparatory: 0, tenor: mediCounts.tenor, intonation: mediCounts.intonation,
+  };
 
   // Strip existing HTML markup cleanly
   let plain = stripPointing(text);
@@ -444,7 +481,7 @@ export function pointPsalm(params: PointingParams): string {
 
     if (line.includes('†')) {
       const parts = line.split('†');
-      const before = pointHemistich(parts[0], flexCounts, lang);
+      const before = pointHemistich(parts[0], flexCounts, lang, intonationEveryVerse);
       const after = parts.slice(1).join('†');
       if (after.trim()) {
         result.push(before + ' † ' + pointHemistich(after, mediCounts, lang));
@@ -456,7 +493,7 @@ export function pointPsalm(params: PointingParams): string {
 
     if (line.includes('*')) {
       const parts = line.split('*');
-      const before = pointHemistich(parts[0], mediCounts, lang);
+      const before = pointHemistich(parts[0], mediCounts, lang, intonationEveryVerse);
       const after = parts.slice(1).join('*');
       if (after.trim()) {
         result.push(before + ' * ' + pointHemistich(after, termCounts, lang));
