@@ -14,39 +14,30 @@
  * GILH provides the structural rubrics.
  */
 
-import { Block } from '@/lib/types';
+import type { Block } from '@/lib/types';
 import { PSALTER_SCHEMA, COMPLINE_PSALMS, MINOR_HOUR_PSALMS } from './data/psalter-schema';
 import { getPsalmText, getCanticleText } from '@/lib/psalm-tones/psalm-index';
 import { getProperHymn } from './data/hymns';
+import { hebrewToVulgate } from './psalm-numbering';
+import { getLiturgicalContext } from './calendar-context';
+import type { OfficeHour } from './calendar-context';
+import { getOfflineProper } from './offline-propers';
 import fs from 'fs';
 import path from 'path';
 
 export interface OfficeSpec {
   date: Date;
-  hour: 'lauds' | 'vespers' | 'compline' | 'terce' | 'sext' | 'none' | 'readings';
+  hour: OfficeHour;
   lang?: 'en' | 'la';
   collection?: 'grail' | 'abbey';
   psalterWeek?: 1 | 2 | 3 | 4;
-  rank?: 'SOLEMNITY' | 'FEAST' | 'MEMORIAL' | 'FERIAL';
+  rank?: 'SOLEMNITY' | 'SUNDAY' | 'FEAST' | 'MEMORIAL' | 'FERIAL';
   saintName?: string;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
 // ── Local Latin Psalm Loader ──────────────────────────────────────────────────
-
-function hebrewToVulgate(psalm: number | string): number {
-  const n = parseInt(String(psalm).replace(/\D/g, ''), 10);
-  if (isNaN(n)) return 1;
-  if (n <= 8) return n;
-  if (n >= 10 && n <= 113) return n - 1;
-  if (n === 114 || n === 115) return 113;
-  if (n === 116) return 114;
-  if (n >= 117 && n <= 146) return n - 1;
-  if (n === 147) return 146;
-  if (n >= 148) return n;
-  return n;
-}
 
 function getLocalLatinPsalmText(id: string): string | null {
   const vNum = hebrewToVulgate(id);
@@ -408,17 +399,19 @@ const SHORT_READINGS: Record<string, { en: string; la: string }> = {
 export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
   const { hour, lang = 'en', collection = 'grail' } = spec;
 
-  // Get liturgical calendar data
-  const romcalData = getRomcalEvent(spec.date);
-  const rank = spec.rank || romcalData?.rank || 'FERIAL';
-  const saintName = spec.saintName || romcalData?.name;
+  // Resolve one authoritative calendar context. In particular, romcal stores
+  // psalterWeek under data.meta and Saturday Vespers belongs to Sunday.
+  const calendar = getLiturgicalContext(spec.date, hour);
+  const proper = lang === 'en' ? getOfflineProper(calendar, hour) : { sourceFiles: [] };
+  const rank = spec.rank || calendar.rank;
+  const saintName = spec.saintName || calendar.name;
   const isSolemnityOrFeast = rank === 'SOLEMNITY' || rank === 'FEAST';
 
   // GILH Rule #136: On Solemnities and Feasts, Lauds & Vespers use Sunday Week 1 psalms
-  const effectiveDayOfWeek = isSolemnityOrFeast ? 0 : spec.date.getUTCDay();
+  const effectiveDayOfWeek = isSolemnityOrFeast ? 0 : calendar.celebrationDate.getUTCDay();
   const effectivePsalterWeek: 1 | 2 | 3 | 4 = isSolemnityOrFeast
     ? 1
-    : (spec.psalterWeek || getPsalterWeek(spec.date));
+    : (spec.psalterWeek || calendar.psalterWeek);
 
   const blocks: Block[] = [];
 
@@ -476,7 +469,7 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
   blocks.push({ id: generateId(), type: 'heading', content: 'HYMN' });
   blocks.push({
     id: generateId(), type: 'hymn',
-    content: getProperHymn(effectiveDayOfWeek, hour, lang),
+    content: proper.hymn || getProperHymn(effectiveDayOfWeek, hour, lang),
   });
 
   // ── 4. Psalmody ──────────────────────────────────────────────────────────
@@ -561,13 +554,6 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
         psalmTone: tone.split('.')[0] + '.',
         psalmVariant: tone.split('.')[1] || '',
         lang,
-      });
-
-      // Psalm Prayer placeholder (user can fill in)
-      blocks.push({ id: generateId(), type: 'rubric', content: 'Psalm Prayer' });
-      blocks.push({
-        id: generateId(), type: 'psalm-prayer',
-        content: lang === 'la' ? '[Oratio psalmi]' : '[Psalm prayer]',
       });
 
       blocks.push({
@@ -674,7 +660,7 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
     const reading = SHORT_READINGS[hour] || SHORT_READINGS.vespers;
     blocks.push({
       id: generateId(), type: 'text',
-      content: lang === 'la' ? reading.la : reading.en,
+      content: proper.reading || (lang === 'la' ? reading.la : reading.en),
     });
 
     if (hour === 'compline') {
@@ -686,9 +672,12 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
           : '℟. br. Into your hands, Lord, * I commend my spirit.\n℣. You have redeemed us, Lord God of truth.\n℟. I commend my spirit.',
       });
     } else {
-      // Responsory placeholder for Lauds/Vespers
-      blocks.push({ id: generateId(), type: 'heading', content: 'RESPONSORY' });
-      blocks.push({ id: generateId(), type: 'text', content: '[Responsory text placeholder]' });
+      // OCO chant is injected by the API route; retain local text when the
+      // English corpus supplies it, and otherwise leave no fabricated block.
+      if (proper.responsory) {
+        blocks.push({ id: generateId(), type: 'heading', content: 'RESPONSORY' });
+        blocks.push({ id: generateId(), type: 'text', content: proper.responsory });
+      }
     }
   } else {
     // Office of Readings: add Reading I and Reading II placeholders
@@ -745,13 +734,13 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
     // Antiphon for the canticle
     blocks.push({
       id: generateId(), type: 'antiphon',
-      content: lang === 'la'
+      content: proper.gospelAntiphon || (lang === 'la'
         ? (hour === 'lauds' ? 'Ant. Benedíctus Dóminus Deus Israël.'
             : hour === 'vespers' ? 'Ant. Magníficat ánima mea Dóminum.'
             : 'Ant. Salva nos, Dómine, vigilántes.')
         : (hour === 'lauds' ? 'Ant. Blessed be the Lord, the God of Israel.'
             : hour === 'vespers' ? 'Ant. My soul proclaims the greatness of the Lord.'
-            : 'Ant. Save us, Lord, while we are awake.'),
+            : 'Ant. Save us, Lord, while we are awake.')),
       place: canticlePlace,
     });
 
@@ -767,27 +756,19 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
 
     blocks.push({
       id: generateId(), type: 'antiphon',
-      content: lang === 'la'
+      content: proper.gospelAntiphon || (lang === 'la'
         ? (hour === 'lauds' ? 'Ant. Benedíctus Dóminus Deus Israël.'
             : hour === 'vespers' ? 'Ant. Magníficat ánima mea Dóminum.'
             : 'Ant. Salva nos, Dómine, vigilántes.')
         : (hour === 'lauds' ? 'Ant. Blessed be the Lord, the God of Israel.'
             : hour === 'vespers' ? 'Ant. My soul proclaims the greatness of the Lord.'
-            : 'Ant. Save us, Lord, while we are awake.'),
+            : 'Ant. Save us, Lord, while we are awake.')),
       place: canticlePlace,
     });
   }
 
-  // ── 7. Intercessions (Lauds and Vespers only) ────────────────────────────
+  // ── 7. Intercessions (not present in the offline source corpus) ──────────
   if (hour === 'lauds' || hour === 'vespers') {
-    blocks.push({ id: generateId(), type: 'heading', content: 'INTERCESSIONS' });
-    blocks.push({
-      id: generateId(), type: 'text',
-      content: lang === 'la'
-        ? 'Pray for the holy Church of God;\nfor its members spread throughout the world;\nfor our Bishop and all those in holy orders.\n\n℟. Exáudi nos, Dómine.'
-        : 'Pray for the holy Church of God;\nfor its members spread throughout the world;\nfor our Bishop and all those in holy orders.\n\n℟. Lord, hear our prayer.',
-    });
-
     // Our Father
     blocks.push({ id: generateId(), type: 'heading', content: 'OUR FATHER' });
     blocks.push({
@@ -802,9 +783,9 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
   blocks.push({ id: generateId(), type: 'heading', content: 'CONCLUDING PRAYER' });
   blocks.push({
     id: generateId(), type: 'text',
-    content: lang === 'la'
+    content: proper.prayer || (lang === 'la'
       ? 'Oremus.\nDómine Deus omnípotens, qui ad princípium huius diéi nos perveníre fecísti: tua nos hódie salva virtúte; ut in hac die ad nullum declinémus peccátum, sed semper ad tuam iustítiam faciéndam nostra procédant eloquía, dirigántur cogitatiónes et opera. Per Dóminum nostrum Iesum Christum, Fílium tuum, qui tecum vivit et regnat in unitáte Spíritus Sancti, Deus, per ómnia sǽcula sæculórum. Amen.'
-      : 'Let us pray.\nLord God almighty, you have brought us safely to the beginning of this day. May the power of your grace be with us throughout this day, so that we may never fall into sin but always speak and act according to your will. Through our Lord Jesus Christ, your Son, who lives and reigns with you in the unity of the Holy Spirit, God, for ever and ever. Amen.',
+      : 'Let us pray.\nLord God almighty, you have brought us safely to the beginning of this day. May the power of your grace be with us throughout this day, so that we may never fall into sin but always speak and act according to your will. Through our Lord Jesus Christ, your Son, who lives and reigns with you in the unity of the Holy Spirit, God, for ever and ever. Amen.'),
   });
 
   // ── 9. Dismissal ─────────────────────────────────────────────────────────
