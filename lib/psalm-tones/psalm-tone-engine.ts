@@ -28,7 +28,8 @@
  *      englishPhoneticSyllabify from ./english-phonetic.
  */
 
-import { PSALM_TONES, ToneSpec } from './tone-data';
+import { PSALM_TONES } from './tone-data';
+import type { ToneSpec } from './tone-data';
 
 import { englishPhoneticSyllabify, inferEnglishWordStress } from './english-phonetic';
 // stripPointing lives in ./strip so client code can use it without pulling

@@ -58,6 +58,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           const clef = spec?.clef || 'c4';
           const textLanguage = lang === 'la' ? 'la' : 'en';
 
+          // Only the first verse is engraved, and the first verse always
+          // carries the intonation. When the first half is too short to hold
+          // the whole formula, psalmtone.js drops the intonation unless it is
+          // told to keep it (`favor.intonation`, psalmtone.js:1006) — so
+          // "Magníficat", four syllables, came out as Ma(h)gní(g)fi(h)cat(h.)
+          // starting flat on the tenor instead of Ma(f)gní(gh)fi(h)cat(h.).
+          const favor = 'intonation';
+
           // Split the text into mediant and termination halves based on `*`
           const parts = firstVerseLine.split('*');
           
@@ -66,7 +74,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             const p1 = parts[0].trim();
             const p2 = parts[1].trim();
             
-            const gabc1 = applyPsalmTone({ text: p1, gabc: med, clef, useBoldItalic: false, lang: textLanguage });
+            const gabc1 = applyPsalmTone({ text: p1, gabc: med, clef, useBoldItalic: false, lang: textLanguage, favor });
             const gabc2 = applyPsalmTone({ text: p2, gabc: term, clef, useBoldItalic: false, lang: textLanguage });
             
             if (gabc1 && gabc2) {
@@ -74,7 +82,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             }
           } else {
             // No asterisk, just apply mediant
-            const gabc1 = applyPsalmTone({ text: firstVerseLine.trim(), gabc: med, clef, useBoldItalic: false, lang: textLanguage });
+            const gabc1 = applyPsalmTone({ text: firstVerseLine.trim(), gabc: med, clef, useBoldItalic: false, lang: textLanguage, favor });
             if (gabc1) {
               gabcScore = `(${clef}) ${gabc1}`;
             }

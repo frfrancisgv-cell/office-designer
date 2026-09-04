@@ -18,12 +18,12 @@ import type { Block } from '@/lib/types';
 import { PSALTER_SCHEMA, COMPLINE_PSALMS, MINOR_HOUR_PSALMS } from './data/psalter-schema';
 import { getPsalmText, getCanticleText } from '@/lib/psalm-tones/psalm-index';
 import { getProperHymn } from './data/hymns';
-import { hebrewToVulgate } from './psalm-numbering';
+import { getLatinPsalmText, getLatinCanticleText, getLatinGospelCanticleText } from './latin-texts';
+import { getEnglishGospelCanticleText } from './english-canticles';
+import type { GospelCanticle } from './english-canticles';
 import { getLiturgicalContext } from './calendar-context';
 import type { OfficeHour } from './calendar-context';
 import { getOfflineProper } from './offline-propers';
-import fs from 'fs';
-import path from 'path';
 
 export interface OfficeSpec {
   date: Date;
@@ -36,34 +36,6 @@ export interface OfficeSpec {
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
-
-// ── Local Latin Psalm Loader ──────────────────────────────────────────────────
-
-function getLocalLatinPsalmText(id: string): string | null {
-  const vNum = hebrewToVulgate(id);
-  const padded = String(vNum).padStart(3, '0') + '.txt';
-  const filePath = path.join(process.cwd(), 'jgabc-psalms', padded);
-  if (fs.existsSync(filePath)) {
-    return fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '').trim();
-  }
-  return null;
-}
-
-function getLocalLatinCanticleText(id: string): string | null {
-  // Check jgabc-psalms for named canticles
-  const nameMappings: Record<string, string> = {
-    'benedictus': 'Benedictus.txt',
-    'magnificat': 'Magnificat.txt',
-    'nunc-dimittis': 'Nunc dimittis.txt',
-  };
-  const lower = id.toLowerCase();
-  const filename = nameMappings[lower];
-  if (filename) {
-    const p = path.join(process.cwd(), 'jgabc-psalms', filename);
-    if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '').trim();
-  }
-  return null;
-}
 
 // ── Romcal Integration (with API-version resilience) ──────────────────────────
 
@@ -306,56 +278,36 @@ function getAdvent1(year: number): Date {
 
 // ── Gospel Canticle Loader ────────────────────────────────────────────────────
 
-function getGospelCanticleText(canticleName: 'Benedictus' | 'Magnificat' | 'Nunc dimittis', lang: 'en' | 'la'): string {
-  if (lang === 'la') {
-    const laText = getLocalLatinCanticleText(canticleName.toLowerCase().replace(' ', '-'));
-    if (laText) return laText;
-  }
+function getGospelCanticleText(canticleName: GospelCanticle, lang: 'en' | 'la'): string {
+  // Latin and English have separate sources, and neither may stand in for the
+  // other. The English branch used to look under a `lypsautierant/psautier/`
+  // path left behind when the submodule was vendored, miss, and then fall
+  // through to `jgabc-psalms/<name>.txt` — which is Latin. An English Vespers
+  // therefore printed the Magnificat in Latin.
+  const text = lang === 'la'
+    ? getLatinGospelCanticleText(canticleName)
+    : getEnglishGospelCanticleText(canticleName);
+  if (text) return text;
 
-  // English fallback — try lypsautierant abbey collection
-  // These are in theAbbeyPsalmsAndCanticles as "NT 7", "NT 8" etc.
-  // Benedictus = Luke 1:68-79, Magnificat = Luke 1:46-55, Nunc Dimittis = Luke 2:29-32
-  const mappings: Record<string, { grailKey: string; fallback: string }> = {
+  // Two verses, so a missing source is obvious on the page rather than a
+  // blank block, and the office can still be prayed from it.
+  const opening: Record<GospelCanticle, { en: string; la: string }> = {
     'Benedictus': {
-      grailKey: 'benedictus',
-      fallback: lang === 'la'
-        ? 'Benedíctus Dóminus Deus Israël,\nquia visitávit et fecit redemptiónem plebis suæ.'
-        : '1 Bléssed be the Lórd, the Gód of Ísrael;\nhe has cóme to his péople and sét them frée.',
+      la: 'Benedíctus Dóminus Deus Israël, * quia visitávit et fecit redemptiónem plebis suæ.',
+      en: 'Blessed be the Lord God of Israel:\nfor he has visited his people and redeemed them;',
     },
     'Magnificat': {
-      grailKey: 'magnificat',
-      fallback: lang === 'la'
-        ? 'Magníficat ánima mea Dóminum,\net exsultávit spíritus meus in Deo, salutári meo.'
-        : '1 My sóul glorífies the Lórd,\n2 my spírit rejóices in Gód, my Sávior.',
+      la: 'Magníficat * ánima mea Dóminum.\nEt exsultávit spíritus meus * in Deo salutári meo.',
+      en: 'My soul proclaims the greatness of the Lord,\nand my spirit rejoices in God my Savior,',
     },
     'Nunc dimittis': {
-      grailKey: 'nunc-dimittis',
-      fallback: lang === 'la'
-        ? 'Nunc dimíttis servum tuum, Dómine,\nsecúndum verbum tuum in pace.'
-        : '1 Lórd, now you lét your sérvant gó in péace;\n2 your wórd has béen fulfílled.',
+      la: 'Nunc dimíttis servum tuum, Dómine, * secúndum verbum tuum in pace.',
+      en: 'Now you dismiss your servant in peace,\naccording to your word, O Master;',
     },
   };
-
-  const mapping = mappings[canticleName];
-  if (!mapping) return `[${canticleName}]`;
-
-  // Try loading from local Grail psalter (some editions include these)
-  const filePath = path.join(
-    process.cwd(),
-    'lypsautierant', 'psautier', 'revisedGrailPsalter',
-    canticleName
-  );
-  if (fs.existsSync(filePath)) {
-    return fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '').trim();
-  }
-
-  // Try jgabc-psalms directory
-  const jgabcPath = path.join(process.cwd(), 'jgabc-psalms', `${canticleName}.txt`);
-  if (fs.existsSync(jgabcPath)) {
-    return fs.readFileSync(jgabcPath, 'utf8').replace(/^\uFEFF/, '').trim();
-  }
-
-  return mapping.fallback;
+  const fallback = opening[canticleName];
+  if (!fallback) return `[${canticleName}]`;
+  return lang === 'la' ? fallback.la : fallback.en;
 }
 
 // ── Short Reading texts (varied by hour) ─────────────────────────────────────
@@ -492,7 +444,7 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
       blocks.push({ id: generateId(), type: 'antiphon', content: antText });
 
       const textContent = lang === 'la'
-        ? (getLocalLatinPsalmText(unit.id) || `[Psalmus ${unit.id}]`)
+        ? (getLatinPsalmText(unit.id) || `[Psalmus ${unit.id}]`)
         : (getPsalmText(unit.id, collection)?.rawText || `[Psalm ${unit.id}]`);
 
       blocks.push({
@@ -531,17 +483,23 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
         content: unit.title,
       });
 
+      // The unit's *type* has to be settled before its language. Testing
+      // `lang === 'la'` first sent canticles through the psalm loader, where
+      // their index was read as a psalm number: NT canticle 6 (Col 1:12-20)
+      // came back as Psalm 6, silently, in every Latin Lauds and Vespers.
+      const isCanticle = unit.type === 'ot-canticle' || unit.type === 'nt-canticle';
+      const kind = unit.type === 'ot-canticle' ? 'ot' : 'nt';
+      const num = parseInt(unit.id, 10);
+
       let textContent = '';
-      if (lang === 'la') {
-        textContent = getLocalLatinPsalmText(unit.id) || `[Psalmus ${unit.id}]`;
-      } else if (unit.type === 'ot-canticle') {
-        const num = parseInt(unit.id, 10);
-        const c = getCanticleText('ot', isNaN(num) ? 1 : num);
-        textContent = c?.rawText || `[OT Canticle ${unit.id} — ${unit.title}]`;
-      } else if (unit.type === 'nt-canticle') {
-        const num = parseInt(unit.id, 10);
-        const c = getCanticleText('nt', isNaN(num) ? 1 : num);
-        textContent = c?.rawText || `[NT Canticle ${unit.id} — ${unit.title}]`;
+      if (isCanticle && lang === 'la') {
+        textContent = getLatinCanticleText(kind, num)
+          || `[Canticum ${kind.toUpperCase()} ${unit.id} — ${unit.title} — nondum in fontibus latinis]`;
+      } else if (isCanticle) {
+        const c = getCanticleText(kind, isNaN(num) ? 1 : num);
+        textContent = c?.rawText || `[${kind.toUpperCase()} Canticle ${unit.id} — ${unit.title}]`;
+      } else if (lang === 'la') {
+        textContent = getLatinPsalmText(unit.id) || `[Psalmus ${unit.id}]`;
       } else {
         const p = getPsalmText(unit.id, collection, unit.verses);
         textContent = p?.rawText || `[Psalm ${unit.id}]`;
@@ -550,7 +508,10 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
       blocks.push({
         id: generateId(), type: 'psalm',
         content: textContent,
-        psalmNumber: unit.id,
+        // "OT 4" / "NT 6" is the form /api/psalm-text parses, so the editor's
+        // "load Latin" and "load stressed English" buttons address the
+        // canticle rather than the psalm that shares its index.
+        psalmNumber: isCanticle ? `${kind.toUpperCase()} ${unit.id}` : unit.id,
         psalmTone: tone.split('.')[0] + '.',
         psalmVariant: tone.split('.')[1] || '',
         lang,
@@ -579,7 +540,7 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
       });
 
       const textContent = lang === 'la'
-        ? (getLocalLatinPsalmText(unit.id) || `[Psalmus ${unit.id}]`)
+        ? (getLatinPsalmText(unit.id) || `[Psalmus ${unit.id}]`)
         : (getPsalmText(unit.id, collection)?.rawText || `[Psalm ${unit.id} — ${unit.title}]`);
 
       blocks.push({
@@ -635,7 +596,7 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
       });
 
       const textContent = lang === 'la'
-        ? (getLocalLatinPsalmText(p.id) || `[Psalmus ${p.id}]`)
+        ? (getLatinPsalmText(p.id) || `[Psalmus ${p.id}]`)
         : (getPsalmText(p.id, collection)?.rawText || `[Psalm ${p.id}]`);
 
       blocks.push({
@@ -744,7 +705,7 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
       place: canticlePlace,
     });
 
-    const canticleText = getGospelCanticleText(canticleName as 'Benedictus' | 'Magnificat' | 'Nunc dimittis', lang);
+    const canticleText = getGospelCanticleText(canticleName as GospelCanticle, lang);
     blocks.push({
       id: generateId(), type: 'psalm',
       content: canticleText,

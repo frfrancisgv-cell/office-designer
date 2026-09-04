@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getEntryByKey, getPsalmText, getCanticleText, listAllKeys, PsalmCollection } from '@/lib/psalm-tones/psalm-index';
 import { hebrewToVulgate } from '@/lib/liturgy/psalm-numbering';
+import { getLatinPsalmText, getLatinCanticleText, getLatinGospelCanticleText } from '@/lib/liturgy/latin-texts';
+import { getEnglishGospelCanticleText } from '@/lib/liturgy/english-canticles';
+import type { GospelCanticle } from '@/lib/liturgy/english-canticles';
 
 /**
  * GET /api/psalm-text
@@ -22,38 +25,17 @@ function cleanEntry(entry: any) {
 }
 
 
-import fs from 'fs';
-import path from 'path';
 
 function getLocalLatinPsalm(hebrewNumStr: string) {
-  const vulgateNum = hebrewToVulgate(hebrewNumStr);
-  const padded = String(vulgateNum).padStart(3, '0') + '.txt';
-  const filePath = path.join(process.cwd(), 'jgabc-psalms', padded);
-  
-  try {
-    if (fs.existsSync(filePath)) {
-      const text = fs.readFileSync(filePath, 'utf8');
-      const cleanText = text
-        .replace(/^\uFEFF/, '')
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean)
-        .join('\n');
-
-      const doxology = "\n\nGlória Patri, et Fílio, * et Spirítui Sancto.\nSicut erat in princípio, et nunc, et semper, * et in sǽcula sæculórum. Amen.";
-
-      return {
-        key: `jgabc-psalm-${hebrewNumStr}`,
-        title: `Psalmus ${vulgateNum}`,
-        rawText: cleanText + doxology,
-        lang: 'la',
-        source: 'jgabc-local',
-      };
-    }
-  } catch (err) {
-    console.error('[getLocalLatinPsalm] error:', err);
-  }
-  return null;
+  const rawText = getLatinPsalmText(hebrewNumStr);
+  if (!rawText) return null;
+  return {
+    key: `jgabc-psalm-${hebrewNumStr}`,
+    title: `Psalmus ${hebrewToVulgate(hebrewNumStr)}`,
+    rawText,
+    lang: 'la',
+    source: 'jgabc-local',
+  };
 }
 
 async function fetchJgabcLatinPsalm(hebrewNumStr: string) {
@@ -114,40 +96,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       if (collection === 'jgabc' || lang === 'la') {
         const type = canticleMatch[1].toLowerCase() as 'ot' | 'nt';
         const num = parseInt(canticleMatch[2], 10);
-        let latinFileName = '';
-        if (type === 'ot') {
-          const otMap: Record<number, string> = {
-            1: 'Canticum Trium puerorum.txt',
-            2: 'Canticum David.txt',
-            3: 'Canticum Tobiae.txt',
-            4: 'Canticum Judith.txt',
-            5: 'Canticum Isaiae 12.txt',
-            6: 'Canticum Habacuc 3, 1-6.txt',
-            7: 'Canticum Moysis.1 (Deut 32, 1-21).txt',
-            8: 'Canticum Annae.txt',
-            9: 'Canticum Ezechiae.txt',
-            10: 'Canticum Moysis (Exod).txt',
-            11: 'Canticum Annae.txt'
-          };
-          latinFileName = otMap[num] || '';
+        const rawText = getLatinCanticleText(type, num);
+        if (!rawText) {
+          return NextResponse.json({ error: `Canticle ${psalmNum} has no Latin text mapped yet` }, { status: 404 });
         }
-        if (latinFileName) {
-          const p = path.join(process.cwd(), 'jgabc-psalms', latinFileName);
-          if (fs.existsSync(p)) {
-            const text = fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '').trim();
-            const hasSpecialDoxology = latinFileName === 'Canticum Trium puerorum.txt';
-            const doxology = hasSpecialDoxology ? '' : "\n\nGlória Patri, et Fílio, * et Spirítui Sancto.\nSicut erat in princípio, et nunc, et semper, * et in sǽcula sæculórum. Amen.";
-            return NextResponse.json({
-              key: `jgabc-${type}-${num}`,
-              title: `Canticum ${type.toUpperCase()} ${num}`,
-              rawText: text + doxology,
-              lang: 'la',
-              source: 'jgabc-local',
-            });
-          }
-        }
-        // We don't have a reliable mapping to Latin jgabc files for all OT/NT canticles by number yet.
-        return NextResponse.json({ error: `Canticle ${psalmNum} has no Latin text mapped yet` }, { status: 404 });
+        return NextResponse.json({
+          key: `jgabc-${type}-${num}`,
+          title: `Canticum ${type.toUpperCase()} ${num}`,
+          rawText,
+          lang: 'la',
+          source: 'jgabc-local',
+        });
       }
       const type = canticleMatch[1].toLowerCase() as 'ot' | 'nt';
       const num = parseInt(canticleMatch[2], 10);
@@ -161,19 +120,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (gospelMatch) {
       if (collection === 'jgabc' || lang === 'la') {
         const canticleName = gospelMatch[1];
-        const p = path.join(process.cwd(), 'jgabc-psalms', `${canticleName.charAt(0).toUpperCase() + canticleName.slice(1)}.txt`);
-        if (fs.existsSync(p)) {
-          const text = fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '').trim();
-          const doxology = "\n\nGlória Patri, et Fílio, * et Spirítui Sancto.\nSicut erat in princípio, et nunc, et semper, * et in sǽcula sæculórum. Amen.";
-          return NextResponse.json({
-            key: `jgabc-canticle-${canticleName.toLowerCase().replace(' ', '-')}`,
-            title: canticleName,
-            rawText: text + doxology,
-            lang: 'la',
-            source: 'jgabc-local',
-          });
+        const rawText = getLatinGospelCanticleText(canticleName);
+        if (!rawText) {
+          return NextResponse.json({ error: `No Latin text on file for ${canticleName}` }, { status: 404 });
         }
-        return NextResponse.json({ error: `No Latin text on file for ${canticleName}` }, { status: 404 });
+        return NextResponse.json({
+          key: `jgabc-canticle-${canticleName.toLowerCase().replace(' ', '-')}`,
+          title: canticleName,
+          rawText,
+          lang: 'la',
+          source: 'jgabc-local',
+        });
       } else {
         const mappings: Record<string, string> = {
           'benedictus': 'benedictus',
@@ -186,6 +143,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           if (entry) return NextResponse.json(cleanEntry(entry));
           
           // English Fallback if not found in indexed collection
+          // The Abbey Psalms and Canticles carry all three in full; the
+          // two-verse tables below are the last resort, not the source.
+          const abbeyText = getEnglishGospelCanticleText(
+            (gospelMatch[1].toLowerCase() === 'nunc dimittis' ? 'Nunc dimittis'
+              : gospelMatch[1].charAt(0).toUpperCase() + gospelMatch[1].slice(1).toLowerCase()) as GospelCanticle,
+          );
+          if (abbeyText) {
+            return NextResponse.json({
+              key: `canticle-${grailKey}`,
+              title: gospelMatch[1],
+              rawText: abbeyText,
+              lang: 'en',
+              source: 'abbey-psalms-and-canticles',
+            });
+          }
+
           const englishFallbacks: Record<string, string> = {
             'benedictus': 'Bléssed be the Lórd, the Gód of Ísrael;\nhe has cóme to his péople and sét them frée.',
             'magnificat': 'My sóul glorífies the Lórd,\nmy spírit rejóices in Gód, my Sávior.',
