@@ -499,7 +499,10 @@ export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
         const c = getCanticleText(kind, isNaN(num) ? 1 : num);
         textContent = c?.rawText || `[${kind.toUpperCase()} Canticle ${unit.id} — ${unit.title}]`;
       } else if (lang === 'la') {
-        textContent = getLatinPsalmText(unit.id) || `[Psalmus ${unit.id}]`;
+        // `unit.verses` matters here as much as it does in English: Psalm 27
+        // is prayed as 1-6 and 7-14 on the same day, and without the range
+        // both slots printed the whole psalm.
+        textContent = getLatinPsalmText(unit.id, unit.verses) || `[Psalmus ${unit.id}]`;
       } else {
         const p = getPsalmText(unit.id, collection, unit.verses);
         textContent = p?.rawText || `[Psalm ${unit.id}]`;

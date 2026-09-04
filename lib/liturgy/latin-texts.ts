@@ -47,8 +47,106 @@ function withDoxology(text: string | null): string | null {
   return text === null ? null : `${text}\n\n${LATIN_DOXOLOGY}`;
 }
 
-/** Latin text of a psalm named by its Hebrew (liturgical) number. */
-export function getLatinPsalmText(id: number | string): string | null {
+// ── The Nova Vulgata psalter ──────────────────────────────────────────────
+
+/**
+ * `NovaVulgata.txt` is the Latin psalter of the Liturgy of the Hours, and it
+ * is the right book for this app: it is numbered the Hebrew way the psalter
+ * schema is (`PSALMUS 23 (22)`), it carries verse numbers, and its mediant
+ * `*` and flex `†` are already marked.
+ *
+ * The numbered `NNN.txt` files are the older Vulgate of the Roman Breviary —
+ * a different translation under a different numbering, which had to be
+ * converted to before it could be read. They stay as a fallback.
+ */
+interface NovaVulgataVerse {
+  num: number;
+  text: string;
+}
+
+let novaVulgata: Map<number, NovaVulgataVerse[]> | null = null;
+
+function loadNovaVulgata(): Map<number, NovaVulgataVerse[]> {
+  if (novaVulgata) return novaVulgata;
+
+  const parsed = new Map<number, NovaVulgataVerse[]>();
+  const filePath = path.join(process.cwd(), 'jgabc-psalms', 'NovaVulgata.txt');
+  let raw: string;
+  try {
+    if (!fs.existsSync(filePath)) return (novaVulgata = parsed);
+    raw = fs.readFileSync(filePath, 'utf8');
+  } catch (err) {
+    console.error('[latin-texts] could not read NovaVulgata.txt:', err);
+    return (novaVulgata = parsed);
+  }
+
+  let verses: NovaVulgataVerse[] | null = null;
+  for (const line of raw.replace(/^﻿/, '').split(/\r?\n/)) {
+    const text = line.trim();
+    if (!text) continue;
+
+    // "PSALMUS 23 (22)" — the parenthesis is the old Vulgate number.
+    const heading = text.match(/^PSALMUS\s+(\d+)\b/);
+    if (heading) {
+      verses = [];
+      parsed.set(Number(heading[1]), verses);
+      continue;
+    }
+    if (!verses) continue; // the file's own title lines, before Psalm 1
+
+    // A leading number opens a verse; anything else continues the last one,
+    // because a long verse is printed over several lines.
+    const opening = text.match(/^(\d+)\s+(.*)$/);
+    if (opening) {
+      verses.push({ num: Number(opening[1]), text: opening[2] });
+    } else if (verses.length) {
+      verses[verses.length - 1].text += `\n${text}`;
+    }
+  }
+
+  return (novaVulgata = parsed);
+}
+
+/** Parse "1-8", "7-14" or "5" into a predicate over verse numbers. */
+function verseFilter(verses?: string): ((num: number) => boolean) | null {
+  if (!verses) return null;
+  const range = verses.trim().match(/^(\d+)\s*[-–]\s*(\d+)$/);
+  if (range) {
+    const from = Number(range[1]);
+    const to = Number(range[2]);
+    return (num) => num >= from && num <= to;
+  }
+  const single = verses.trim().match(/^\d+$/);
+  if (single) return (num) => num === Number(verses.trim());
+  return null;
+}
+
+function getNovaVulgataPsalmText(id: number | string, verses?: string): string | null {
+  // A subdivided id carries its own range: "119.1-8".
+  const [numberPart, subdivision] = String(id).split('.');
+  const psalm = parseInt(numberPart, 10);
+  if (isNaN(psalm)) return null;
+
+  const all = loadNovaVulgata().get(psalm);
+  if (!all || !all.length) return null;
+
+  const wanted = verseFilter(subdivision) ?? verseFilter(verses);
+  const chosen = wanted ? all.filter((v) => wanted(v.num)) : all;
+  if (!chosen.length) return null;
+
+  return chosen.map((v) => `${v.num} ${v.text}`).join('\n');
+}
+
+/**
+ * Latin text of a psalm named by its Hebrew (liturgical) number, optionally
+ * limited to the verses the office actually prescribes ("1-6").
+ */
+export function getLatinPsalmText(id: number | string, verses?: string): string | null {
+  const novaVulgataText = getNovaVulgataPsalmText(id, verses);
+  if (novaVulgataText) return withDoxology(novaVulgataText);
+
+  // Fallback: the Roman Breviary Vulgate, which needs the number converted
+  // and has no verse divisions to select from.
   const vulgate = hebrewToVulgate(id);
   return withDoxology(readJgabc(`${String(vulgate).padStart(3, '0')}.txt`));
 }

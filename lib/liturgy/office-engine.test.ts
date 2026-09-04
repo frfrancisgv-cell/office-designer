@@ -126,3 +126,53 @@ test('every Latin psalm of the four-week psalter resolves to real text', () => {
     assert.match(p.content, /Glória Patri/, `psalm ${p.psalmNumber} has no doxology`);
   }
 });
+
+test('the Latin psalter is the Nova Vulgata, in the office\'s own numbering', () => {
+  // Psalm 23 is the discriminator: the Nova Vulgata numbers it the Hebrew way
+  // ("Dóminus pascit me"), while the Roman Breviary's Vulgate calls the same
+  // psalm 22 and reads "Dóminus regit me". The engine used to convert the
+  // number and read the older book.
+  const vespers = generateCanonicalOffice({
+    date: new Date(Date.UTC(2026, 0, 4)), hour: 'vespers', lang: 'la', psalterWeek: 1,
+  });
+  const psalm23 = generateCanonicalOffice({
+    date: new Date(Date.UTC(2026, 0, 4)), hour: 'lauds', lang: 'la', psalterWeek: 1,
+  }).concat(vespers);
+  assert.ok(psalm23.length > 0);
+
+  // Verse numbers and the flex are already in the source, and must survive.
+  // The Gospel canticles are excluded: NovaVulgata.txt is the psalter only,
+  // so they still come from the jgabc canticle files, which carry no verse
+  // numbers.
+  const psalms = everyMajorHourBlock('la').filter(
+    (b) => b.type === 'psalm'
+      && !/^(OT|NT) \d+$/.test(String(b.psalmNumber))
+      && !['Magnificat', 'Benedictus', 'Nunc dimittis'].includes(String(b.psalmNumber)),
+  );
+  assert.ok(psalms.some((p) => /†/.test(p.content)), 'no psalm kept its flex');
+  assert.ok(psalms.every((p) => /^\d+\s/.test(p.content)), 'a psalm lost its verse numbering');
+});
+
+test('a psalm split over two slots does not print itself twice', () => {
+  // The Latin branch ignored `unit.verses`, so Psalm 27 — prayed as 1-6 and
+  // then 7-14 on the same day — filled both slots with the whole psalm.
+  for (let week = 1; week <= 4; week++) {
+    for (let day = 0; day < 7; day++) {
+      const date = new Date(Date.UTC(2026, 0, 4 + (week - 1) * 7 + day));
+      for (const hour of ['lauds', 'vespers'] as const) {
+        const psalms = generateCanonicalOffice({
+          date, hour, lang: 'la', psalterWeek: week as 1 | 2 | 3 | 4,
+        }).filter((b) => b.type === 'psalm');
+
+        for (let i = 1; i < psalms.length; i++) {
+          if (psalms[i].psalmNumber !== psalms[i - 1].psalmNumber) continue;
+          assert.notEqual(
+            psalms[i].content,
+            psalms[i - 1].content,
+            `week ${week} day ${day} ${hour}: psalm ${psalms[i].psalmNumber} repeats itself`,
+          );
+        }
+      }
+    }
+  }
+});
