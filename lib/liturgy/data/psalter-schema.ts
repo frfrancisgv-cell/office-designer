@@ -263,7 +263,7 @@ export const PSALTER_SCHEMA: Record<number, Record<number, DayPsalterAssignment>
       lauds: { units: [
         { type: 'psalm',       id: '63', title: 'Psalm 63',               defaultTone: '8.G' },
         { type: 'ot-canticle', id: '9',  title: 'OT Canticle (Is 38)',    defaultTone: '8.G' },
-        { type: 'psalm',       id: '18', title: 'Psalm 18',               defaultTone: '8.G' },
+        { type: 'psalm',       id: '19', title: 'Psalm 19A',               defaultTone: '8.G', verses: '2-7' },
       ]},
       vespers: { units: [
         { type: 'psalm',       id: '45', title: 'Psalm 45',               defaultTone: '1.D', verses: '2-10' },
@@ -279,8 +279,8 @@ export const PSALTER_SCHEMA: Record<number, Record<number, DayPsalterAssignment>
         { type: 'psalm',       id: '65', title: 'Psalm 65',                defaultTone: '4.E' },
       ]},
       vespers: { units: [
-        { type: 'psalm',       id: '48', title: 'Psalm 48',                defaultTone: '2.D', verses: '2-9' },
-        { type: 'psalm',       id: '48', title: 'Psalm 48 (cont.)',        defaultTone: '2.D', verses: '10-15' },
+        { type: 'psalm',       id: '49', title: 'Psalm 49 (I)',                defaultTone: '2.D', verses: '2-13' },
+        { type: 'psalm',       id: '49', title: 'Psalm 49 (II)',        defaultTone: '2.D', verses: '14-21' },
         { type: 'nt-canticle', id: '9',  title: 'NT Canticle (Rev 4:11; 5:9-12)', defaultTone: '2.D' },
       ]},
     },
@@ -305,8 +305,8 @@ export const PSALTER_SCHEMA: Record<number, Record<number, DayPsalterAssignment>
         { type: 'psalm',       id: '81', title: 'Psalm 81',                  defaultTone: '2.D' },
       ]},
       vespers: { units: [
-        { type: 'psalm',       id: '71', title: 'Psalm 71',                  defaultTone: '8.G', verses: '1-13' },
-        { type: 'psalm',       id: '71', title: 'Psalm 71 (cont.)',          defaultTone: '8.G', verses: '14-24' },
+        { type: 'psalm',       id: '72', title: 'Psalm 72 (I)',                  defaultTone: '8.G', verses: '1-11' },
+        { type: 'psalm',       id: '72', title: 'Psalm 72 (II)',          defaultTone: '8.G', verses: '12-19' },
         { type: 'nt-canticle', id: '10',  title: 'NT Canticle (Rev 11:17-18; 12:10-12)',   defaultTone: '8.G' },
       ]},
     },
@@ -318,15 +318,15 @@ export const PSALTER_SCHEMA: Record<number, Record<number, DayPsalterAssignment>
         { type: 'psalm',       id: '147A', title: 'Psalm 147A',              defaultTone: '4.E' },
       ]},
       vespers: { units: [
-        { type: 'psalm',       id: '114', title: 'Psalm 114',                defaultTone: '1.D' },
-        { type: 'psalm',       id: '120', title: 'Psalm 120',                defaultTone: '1.D' },
+        { type: 'psalm',       id: '116', title: 'Psalm 116A',                defaultTone: '1.D', verses: '1-9' },
+        { type: 'psalm',       id: '121', title: 'Psalm 121',                defaultTone: '1.D' },
         { type: 'nt-canticle', id: '11',   title: 'NT Canticle (Rev 15:3-4)',   defaultTone: '1.D' },
       ]},
     },
     // Saturday — 2H7 (OCO: Ps 104 | Deut 32 | Ps 8 / Vespers: Ps 110, Ps 114, Rev 19)
     6: {
       lauds: { units: [
-        { type: 'psalm',       id: '103', title: 'Psalm 103',                defaultTone: '8.G' },
+        { type: 'psalm',       id: '104', title: 'Psalm 104',                defaultTone: '8.G' },
         { type: 'ot-canticle', id: '7',   title: 'OT Canticle (Deut 32)',    defaultTone: '8.G' },
         { type: 'psalm',       id: '8',   title: 'Psalm 8',                  defaultTone: '8.G' },
       ]},
@@ -363,8 +363,8 @@ export const PSALTER_SCHEMA: Record<number, Record<number, DayPsalterAssignment>
         { type: 'psalm',       id: '96', title: 'Psalm 96',                  defaultTone: '8.G' },
       ]},
       vespers: { units: [
-        { type: 'psalm',       id: '122', title: 'Psalm 122',                defaultTone: '8.G' },
         { type: 'psalm',       id: '123', title: 'Psalm 123',                defaultTone: '8.G' },
+        { type: 'psalm',       id: '124', title: 'Psalm 124',                defaultTone: '8.G' },
         { type: 'nt-canticle', id: '4',   title: 'NT Canticle (Eph 1:3-10)',             defaultTone: '8.G' },
       ]},
     },
@@ -376,8 +376,8 @@ export const PSALTER_SCHEMA: Record<number, Record<number, DayPsalterAssignment>
         { type: 'psalm',       id: '67', title: 'Psalm 67',                  defaultTone: '4.E' },
       ]},
       vespers: { units: [
-        { type: 'psalm',       id: '124', title: 'Psalm 124',                defaultTone: '2.D' },
-        { type: 'psalm',       id: '130', title: 'Psalm 130',                defaultTone: '2.D' },
+        { type: 'psalm',       id: '125', title: 'Psalm 125',                defaultTone: '2.D' },
+        { type: 'psalm',       id: '131', title: 'Psalm 131',                defaultTone: '2.D' },
         { type: 'nt-canticle', id: '9',   title: 'NT Canticle (Rev 4:11; 5:9-12)',             defaultTone: '2.D' },
       ]},
     },
@@ -389,8 +389,8 @@ export const PSALTER_SCHEMA: Record<number, Record<number, DayPsalterAssignment>
         { type: 'psalm',       id: '98', title: 'Psalm 98',                  defaultTone: '7.c' },
       ]},
       vespers: { units: [
-        { type: 'psalm',       id: '125', title: 'Psalm 125',                defaultTone: '8.G' },
         { type: 'psalm',       id: '126', title: 'Psalm 126',                defaultTone: '8.G' },
+        { type: 'psalm',       id: '127', title: 'Psalm 127',                defaultTone: '8.G' },
         { type: 'nt-canticle', id: '6',   title: 'NT Canticle (Col 1:12-20)',             defaultTone: '8.G' },
       ]},
     },
@@ -481,7 +481,7 @@ export const PSALTER_SCHEMA: Record<number, Record<number, DayPsalterAssignment>
     // Wednesday — 4H4 (OCO: Ps 108 | Is 62 | Ps 146 / Vespers: Ps 139, Ps 139b)
     3: {
       lauds: { units: [
-        { type: 'psalm',       id: '107', title: 'Psalm 107',               defaultTone: '7.c' },
+        { type: 'psalm',       id: '108', title: 'Psalm 108',               defaultTone: '7.c' },
         { type: 'ot-canticle', id: '21',  title: 'OT Canticle (Is 61:10)', defaultTone: '7.c' },
         { type: 'psalm',       id: '146', title: 'Psalm 146',               defaultTone: '7.c' },
       ]},
