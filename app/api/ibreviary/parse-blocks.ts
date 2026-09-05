@@ -4,6 +4,37 @@ import { stripVerseNumbers } from '@/lib/psalm-tones/verse-numbers';
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
+/**
+ * Rubrics that offer an alternative to the office we always say.
+ *
+ * Psalm 94/95 is the only invitatory psalm this app prints, and the
+ * Invitatory is always said, so iBreviary's "or you could…" scaffolding is
+ * noise. The same regex already classified these as rubric further down; here
+ * it drops them instead.
+ */
+const OPTION_RUBRIC = /^The Invitatory is said when/i;
+
+/**
+ * The rubric that introduces the opening used *instead* of the Invitatory.
+ * Everything after it, to the end of its paragraph, is that alternative:
+ * "God, come to my assistance" and the Glory Be that follows it.
+ */
+const INVITATORY_ALTERNATIVE = /^If the Invitatory is not said/i;
+
+/** A section heading, which ends whatever the previous rubric was governing. */
+const SECTION_HEADING = /class="(?:capolettera_piccolo|titoletto)"/;
+
+/**
+ * A versicle: a line, then its response, introduced by an em dash in English
+ * and by the response sign in Latin.
+ *
+ * "Lord, + open my lips. / — And my mouth will proclaim your praise." reaches
+ * the parser inside the INVITATORY section, where everything else is psalm
+ * text, so it was typed `psalm` — offered for psalm-tone pointing, and merged
+ * into Psalm 95. No verse of Psalm 94/95 opens on either mark.
+ */
+const VERSICLE = /^\s*(?:[—–]\s|℟)/m;
+
 export function parseBlocks(
   $: cheerio.CheerioAPI,
   dateText: string,
@@ -28,6 +59,9 @@ export function parseBlocks(
        // Split only on double (or more) <br> — paragraph/stanza boundaries.
        // Single <br> within a stanza (verse half) is preserved and converted to \n inside the block.
        const parts = elHtml.split(/(?:<br\s*\/?>){2,}/gi);
+       // Scoped to this element, so the alternative opening can only swallow
+       // the rest of its own paragraph — never the hymn that follows it.
+       let droppingInvitatoryAlternative = false;
        for (const part of parts) {
           const part$ = cheerio.load(part);
           const rawText = part$.text().trim();
@@ -36,6 +70,26 @@ export function parseBlocks(
           if (rawText.includes('*****') || rawText.includes('DONATE') || rawText.includes('SUBSCRIBE')) {
              stopParsing = true;
              break;
+          }
+
+          // Everything from "If the Invitatory is not said" to the end of the
+          // paragraph is the opening we never use. A section heading ends it
+          // early, in case iBreviary ever reorders the page.
+          if (droppingInvitatoryAlternative) {
+             if (!SECTION_HEADING.test(part)) continue;
+             droppingInvitatoryAlternative = false;
+          }
+
+          // A part that is nothing but a link is navigation: "Go to the
+          // Hymn", and the "Psalm 24 / 67 / 100" that offer the other
+          // invitatory psalms. Nothing legitimate on the page is a bare link.
+          const linkText = part$('a').text().trim();
+          if (linkText && linkText === rawText) continue;
+
+          if (currentSection === 'INVITATORY' && OPTION_RUBRIC.test(rawText)) continue;
+          if (currentSection === 'INVITATORY' && INVITATORY_ALTERNATIVE.test(rawText)) {
+             droppingInvitatoryAlternative = true;
+             continue;
           }
 
           if (part.includes('class="sezione"')) {
@@ -134,6 +188,9 @@ export function parseBlocks(
             } else if (currentSection === 'RESPONSORY') {
                // Responsory text: ritornello (refrain), versetto (versicle), or plain text
                if (finalText) parsedBlocks.push({ id: generateId(), type: 'text', content: finalText });
+            } else if (currentSection === 'INVITATORY' && VERSICLE.test(finalText)) {
+               // "Lord, open my lips" — a versicle, not a verse of Psalm 95.
+               parsedBlocks.push({ id: generateId(), type: 'text', content: finalText });
             } else if (currentSection === 'PSALMODY' || currentSection === 'CANTICLE' || currentSection === 'INVITATORY') {
                 // Detect canticle name from any text element if not yet determined
                 if (currentSection === 'CANTICLE' && !currentCanticleName) {
