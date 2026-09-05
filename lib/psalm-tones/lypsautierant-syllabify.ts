@@ -4,7 +4,7 @@
  *
  * Mechanical conversion of vendor/psautier/sedsyllables — the sed
  * script the upstream tool runs over psalm text before pointing it. Applying
- * these 180 rules in order reproduces `sed -f sedsyllables` exactly.
+ * these 190 rules in order reproduces `sed -f sedsyllables` exactly.
  *
  * This matters because the pointing rules count syllables from the end of
  * each hemistich: if a word splits differently here than upstream, every
@@ -18,14 +18,16 @@
 
 /** [pattern, replacement] in upstream order; the comment is the sed original. */
 const RULES: [RegExp, string][] = [
+  // s/\<\([Ss][íi]\)on\>/\1 -- on/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ss][íi])on(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- on"],
   // s/\t/ /g;
   [/\t/gu, " "],
-  // s/\(\<[iíúu]n\)\([^ .,;?!"]\)/\1 -- \2/g;
-  [/((?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])[iíúu]n)([^ .,;?!"])/gu, "$1 -- $2"],
+  // s/\(\<[iíúuIÍÚU]n\)\([^ .,;?!"]\)/\1 -- \2/g;
+  [/((?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])[iíúuIÍÚU]n)([^ .,;?!"])/gu, "$1 -- $2"],
   // s/ful\>/ -- &/g;
   [/ful(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, " -- $&"],
-  // s/\<\(f[óo]r\)\([a-z,áéíóú]\)/\1 -- \2/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])(f[óo]r)([a-z,áéíóú])/gu, "$1 -- $2"],
+  // s/\<\([fF][óoÓO]r\)\([a-z,áéíóú]\)/\1 -- \2/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([fF][óoÓO]r)([a-z,áéíóú])/gu, "$1 -- $2"],
   // s/\<\([óo]ff\)\([^aeiouáéíóú .,;-?!]\)/\1 -- \2/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([óo]ff)([^aeiouáéíóú .,;-?!])/gu, "$1 -- $2"],
   // s/\([^cK]\)\(ing[^a-z]\)/\1 -- \2/g;
@@ -36,8 +38,8 @@ const RULES: [RegExp, string][] = [
   [/[t][ée]d(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, " -- $&"],
   // s/[s][íi]on\>/ -- &/g;
   [/[s][íi]on(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, " -- $&"],
-  // s/\([a-záéíóú][a-záéíóú]\)\([nlvrtdm]y\)\>/\1 -- \2/g;
-  [/([a-záéíóú][a-záéíóú])([nlvrtdm]y)(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- $2"],
+  // s/\([A-Za-záéíóúÁÉÍÓÚ][a-záéíóú]\)\([nlvrtdm]y\)\>/\1 -- \2/g;
+  [/([A-Za-záéíóúÁÉÍÓÚ][a-záéíóú])([nlvrtdm]y)(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- $2"],
   // s/[a-z,áéíúó]l[ée]\([^a-r,áéíóú,t-z]\|\>\)/ -- &/g;
   [/[a-z,áéíúó]l[ée]([^a-r,áéíóú,t-z]|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))/gu, " -- $&"],
   // s/\([^aeiouáéíóút .,;"`]i\)\([úu][^aeiouáéíóú .,;?!:"]\)/\1 -- \2/g;
@@ -138,14 +140,14 @@ const RULES: [RegExp, string][] = [
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])eve -- ry(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "ev -- ery"],
   // s/\<éve -- ry\>/év -- ery/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])éve -- ry(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "év -- ery"],
-  // s/\<wha -- tever\>/wha -- te -- ver/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])wha -- tever(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "wha -- te -- ver"],
-  // s/\<wha -- téver\>/wha -- té -- ver/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])wha -- téver(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "wha -- té -- ver"],
-  // s/\<e -- ver\>/ev -- er/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])e -- ver(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "ev -- er"],
-  // s/\<é -- ver\>/év -- er/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])é -- ver(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "év -- er"],
+  // s/\<\([Ww]ha\) -- tever\>/\1 -- te -- ver/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ww]ha) -- tever(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- te -- ver"],
+  // s/\<\([Ww]ha\) -- téver\>/\1 -- té -- ver/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ww]ha) -- téver(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- té -- ver"],
+  // s/\<\([Ee]\) -- ver\>/\1v -- er/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ee]) -- ver(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1v -- er"],
+  // s/\<\([Éé]\) -- ver\>/\1v -- er/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Éé]) -- ver(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1v -- er"],
   // s/\<l\([ií]\)\(ver[es]*[d]*\)\>/l\1 -- \2/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])l([ií])(ver[es]*[d]*)(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "l$1 -- $2"],
   // s/\<nities\>/ni -- ties/g;
@@ -178,16 +180,16 @@ const RULES: [RegExp, string][] = [
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])wi -- thout(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "with -- out"],
   // s/\<wi -- thóut\>/with -- óut/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])wi -- thóut(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "with -- óut"],
-  // s/\<be -- loved\>/be -- lo -- ved/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])be -- loved(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "be -- lo -- ved"],
-  // s/\<be -- lóved\>/be -- ló -- ved/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])be -- lóved(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "be -- ló -- ved"],
+  // s/\<\([Bb]e\) -- loved\>/\1 -- lo -- ved/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Bb]e) -- loved(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- lo -- ved"],
+  // s/\<\([Bb]e\) -- lóved\>/\1 -- ló -- ved/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Bb]e) -- lóved(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- ló -- ved"],
   // s/\<di -- vided\>/di -- vi -- ded/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])di -- vided(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "di -- vi -- ded"],
   // s/\<di -- víded\>/di -- ví -- ded/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])di -- víded(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "di -- ví -- ded"],
-  // s/\<\(pr[áa]\) -- \(yer[s]*\)\>/\1\2/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])(pr[áa]) -- (yer[s]*)(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1$2"],
+  // s/\<\([Pp]r[áa]\) -- \(yer[s]*\)\>/\1\2/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Pp]r[áa]) -- (yer[s]*)(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1$2"],
   // s/\<\([sb][noó][aá]*\) -- res\>/\1res/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([sb][noó][aá]*) -- res(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1res"],
   // s/\<\([tóo][hr][uú]*[n]*\) -- de -- red\>/\1 -- dered/g;
@@ -216,8 +218,8 @@ const RULES: [RegExp, string][] = [
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])sp -- ring(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "spring"],
   // s/\<sp -- ríng\>/spríng/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])sp -- ríng(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "spríng"],
-  // s/\<sp -- \(l[ée]n\)dor\>/sp\1 -- dor/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])sp -- (l[ée]n)dor(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "sp$1 -- dor"],
+  // s/\<\([Ss]p\) -- \(l[ée]n\)dor\>/\1\2 -- dor/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ss]p) -- (l[ée]n)dor(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1$2 -- dor"],
   // s/\<r -- ule\>/rule/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])r -- ule(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "rule"],
   // s/\<r -- úle\>/rúle/g;
@@ -272,14 +274,14 @@ const RULES: [RegExp, string][] = [
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])ínte -- rest(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "ín -- terest"],
   // s/\<inte -- rest\>/in -- terest/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])inte -- rest(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "in -- terest"],
-  // s/\<inst -- ruction\>/in -- struc -- tion/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])inst -- ruction(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "in -- struc -- tion"],
-  // s/\<inst -- rúction\>/in -- strúc -- tion/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])inst -- rúction(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "in -- strúc -- tion"],
-  // s/\<re -- deemer\>/re -- dee -- mer/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])re -- deemer(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "re -- dee -- mer"],
-  // s/\<re -- déemer\>/re -- dée -- mer/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])re -- déemer(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "re -- dée -- mer"],
+  // s/\<\([Ii]\)nst -- ruction\>/\1n -- struc -- tion/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ii])nst -- ruction(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1n -- struc -- tion"],
+  // s/\<\([Ii]\)nst -- rúction\>/\1n -- strúc -- tion/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ii])nst -- rúction(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1n -- strúc -- tion"],
+  // s/\<\([Rr]e\) -- deemer\>/\1 -- dee -- mer/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Rr]e) -- deemer(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- dee -- mer"],
+  // s/\<\([Rr]e\) -- déemer\>/\1 -- dée -- mer/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Rr]e) -- déemer(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- dée -- mer"],
   // s/\<\(p[ée]\)ri\>/\1 -- ri/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])(p[ée])ri(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- ri"],
   // s/\<fortune\>/for -- tune/g;
@@ -294,14 +296,14 @@ const RULES: [RegExp, string][] = [
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])wicked(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "wic -- ked"],
   // s/\<wícked\>/wíc -- ked/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])wícked(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "wíc -- ked"],
-  // s/\<mighty\>/mi -- ghty/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])mighty(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "mi -- ghty"],
-  // s/\<míghty\>/mí -- ghty/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])míghty(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "mí -- ghty"],
-  // s/\<daughter\>/daugh -- ter/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])daughter(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "daugh -- ter"],
-  // s/\<dáughter\>/dáugh -- ter/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])dáughter(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "dáugh -- ter"],
+  // s/\<\([Mm]\)ighty\>/\1i -- ghty/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Mm])ighty(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1i -- ghty"],
+  // s/\<\([Mm]\)íghty\>/\1í -- ghty/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Mm])íghty(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1í -- ghty"],
+  // s/\<\([Dd]\)aughter\>/\1augh -- ter/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Dd])aughter(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1augh -- ter"],
+  // s/\<\([Dd]\)áughter\>/\1áugh -- ter/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Dd])áughter(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1áugh -- ter"],
   // s/\<any\>/a -- ny/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])any(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "a -- ny"],
   // s/\<ány\>/á -- ny/g;
@@ -320,10 +322,10 @@ const RULES: [RegExp, string][] = [
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])ritánce(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "ri -- tánce"],
   // s/\<\(ch[áa]\) -- ri -- \(ot[s]*\)/\1 -- ri\2/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])(ch[áa]) -- ri -- (ot[s]*)/gu, "$1 -- ri$2"],
-  // s/\<bri -- deg -- room\>/bride -- groom/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])bri -- deg -- room(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "bride -- groom"],
-  // s/\<brí -- deg -- room\>/bríde -- groom/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])brí -- deg -- room(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "bríde -- groom"],
+  // s/\<\([Bb]\)ri -- deg -- room\>/\1ride -- groom/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Bb])ri -- deg -- room(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1ride -- groom"],
+  // s/\<\([Bb]\)rí -- deg -- room\>/\1ríde -- groom/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Bb])rí -- deg -- room(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1ríde -- groom"],
   // s/\<wi -- de-o -- pen\>/wide- -- o -- pen/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])wi -- de-o -- pen(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "wide- -- o -- pen"],
   // s/\<wí -- de-o -- pen\>/wíde- -- o -- pen/g;
@@ -336,10 +338,10 @@ const RULES: [RegExp, string][] = [
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])Al -- le -- luia(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "Al -- le -- lu -- ia"],
   // s/\<Al -- le -- lúia\>/Al -- le -- lú -- ia/g;
   [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])Al -- le -- lúia(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "Al -- le -- lú -- ia"],
-  // s/\<who -- mever\>/who -- me -- ver/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])who -- mever(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "who -- me -- ver"],
-  // s/\<who -- méver\>/who -- mé -- ver/g;
-  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])who -- méver(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "who -- mé -- ver"],
+  // s/\<\([Ww]ho\) -- mever\>/\1 -- me -- ver/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ww]ho) -- mever(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- me -- ver"],
+  // s/\<\([Ww]ho\) -- méver\>/\1 -- mé -- ver/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ww]ho) -- méver(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- mé -- ver"],
   // s/LO -- RD/LORD/g;
   [/LO -- RD/gu, "LORD"],
   // s/LÓ -- RD/LÓRD/g;
@@ -378,6 +380,24 @@ const RULES: [RegExp, string][] = [
   [/--  --/gu, "--"],
   // s/  -- / /g;
   [/  -- /gu, " "],
+  // s/\<\([Ii]\)nst -- r\([uú]\)ct/\1n -- str\2ct/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ii])nst -- r([uú])ct/gu, "$1n -- str$2ct"],
+  // s/\<\([Ss]c\) -- riptu -- res\>/\1rip -- tures/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ss]c) -- riptu -- res(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1rip -- tures"],
+  // s/\<\([Ss]c\) -- ript\([uú]\)/\1rip -- t\2/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ss]c) -- ript([uú])/gu, "$1rip -- t$2"],
+  // s/^ -- //g;
+  [/^ -- /gu, ""],
+  // s/ -- \([^aeiouyáéíóúýAEIOUYÁÉÍÓÚÝ ]*\)\>/\1/g;
+  [/ -- ([^aeiouyáéíóúýAEIOUYÁÉÍÓÚÝ ]*)(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1"],
+  // s/\<\([^aeiouyáéíóúýAEIOUYÁÉÍÓÚÝ ]*\) -- /\1/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([^aeiouyáéíóúýAEIOUYÁÉÍÓÚÝ ]*) -- /gu, "$1"],
+  // s/\([aeiouáéíóú]\) -- \(s*l[ée]\|s*l[ée]s\)\>/\1\2/g;
+  [/([aeiouáéíóú]) -- (s*l[ée]|s*l[ée]s)(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1$2"],
+  // s/\<\([Tt][íi]m\)br -- el/\1 -- brel/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Tt][íi]m)br -- el/gu, "$1 -- brel"],
+  // s/\<\([Ss]crip\)t\([uú]re[s]*\)\>/\1 -- t\2/g;
+  [/(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])([Ss]crip)t([uú]re[s]*)(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_])/gu, "$1 -- t$2"],
 ];
 
 /**
