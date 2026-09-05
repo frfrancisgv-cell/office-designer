@@ -115,20 +115,65 @@ function htmlToLatex(html: string): string {
 }
 
 /**
- * Mark glyphs as LaTeX, keyed by the rule name the engine puts in data-pt.
- * Mirrors psautier/psalter.sty, which uses a bold '+' and an en dash.
- * Keyed by name rather than by glyph so the exporter does not depend on
- * which Unicode dash the on-screen rendering happens to use.
+ * Mark glyphs as LaTeX, keyed by the rule name the engine puts in data-pt —
+ * by name rather than by glyph, so the exporter does not depend on which
+ * Unicode dash the on-screen rendering happens to use.
+ *
+ * These reproduce psautier/psalter.sty's \\pl \\pp \\plmi \\mipl \\mi \\mimi \\dmi
+ * exactly, down to the font each is set in, because they are not all set in
+ * the same one. +, ++ and = are T1 bold; the lone minus is \\char0 of the OMS
+ * symbol font, a longer and lighter stroke than any dash in the text face —
+ * an en dash in its place reads as a hyphen and is the wrong mark.
  */
 const LYPS_MARK_LATEX: Record<string, string> = {
-  pl:   '+',
-  pp:   '++',
-  plmi: '+\\textendash',
-  mipl: '\\textendash+',
-  mi:   '\\textendash',
-  mimi: '\\textendash\\textendash',
-  dmi:  '=',
+  pl:   '\\lypstbf{+}',
+  pp:   '\\lypstbf{++}',
+  plmi: '\\lypstbf{+--}',
+  mipl: '\\lypstbf{--+}',
+  mi:   '\\lypsminus',
+  mimi: '\\lypsminus\\lypsminus',
+  dmi:  '\\lypstbf{=}',
 };
+
+/**
+ * Extra drop for a mark, over and above the row spacing. psalter.sty gives
+ * \\dmi — and only \\dmi — a default \\vskip of 0.5ex, so the '=' hangs lower
+ * than the others; the rest take 0sp.
+ */
+const LYPS_MARK_DROP: Record<string, string> = {
+  dmi: '0.5ex',
+};
+
+/** Characters that drop below the baseline, which a mark must not sit on. */
+const LYPS_DESCENDERS = /[gjpqyýÿJQ,;()]/;
+
+/**
+ * The descending runs of a syllable, each named as the text BEFORE it plus the
+ * run itself, so LaTeX can measure where the run falls. Marks are centred on
+ * the syllable as psalter.sty centres them; this is only so TeX can nudge one
+ * aside when the centre happens to land on a tail.
+ *
+ * The renderer deliberately does no arithmetic here: how wide a 'p' is in this
+ * face at this size is the font's business, and a guess would be wrong at any
+ * other size. It names the characters; TeX supplies the widths.
+ *
+ * Returns '' for anything that is not plain text (nested markup, an HTML
+ * entity), where slicing by character index would cut a macro in half. The
+ * mark is then simply centred, with no dodge.
+ */
+function lypsDescenders(syllable: string): string {
+  if (/[\u0000&<]/.test(syllable)) return '';
+  let out = '';
+  let i = 0;
+  while (i < syllable.length) {
+    if (!LYPS_DESCENDERS.test(syllable[i])) { i += 1; continue; }
+    const start = i;
+    while (i < syllable.length && LYPS_DESCENDERS.test(syllable[i])) i += 1;
+    out += `\u0000LYPSDSC\u0000${syllable.slice(0, start)}`
+         + `\u0000LYPSDMID\u0000${syllable.slice(start, i)}\u0000LYPSDEND\u0000`;
+  }
+  return out;
+}
 
 /**
  * Turn lypsautierant pointing markup into sentinels that survive the HTML
@@ -188,12 +233,15 @@ function lypsToSentinels(html: string): string {
         if (parent && frame.pt && LYPS_MARK_LATEX[frame.pt]) parent.marks.push(frame.pt);
         break;
       case 'lyps-pt': {
-        // Innermost mark first, so the outermost ends up wrapping the rest.
-        const body = frame.marks.reduce(
-          (acc, mk) => `\u0000LYPSMARK\u0000${acc}\u0000LYPSMID\u0000${mk}\u0000LYPSEND\u0000`,
-          frame.buf,
-        );
-        emit(body);
+        // Every mark on a syllable goes into ONE \lypsmark, innermost first,
+        // so they become successive rows of a single box. Nesting one
+        // \lypsmark inside another would re-measure the inner box — whose
+        // depth already carries a mark row — and push the outer mark below it,
+        // off the axis every other syllable's mark sits on.
+        if (!frame.marks.length) { emit(frame.buf); break; }
+        emit(`\u0000LYPSMARK\u0000${lypsDescenders(frame.buf)}`
+           + `\u0000LYPSSYL\u0000${frame.buf}`
+           + `\u0000LYPSMID\u0000${frame.marks.join(',')}\u0000LYPSEND\u0000`);
         break;
       }
       case 'lyps-verse':
@@ -233,8 +281,17 @@ function lypsToSentinels(html: string): string {
 function lypsSentinelsToLatex(latex: string): string {
   return latex
     .replace(/\u0000LYPSMARK\u0000/g, '\\lypsmark{')
-    .replace(/\u0000LYPSMID\u0000([a-z]+)\u0000LYPSEND\u0000/g,
-             (_m, name: string) => `}{${LYPS_MARK_LATEX[name] ?? ''}}`)
+    .replace(/\u0000LYPSDSC\u0000/g, '\\lypsdsc{')
+    .replace(/\u0000LYPSDMID\u0000/g, '}{')
+    .replace(/\u0000LYPSDEND\u0000/g, '}')
+    .replace(/\u0000LYPSSYL\u0000/g, '}{')
+    .replace(/\u0000LYPSMID\u0000([a-z,]+)\u0000LYPSEND\u0000/g,
+             (_m, names: string) => `}{${names.split(',')
+               .filter(n => LYPS_MARK_LATEX[n])
+               .map(n => LYPS_MARK_DROP[n]
+                 ? `\\lypsrow[${LYPS_MARK_DROP[n]}]{${LYPS_MARK_LATEX[n]}}`
+                 : `\\lypsrow{${LYPS_MARK_LATEX[n]}}`)
+               .join('')}}`)
     .replace(/\u0000LYPSVERSE\u0000/g, '\\lypsverse{')
     .replace(/\u0000LYPSEND\u0000/g, '}')
     .replace(/\u0000LYPSRULE\u0000/g, '\\lypsrule{}');
@@ -418,17 +475,76 @@ function buildPreamble(settings: OfficeSettings): string {
 % with \\oalign. \\vtop takes its baseline from its first box, so the syllable
 % stays on the text baseline and the mark hangs below it.
 %
-% Marks nest — the rules sometimes re-mark an already-marked syllable — so the
-% scratch box is set inside a group, keeping it safe under recursion.
+% The syllable box's DEPTH is zeroed first — psalter.sty gets the same effect
+% from the \\smash in \\oalign{\\smash{#2}\\cr...}. Without it, \\lineskip measures
+% from the bottom of the glyphs, so a descender ("hélp", "yóu") drops its mark
+% a few points lower than the mark on the syllable beside it and the row of
+% marks no longer sits on one horizontal axis. Height is kept, unlike \\smash,
+% so an accented capital still claims its space from the line above.
+%
+% #3 is the whole stack of \\lypsrow rows: a syllable can carry more than one
+% mark, and they must share this single box to stay on the axis.
+%
+% Horizontally the mark is centred on the syllable, as psalter.sty centres it.
+% #1 is the one departure: a list of \\lypsdsc{text before}{run} items naming the
+% syllable's descenders, each of which slides the mark aside if it would
+% otherwise sit on that tail — "my" gets its mark in the notch beside the 'y'.
+% An empty #1 leaves the mark centred and nothing else changes.
 \\newbox\\lypsbox
-\\newcommand{\\lypsmarkfont}{\\fontsize{5}{5}\\selectfont\\bfseries}
-\\newcommand{\\lypsmark}[2]{%
+\\newbox\\lypstmpbox
+\\newdimen\\lypscx      % where the mark's centre sits, from the box's left edge
+\\newdimen\\lypsmkhalf  % half a mark's width, the clearance it needs each side
+\\newdimen\\lypsdsca    % left edge of the descender run being considered
+\\newdimen\\lypsdscb    % right edge of the same
+\\newcommand{\\lypsmarkfont}{\\fontsize{5}{5}\\selectfont}
+% The two faces psalter.sty sets its marks in. Neither is the text face: the
+% marks come from the legacy encodings, and the OMS minus in particular is a
+% longer, lighter stroke than any dash EB Garamond or Adobe Caslon would give.
+\\newcommand{\\lypstbf}[1]{{\\fontencoding{T1}\\selectfont\\textbf{#1}}}
+\\newcommand{\\lypsminus}{{\\fontencoding{OMS}\\selectfont\\char0}}
+% One mark row, [#1] lower than it would otherwise sit — psalter.sty's
+% \\noalign{\\vskip} between the \\oalign rows, which only \\dmi uses.
+\\newcommand{\\lypsrow}[2][0pt]{%
+  \\vskip#1\\relax
+  \\hbox to \\wd\\lypsbox{\\kern\\lypscx\\hbox to 0pt{\\hss\\lypsmarkfont #2\\hss}\\hss}}
+\\newif\\iflypsgoright
+\\newcommand{\\lypsdsc}[2]{%
+  \\setbox\\lypstmpbox=\\hbox{#1}\\lypsdsca=\\wd\\lypstmpbox
+  \\setbox\\lypstmpbox=\\hbox{#2}\\lypsdscb=\\dimexpr\\lypsdsca+\\wd\\lypstmpbox\\relax
+  \\ifdim\\dimexpr\\lypscx-\\lypsmkhalf\\relax<\\lypsdscb
+    \\ifdim\\dimexpr\\lypscx+\\lypsmkhalf\\relax>\\lypsdsca
+      % The mark is sitting on this run. Both ways clear of it:
+      \\lypsdsca=\\dimexpr\\lypsdsca-\\lypsmkhalf\\relax
+      \\lypsdscb=\\dimexpr\\lypsdscb+\\lypsmkhalf\\relax
+      % Take the one nearer the centre — but a mark pushed outside the syllable
+      % stops reading as belonging to it, so staying inside wins over nearness.
+      \\ifdim\\dimexpr\\lypscx-\\lypsdsca\\relax>\\dimexpr\\lypsdscb-\\lypscx\\relax
+        \\lypsgorighttrue
+      \\else
+        \\lypsgorightfalse
+      \\fi
+      \\ifdim\\lypsdsca<0pt \\lypsgorighttrue \\fi
+      \\ifdim\\lypsdscb>\\wd\\lypsbox \\lypsgorightfalse \\fi
+      \\iflypsgoright \\lypscx=\\lypsdscb \\else \\lypscx=\\lypsdsca \\fi
+    \\fi
+  \\fi
+}
+\\newcommand{\\lypsmark}[3]{%
   \\leavevmode
   \\begingroup
-  \\setbox\\lypsbox=\\hbox{#1}%
-  \\vtop{\\baselineskip=0pt \\lineskip=1pt
+  \\setbox\\lypsbox=\\hbox{#2}%
+  \\dp\\lypsbox=0pt
+  \\setbox\\lypstmpbox=\\hbox{\\lypsmarkfont\\lypstbf{+}}%
+  \\lypsmkhalf=0.5\\wd\\lypstmpbox
+  \\lypscx=0.5\\wd\\lypsbox
+  #1%
+  % A mark may overhang the syllable by half its width, no further: past that
+  % it stops reading as belonging to this syllable.
+  \\ifdim\\lypscx<0pt \\lypscx=0pt \\fi
+  \\ifdim\\lypscx>\\wd\\lypsbox \\lypscx=\\wd\\lypsbox \\fi
+  \\vtop{\\baselineskip=0pt \\lineskip=0.25ex \\lineskiplimit=\\maxdimen
     \\copy\\lypsbox
-    \\hbox to \\wd\\lypsbox{\\hss\\lypsmarkfont #2\\hss}%
+    #3%
   }%
   \\endgroup
 }
