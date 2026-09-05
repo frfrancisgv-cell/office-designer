@@ -3,6 +3,8 @@ import { generateCanonicalOffice } from '@/lib/liturgy/office-engine';
 import { getCommonOccasionCode, getLiturgicalContext, invitatoryOccasionCodes } from '@/lib/liturgy/calendar-context';
 import type { OfficeHour } from '@/lib/liturgy/calendar-context';
 import { getAnts, getHyms, getRbs } from '@/app/api/ibreviary/gabc-loaders';
+import { propagateTones } from '@/lib/psalm-tones/propagate';
+import type { Block } from '@/lib/types';
 
 /**
  * GET /api/liturgy
@@ -70,7 +72,7 @@ export async function GET(request: NextRequest) {
     
     // 3. Assign GABC scores and candidates
     const { populateGabc, responsoryByOccasion } = require('@/app/api/ibreviary/gabc-lookup');
-    const blocks = await populateGabc(
+    const scored = await populateGabc(
       rawBlocks,
       hour,
       occasionCode,
@@ -82,6 +84,20 @@ export async function GET(request: NextRequest) {
       context.isFirstVespers,
       invitatoryCodes
     );
+
+    // 4. Carry each antiphon's mode down onto the psalms it governs. This runs
+    // *after* the GABC assignment because it reads the `annotation:` header
+    // that `withAnnotation` writes, and it overwrites the psalter schema's
+    // default tone wherever OCO records a mode the table can read. The
+    // iBreviary route has done this since it was written; the offline one
+    // never did, so every psalm of every day was tone 8.G.
+    const blocks = propagateTones(scored);
+    const psalms = blocks.filter((b: Block) => b.type === 'psalm' && !b.gabcScore);
+    const fromOco = psalms.filter((b: Block) => b.toneSource === 'oco').length;
+    if (psalms.length) {
+      console.log(`[OCO] tones: ${fromOco}/${psalms.length} psalms from the antiphon's mode, `
+        + `${psalms.length - fromOco} on the psalter's default`);
+    }
 
     // Inject the OCO short responsory block (Rb.) directly before the GOSPEL CANTICLE heading
     if (occasionCode && hour !== 'compline') {

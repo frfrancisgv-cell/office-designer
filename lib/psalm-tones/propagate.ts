@@ -1,10 +1,27 @@
 import type { Block } from '@/lib/types';
 import { parseToneFromAnnotation } from './parse-annotation';
+import { resolveToneFromMode } from './mode-map';
+import type { ResolvedTone } from './mode-map';
 
+/**
+ * Carry the antiphon's tone down onto the psalms it governs.
+ *
+ * The tone is not a property of the psalm; it is the antiphon's, and OCO
+ * records it on the antiphon as a `Mode`. `withAnnotation` writes that mode
+ * into the score's `annotation:` header, so by the time the blocks are
+ * enriched the tone is sitting on each antiphon waiting to be read.
+ *
+ * `mode-map.ts` answers for both pointing engines at once — the jgabc tone
+ * that points the Latin and the lypsautierant `english` variation that points
+ * the English — so a psalm carries one decision, not two that can drift.
+ * Where the mode maps to nothing, the block keeps whatever tone it arrived
+ * with, which is the caller's fallback.
+ */
 export function propagateTones(enrichedBlocks: Block[]): Block[] {
   const psalmNumRx = /\bPs(?:alm)?\s*(\d+[A-Za-z]?(?:\.\d+-\d+)?)\b/i;
   let currentTone: string | undefined;
   let currentVariant: string | undefined;
+  let currentLyps: ResolvedTone | undefined;
 
   for (let i = 0; i < enrichedBlocks.length; i++) {
     const b = enrichedBlocks[i];
@@ -13,10 +30,24 @@ export function propagateTones(enrichedBlocks: Block[]): Block[] {
     if (b.type === 'antiphon' && b.gabcScore) {
       const annMatch = b.gabcScore.match(/^annotation:\s*([^;\n]+)/m);
       if (annMatch) {
-        const parsed = parseToneFromAnnotation(annMatch[1].trim());
-        if (parsed) {
-          currentTone = parsed.tone;
-          currentVariant = parsed.variant;
+        const resolved = resolveToneFromMode(annMatch[1].trim());
+        if (resolved.ok) {
+          currentTone = resolved.tone.jgabcTone;
+          currentVariant = resolved.tone.jgabcVariant;
+          currentLyps = resolved.tone;
+        } else {
+          // A mode the table does not reach leaves the psalms on whatever the
+          // caller gave them. It must not leave them on the *previous*
+          // antiphon's tone either — that would be a wrong answer wearing the
+          // last right one's clothes.
+          currentTone = undefined;
+          currentVariant = undefined;
+          currentLyps = undefined;
+          const parsed = parseToneFromAnnotation(annMatch[1].trim());
+          if (parsed) {
+            currentTone = parsed.tone;
+            currentVariant = parsed.variant;
+          }
         }
       }
     }
@@ -89,9 +120,21 @@ export function propagateTones(enrichedBlocks: Block[]): Block[] {
       }
     }
 
-    // Propagate current tone to psalm blocks
-    if (b.type === 'psalm' && currentTone && !b.psalmTone) {
-      enrichedBlocks[i] = { ...b, psalmTone: currentTone, psalmVariant: currentVariant ?? '' };
+    // Propagate current tone to psalm blocks. A psalm that carries its own
+    // score — the invitatory's Venite exsultemus — is engraved rather than
+    // pointed, and must not be given a tone to be pointed to.
+    if (b.type === 'psalm' && currentTone && !b.gabcScore) {
+      enrichedBlocks[i] = {
+        ...b,
+        psalmTone: currentTone,
+        psalmVariant: currentVariant ?? '',
+        toneSource: 'oco' as const,
+        ...(currentLyps ? {
+          lypsautierantFamily: currentLyps.lypsFamily,
+          lypsautierantMode: currentLyps.lypsMode,
+          lypsautierantVariation: currentLyps.lypsVariation,
+        } : {}),
+      };
     }
 
     // Reset tone propagation after the Gospel Canticle heading
@@ -103,6 +146,7 @@ export function propagateTones(enrichedBlocks: Block[]): Block[] {
     ) {
       currentTone = undefined;
       currentVariant = undefined;
+      currentLyps = undefined;
     }
   }
 

@@ -37,6 +37,15 @@ export interface Block {
   /** Tone variant/termination code (e.g. "G", "G*", "D") */
   psalmVariant?: string;
   /**
+   * Where `psalmTone` came from: `'oco'` when the antiphon over this psalm
+   * recorded a mode the table in `lib/psalm-tones/mode-map.ts` could read,
+   * `'default'` when it did not and the psalter schema's own tone stood. The
+   * user has accepted a plausible fallback for the *tone*, so the difference
+   * is recorded rather than hidden — a fallback nobody can count is a fallback
+   * nobody notices growing.
+   */
+  toneSource?: 'oco' | 'default';
+  /**
    * Sing the tone's solemn mediant rather than its simple one. Traditional
    * for the Gospel canticles, which is why it defaults on for them — but it
    * changes the chant, so it is stored and shown rather than inferred at the

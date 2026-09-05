@@ -26,6 +26,7 @@ import type { OfficeHour } from './calendar-context';
 import { getOfflineProper } from './offline-propers';
 import { buildInvitatoryBlocks } from './invitatory';
 import type { InvitatoryChant } from './invitatory';
+import { defaultTonePointing } from './default-tone';
 
 export interface OfficeSpec {
   date: Date;
@@ -368,8 +369,7 @@ export async function generateCanonicalOffice(spec: OfficeSpec): Promise<Block[]
         id: generateId(), type: 'psalm',
         content: textContent,
         psalmNumber: unit.id,
-        psalmTone: tone.split('.')[0] + '.',
-        psalmVariant: tone.split('.')[1] || '',
+        ...defaultTonePointing(tone),
         lang,
       });
 
@@ -432,8 +432,7 @@ export async function generateCanonicalOffice(spec: OfficeSpec): Promise<Block[]
         // "load Latin" and "load stressed English" buttons address the
         // canticle rather than the psalm that shares its index.
         psalmNumber: isCanticle ? `${kind.toUpperCase()} ${unit.id}` : unit.id,
-        psalmTone: tone.split('.')[0] + '.',
-        psalmVariant: tone.split('.')[1] || '',
+        ...defaultTonePointing(tone),
         lang,
       });
 
@@ -467,8 +466,7 @@ export async function generateCanonicalOffice(spec: OfficeSpec): Promise<Block[]
         id: generateId(), type: 'psalm',
         content: textContent,
         psalmNumber: unit.id,
-        psalmTone: tone.split('.')[0] + '.',
-        psalmVariant: tone.split('.')[1] || '',
+        ...defaultTonePointing(tone),
         lang,
       });
 
@@ -523,8 +521,7 @@ export async function generateCanonicalOffice(spec: OfficeSpec): Promise<Block[]
         id: generateId(), type: 'psalm',
         content: textContent,
         psalmNumber: p.id,
-        psalmTone: tone.split('.')[0] + '.',
-        psalmVariant: tone.split('.')[1] || '',
+        ...defaultTonePointing(tone),
         lang,
       });
 
@@ -630,8 +627,7 @@ export async function generateCanonicalOffice(spec: OfficeSpec): Promise<Block[]
       id: generateId(), type: 'psalm',
       content: canticleText,
       psalmNumber: canticleName,
-      psalmTone: '8.',
-      psalmVariant: 'G',
+      ...defaultTonePointing('8.G'),
       lang,
     });
 

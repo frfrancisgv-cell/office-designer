@@ -58,8 +58,12 @@ export function parseToneFromAnnotation(annotation: string): ParsedTone | null {
         ) ?? candidateVariant;
         return { tone: toneName, variant: normVariant };
       }
-      // Variant doesn't match known ones — still return tone with the raw variant
-      return { tone: toneName, variant: candidateVariant };
+      // A termination this tone does not have is not a termination. Returning
+      // it raw looked like an answer and was not: `getPresetGabc` finds no
+      // such key and quietly sings the mediant in its place, so "7at" came out
+      // as tone 7 with a cadence belonging to no mode at all. Say no instead,
+      // and let the caller's fallback stand.
+      return null;
     }
   }
 
@@ -74,8 +78,10 @@ export function parseToneFromAnnotation(annotation: string): ParsedTone | null {
       const validVariants = getVariants(toneName);
       const normVariant = validVariants.find(
         v => v.toLowerCase() === variant.toLowerCase()
-      ) ?? variant;
-      return { tone: toneName, variant: normVariant };
+      );
+      // Same rule as above: no invented terminations.
+      if (variant && normVariant === undefined) return null;
+      return { tone: toneName, variant: normVariant ?? '' };
     }
   }
 
