@@ -13,11 +13,12 @@ export async function POST(req: NextRequest) {
     const { action } = body;
 
     if (action === 'point') {
-      const { text, family, mode, variation } = body as {
+      const { text, family, mode, variation, lang } = body as {
         text: string;
         family: ModeFamily;
         mode: ModeName;
         variation: string;
+        lang?: 'en' | 'la';
       };
 
       if (!text || !family || !mode || !variation) {
@@ -34,7 +35,9 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
       }
 
-      const result = pointPsalmText(text, family, mode, variation);
+      // Default 'en': that is what upstream assumes, and it is what every
+      // caller got before the Latin syllabifier existed.
+      const result = pointPsalmText(text, family, mode, variation, lang === 'la' ? 'la' : 'en');
       return NextResponse.json(result);
     }
 

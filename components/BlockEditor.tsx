@@ -101,6 +101,8 @@ export function BlockEditor({
           family: lypsFamily,
           mode: lypsMode,
           variation: lypsVariation,
+          // Without this a Latin psalm is cut up by the English syllabifier.
+          lang: block.lang ?? 'en',
         }),
       });
       const data = await res.json();

@@ -34,6 +34,7 @@
  */
 
 import { syllabifyLine } from './lypsautierant-syllabify';
+import { syllabifyLatinLine } from './latin-syllabify';
 import {
   applyMode,
   getVariations,
@@ -430,14 +431,21 @@ function lineMarker(role: Role): string {
  * @param mode      'one' … 'eight' | 'peregrinus'
  * @param variation Termination variation; must be one that exists for this
  *                  family and mode (see getVariations).
+ * @param lang      Which syllabifier to cut the text with. Upstream only ever
+ *                  had the English one — `sedsyllables` is 180 rules about
+ *                  English spelling — so Latin psalms pointed as 'en' come out
+ *                  divided in the wrong places ("pr -- æsí -- dii") and every
+ *                  mark that counts from them lands on the wrong syllable.
  */
 export function pointPsalmText(
   text: string,
   family: ModeFamily,
   mode: ModeName,
   variation: string,
+  lang: 'en' | 'la' = 'en',
 ): LypsautierantResult {
   const warnings: string[] = [];
+  const syllabify = lang === 'la' ? syllabifyLatinLine : syllabifyLine;
 
   if (!hasVariation(family, mode, variation)) {
     const known = getVariations(family, mode);
@@ -473,7 +481,7 @@ export function pointPsalmText(
       }
 
       const rule = h.role === 'termination' ? variation : h.role;
-      const pointed = applyMode(family, mode, rule, syllabifyLine(h.text));
+      const pointed = applyMode(family, mode, rule, syllabify(h.text));
 
       const versePrefix = h.verse
         ? `<span class="lyps-verse">${escapeHtml(h.verse)}</span> `
