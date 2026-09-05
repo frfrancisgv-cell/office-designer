@@ -29,6 +29,20 @@ const COMMON_FILES: Array<[RegExp, string]> = [
 const FIELD_HEADER = /^(HYMN|INVITATORY|READING|RESP(?:ONSORY)?|BENEDICTUS|MAGNIFICAT|PRAYER(?:S)?|PSALMODY)\b\s*:?[ \t]*/i;
 const SECTION_HEADER = /^(FIRST VESPERS|SECOND VESPERS|VESPERS|LAUDS|SEXT|TERCE|NONE|VIGILS|OFFICE OF READINGS)\b/i;
 
+/**
+ * The Ordinary Time psalter files hold all seven days in one file, headed
+ * `SUNDAY I` … `SATURDAY I` (the numeral is the psalter week, and is redundant
+ * because the file was chosen by that week). `seasons/lent/holyweek` is headed
+ * the same way. Advent, Lent and Easter otherwise use one file per weekday.
+ *
+ * A day header is a standalone all-caps line. The uppercase test is what keeps
+ * it off the variant labels inside a field — `Friday after Ash Wednesday &
+ * Weeks 1-4:  Is 53:11b-12` also begins with a weekday, and treating it as a
+ * heading truncated the field it belongs to.
+ */
+const DAY_HEADER = /^(SUNDAY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY)S?\b[^a-z]*$/;
+const WEEKDAY_NAMES = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+
 function read(relative: string): string | null {
   const full = path.join(ROOT, relative);
   try {
@@ -55,8 +69,27 @@ function sectionNames(hour: OfficeHour, firstVespers: boolean): string[] {
   return [hour.toUpperCase()];
 }
 
-function getSection(text: string, hour: OfficeHour, firstVespers: boolean): string {
-  const lines = text.split('\n');
+/**
+ * Narrow to one day's block in a file that carries several.
+ *
+ * Without this the first `LAUDS` in the file wins, which in Ordinary Time is
+ * Sunday's — so every weekday of the psalter week was served Sunday's reading
+ * and Sunday's collect. Files with no day headers are returned whole.
+ */
+function daySection(lines: string[], weekday: number): string[] {
+  const starts: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (DAY_HEADER.test(lines[i].trim())) starts.push(i);
+  }
+  if (!starts.length) return lines;
+  const wanted = WEEKDAY_NAMES[weekday];
+  const index = starts.findIndex(start => lines[start].trim().toUpperCase().startsWith(wanted));
+  if (index < 0) return lines;
+  return lines.slice(starts[index], starts[index + 1] ?? lines.length);
+}
+
+function getSection(text: string, hour: OfficeHour, firstVespers: boolean, weekday: number): string {
+  const lines = daySection(text.split('\n'), weekday);
   for (const wanted of sectionNames(hour, firstVespers)) {
     const start = lines.findIndex(line => line.trim().toUpperCase() === wanted);
     if (start < 0) continue;
@@ -77,6 +110,13 @@ function chooseVariant(value: string, context: LiturgicalContext): string {
     new RegExp(`^(?:[^:]*&\\s*)?Weeks?\\s+([1-9])-([1-9]):\\s*`, 'i'),
     new RegExp(`^${week}\\.\\s*`),
   ] : [];
+  // Ash Wednesday and the three days after it fall before Lent's first week —
+  // romcal numbers them week 0, which is falsy and used to leave this list
+  // empty, so those four days lost their reading, antiphon and collect. The
+  // books label them by name.
+  if (week === 0 && context.season === 'lent') {
+    labels.push(/^(?:\w+day\s+after\s+)?Ash\s+Wednesday(?:\s*&\s*Weeks?\s+[1-9]-[1-9])?\s*:\s*/i);
+  }
   const month = context.celebrationDate.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
   const day = context.celebrationDate.getUTCDate();
   const suffix = day % 10 === 1 && day !== 11 ? 'st' : day % 10 === 2 && day !== 12 ? 'nd' : day % 10 === 3 && day !== 13 ? 'rd' : 'th';
@@ -97,7 +137,7 @@ function chooseVariant(value: string, context: LiturgicalContext): string {
 }
 
 function parseSource(text: string, hour: OfficeHour, context: LiturgicalContext): OfflineProper {
-  const section = getSection(text, hour, context.isFirstVespers);
+  const section = getSection(text, hour, context.isFirstVespers, context.celebrationDate.getUTCDay());
   const result: OfflineProper = { sourceFiles: [] };
   if (!section) return result;
   const lines = section.split('\n');
@@ -207,6 +247,50 @@ function temporalFile(context: LiturgicalContext): string | null {
   return null;
 }
 
+/**
+ * The collects of the 34 Sundays of Ordinary Time, keyed by the week.
+ *
+ * The psalter files do not carry them: their Sunday entry reads
+ * `PRAYER: of Sunday`, a pointer to this section of `seasons/Psalter`, which
+ * nothing used to open. Headed `SUNDAYS IN ORDINARY TIME`, one block per
+ * Sunday (`2nd Sunday, Week II:`, the first oddly `1st Week Psalter, Week I:`),
+ * each ending in a `PRAYER:`.
+ */
+const SUNDAY_BLOCK = /^(\d{1,2})(?:st|nd|rd|th)\s+(?:Sunday|Week Psalter),\s*Week\s+[IVX]+:\s*$/;
+let sundayCollectCache: Map<number, string> | null = null;
+
+function sundayCollects(): Map<number, string> {
+  if (sundayCollectCache) return sundayCollectCache;
+  const collects = new Map<number, string>();
+  const text = read('seasons/Psalter');
+  if (!text) return (sundayCollectCache = collects);
+  const lines = text.split('\n');
+  const start = lines.findIndex(line => line.trim() === 'SUNDAYS IN ORDINARY TIME');
+  if (start < 0) return (sundayCollectCache = collects);
+
+  let week: number | null = null;
+  for (let i = start + 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const block = line.match(SUNDAY_BLOCK);
+    if (block) { week = Number(block[1]); continue; }
+    // Another all-caps heading ends the section (the next is Christ the King).
+    if (/^[A-Z][A-Z ,]{6,}$/.test(line)) break;
+    if (week === null) continue;
+    const prayer = line.match(/^PRAYER(?:S)?\s*:?\s*/i);
+    if (!prayer) continue;
+    const collected = [line.slice(prayer[0].length)];
+    for (let j = i + 1; j < lines.length; j++) {
+      const next = lines[j].trim();
+      if (!next || SUNDAY_BLOCK.test(next) || FIELD_HEADER.test(next)) break;
+      collected.push(lines[j]);
+      i = j;
+    }
+    const value = clean(collected.join('\n'));
+    if (value && !collects.has(week)) collects.set(week, value);
+  }
+  return (sundayCollectCache = collects);
+}
+
 function commonFile(context: LiturgicalContext, properText: string | null): string | null {
   const haystack = `${context.name}\n${context.titles.join(' ')}\n${properText || ''}`;
   return COMMON_FILES.find(([pattern]) => pattern.test(haystack))?.[1] || null;
@@ -230,5 +314,20 @@ export function getOfflineProper(context: LiturgicalContext, hour: OfficeHour): 
     if (text) result = merge(result, parseSource(text, hour, context), commonPath);
   }
   if (properText) result = merge(result, parseSanctoralSource(properText, hour, context), properPath);
+
+  // A weekday of Ordinary Time with no collect of its own takes the collect of
+  // the Sunday of that week, per GILH — which is also what the psalter file's
+  // own `PRAYER: of Sunday` is pointing at. A memorial or feast keeps whatever
+  // its own proper gave it, so this only fills a genuine gap.
+  //
+  // Compline is excluded: its collects are a weekly cycle of its own, not the
+  // day's. The books here carry no Compline section at all, so that hour stays
+  // an honest gap rather than borrowing a prayer that is not its.
+  if (!result.prayer && hour !== 'compline'
+      && context.season === 'ordinary' && context.seasonWeek
+      && (context.rank === 'FERIAL' || context.rank === 'SUNDAY')) {
+    const collect = sundayCollects().get(context.seasonWeek);
+    if (collect) result = merge(result, { prayer: collect, sourceFiles: [] }, 'seasons/Psalter');
+  }
   return result;
 }
