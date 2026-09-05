@@ -13,10 +13,12 @@
  * naively turns "of" with a '+' under it into the word "of+", and pointing
  * that again compounds the damage every time the user changes mode.
  *
- * Verse numbers, mediant asterisks and flex daggers are kept, so pointing
- * the result again reproduces the same verse structure rather than
- * re-inferring it — which makes re-pointing idempotent and preserves any
- * structure the user corrected by hand.
+ * Mediant asterisks and flex daggers are kept, so pointing the result again
+ * reproduces the same verse structure rather than re-inferring it — which
+ * makes re-pointing idempotent and preserves any structure the user corrected
+ * by hand. Verse numbers are not printed any more, so there are none to keep;
+ * a lyps-verse span left in a block pointed before that change unwraps to its
+ * bare number here and parseLine drops it on the next pass.
  */
 export function stripLypsautierantHtml(html: string): string {
   return html

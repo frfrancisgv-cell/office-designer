@@ -483,19 +483,17 @@ export function pointPsalmText(
       const rule = h.role === 'termination' ? variation : h.role;
       const pointed = applyMode(family, mode, rule, syllabify(h.text));
 
-      const versePrefix = h.verse
-        ? `<span class="lyps-verse">${escapeHtml(h.verse)}</span> `
-        : '';
-      htmlLines.push(versePrefix + latexToHtml(pointed) + lineMarker(h.role));
+      // The verse number is parsed out (see parseLine) but not printed: the
+      // office does not want it. `h.verse` stays as the record of what was
+      // removed, and the renderer keeps its \lypsverse handling, so a block
+      // saved before this change still typesets.
+      htmlLines.push(latexToHtml(pointed) + lineMarker(h.role));
 
       // Upstream line endings: '\\*' keeps the mediant with its termination,
       // '\\' ends a verse, and '\\!' ends a stanza (verse.sty).
       const isLast = k === stanza.length - 1;
       const ending = isLast ? '\\\\!' : h.role === 'termination' ? '\\\\' : '\\\\*';
-      const verseFlag = h.verse
-        ? `\\flagverse{\\raisebox{1ex}{\\tiny { ${h.verse} }}} `
-        : '';
-      latexLines.push(verseFlag + pointed + ending);
+      latexLines.push(pointed + ending);
     });
 
     htmlStanzas.push(htmlLines.join('\n'));

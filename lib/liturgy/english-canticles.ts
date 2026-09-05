@@ -12,6 +12,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { stripVerseNumbers } from '../psalm-tones/verse-numbers';
 
 export type GospelCanticle = 'Benedictus' | 'Magnificat' | 'Nunc dimittis';
 
@@ -62,12 +63,15 @@ export function getEnglishGospelCanticleText(name: GospelCanticle): string | nul
   if (end < 0) return (cache[name] = null);
 
   // Keep the blank lines: they are the stanza breaks the pointing engines
-  // read, and the Abbey text carries no `*`.
-  const body = lines
-    .slice(start + 1, end)
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  // read, and the Abbey text carries no `*`. The verse numbers this file is
+  // named for ("68 Blessed be the Lord God of Israel") go, though — the
+  // office does not print them, and one left in is counted as a syllable.
+  const body = stripVerseNumbers(
+    lines
+      .slice(start + 1, end)
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n'),
+  ).trim();
 
   return (cache[name] = body ? `${body}\n\n${ENGLISH_DOXOLOGY}` : null);
 }

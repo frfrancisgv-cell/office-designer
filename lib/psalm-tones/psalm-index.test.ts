@@ -14,7 +14,9 @@
  * lines and the renderer put one back between every verse, so a strophe of two
  * verses came out as two strophes. The strophes are what gets sung, so the
  * invariant this file leans on is that a rendered psalm is its source file
- * again, exactly, minus the heading line and the verse labels.
+ * again, exactly, minus the heading line and the verse labels — including the
+ * bracketed ones Psalms 41, 72 and 106 write after the portion divider, and
+ * the unspaced "6Your ríght hand" of OT 2 and OT 15.
  *
  * Run with: npm run test:unit
  */
@@ -30,7 +32,7 @@ const DIRS: Record<string, string> = {
   grail: 'revisedGrailPsalter',
   abbey: 'theAbbeyPsalmsAndCanticles',
 };
-const VERSE_LABEL = /^(?:\d+:)?\d+[a-z]?\s+(\S.*)$/;
+const VERSE_LABEL = /^(?:(?:\d+:)?\d+[a-z]?\s+|\[(?:\d+:)?\d+[a-z]?\]\s*|(?:\d+:)?\d+(?=[A-ZÁÉÍÓÚ]))(\S.*)$/;
 
 function sourceBlocks(entry: PsalmEntry): string[][] {
   const raw = fs.readFileSync(

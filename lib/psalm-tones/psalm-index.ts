@@ -73,7 +73,18 @@ function normaliseKey(filename: string): string {
 // A verse label: "10 ", "1b " (Abbey's part-verses), "11:17 " (Abbey's
 // chapter:verse canticle references). The captured number is the *verse*, so
 // "11:17" is verse 17 — a chapter number is not something a range asks for.
-const VERSE_LABEL = /^(\d+:)?(\d+)[a-z]?\s+(\S.*)$/;
+//
+// Two more shapes were text rather than labels until this matched them, so
+// their digits were syllabified as words — every mark on the line shifted —
+// and no verse range reached them:
+//
+//   "[14] Blést be the Lórd"  Psalms 41, 72 and 106, after the portion
+//   "[18]Blést be the Lórd"   divider, sometimes with no space at all;
+//   "6Your ríght hand"        OT 2 and OT 15, the space simply missing.
+//
+// The unspaced bare form is admitted only before a capital, so that the "b"
+// of a part-verse "12b" is never mistaken for the start of a word.
+const VERSE_LABEL = /^(?:(?:\d+:)?(\d+)[a-z]?\s+|\[(?:\d+:)?(\d+)[a-z]?\]\s*|(?:\d+:)?(\d+)(?=[A-ZÁÉÍÓÚ]))(\S.*)$/;
 
 // A heading is the file naming itself — "Psalm 116B", "Psalm 119:1-8", "OT 2" —
 // alone on its block's only line. Anything else in first place is text: NT 12
@@ -129,7 +140,7 @@ function parsePsalmFile(rawText: string): ParsedFile {
     for (const line of block) {
       const match = line.match(VERSE_LABEL);
       if (match) {
-        current = { num: parseInt(match[2], 10), text: match[3], strophe };
+        current = { num: parseInt(match[1] ?? match[2] ?? match[3], 10), text: match[4], strophe };
         verses.push(current);
       } else if (current) {
         // A continuation line of the verse in progress.

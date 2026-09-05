@@ -102,18 +102,22 @@ test('a different tone strips back to the same baseline', () => {
   assert.equal(stripPointing(a), stripPointing(b));
 });
 
-test('verse numbers, asterisks and flex daggers are kept', () => {
-  // These are what let re-pointing reproduce the same verse structure rather
-  // than re-inferring it, so they must survive the strip. The one thing that
-  // does not survive verbatim is the space before a flex dagger: the engine
-  // renders the dagger tight to its word, so the round trip normalises
-  // "man †" to "man†". Harmless, and stable from the first pass on.
+test('asterisks and flex daggers are kept; the verse number is not', () => {
+  // The marks are what let re-pointing reproduce the same verse structure
+  // rather than re-inferring it, so they must survive the strip. The one
+  // thing that does not survive verbatim is the space before a flex dagger:
+  // the engine renders the dagger tight to its word, so the round trip
+  // normalises "man †" to "man†". Harmless, and stable from the first pass on.
+  //
+  // The verse number is deliberately gone. The engine still parses it off the
+  // line — which is what keeps it from being counted as a syllable — but no
+  // longer prints it, because the office does not want verse numbers.
   const withVerse = `1 Blessed indeed is the man †
 who follows not the counsel of the wicked, *
 nor stands in the path with sinners,`;
 
   const once = stripPointing(pointPsalmText(withVerse, 'modes', 'eight', 'a').html);
-  assert.match(once, /^1 Blessed/, 'the verse number was dropped');
+  assert.match(once, /^Blessed/, 'the verse number is still printed');
   assert.ok(once.includes('†'), 'the flex dagger was dropped');
   assert.ok(once.includes('*'), 'the mediant asterisk was dropped');
   assert.equal(once.split('\n').length, 3, 'the line structure changed');

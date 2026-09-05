@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
-import { Block } from '@/lib/types';
+import type { Block } from '@/lib/types';
+import { stripVerseNumbers } from '@/lib/psalm-tones/verse-numbers';
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
@@ -148,7 +149,7 @@ export function parseBlocks(
                if (isPsalmIntro) {
                  parsedBlocks.push({ id: generateId(), type: 'rubric', content: finalText });
                } else {
-                 const textNoNums = finalText.replace(/^\d+\s*/gm, '');
+                 const textNoNums = stripVerseNumbers(finalText);
                  // Last-resort: detect canticle from opening verse content
                  if (currentSection === 'CANTICLE' && !currentCanticleName) {
                    const opening = textNoNums.slice(0, 80).toUpperCase();

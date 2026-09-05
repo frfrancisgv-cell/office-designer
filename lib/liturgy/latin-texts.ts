@@ -18,6 +18,7 @@
 import fs from 'fs';
 import path from 'path';
 import { hebrewToVulgate } from './psalm-numbering';
+import { stripVerseNumbers } from '../psalm-tones/verse-numbers';
 
 export const LATIN_DOXOLOGY =
   'Glória Patri, et Fílio, * et Spirítui Sancto.\n' +
@@ -40,7 +41,9 @@ function readJgabc(filename: string): string | null {
     .map(line => line.trim())
     .filter(Boolean)
     .join('\n');
-  return cleaned || null;
+  // No canticle file carries verse numbers today; this keeps it that way if
+  // one ever gains them, since a number here would be pointed as a syllable.
+  return stripVerseNumbers(cleaned) || null;
 }
 
 function withDoxology(text: string | null): string | null {
@@ -52,7 +55,8 @@ function withDoxology(text: string | null): string | null {
 /**
  * `NovaVulgata.txt` is the Latin psalter of the Liturgy of the Hours, and it
  * is the right book for this app: it is numbered the Hebrew way the psalter
- * schema is (`PSALMUS 23 (22)`), it carries verse numbers, and its mediant
+ * schema is (`PSALMUS 23 (22)`), it carries the verse numbers a prescribed
+ * range is selected by — they are stripped after selection — and its mediant
  * `*` and flex `†` are already marked.
  *
  * The numbered `NNN.txt` files are the older Vulgate of the Roman Breviary —
@@ -134,7 +138,11 @@ function getNovaVulgataPsalmText(id: number | string, verses?: string): string |
   const chosen = wanted ? all.filter((v) => wanted(v.num)) : all;
   if (!chosen.length) return null;
 
-  return chosen.map((v) => `${v.num} ${v.text}`).join('\n');
+  // The numbers were needed to select the verses; they are not wanted in the
+  // office, and one left after a mediant is counted as a syllable. A verse's
+  // own number is simply not put back, and `stripVerseNumbers` takes the
+  // mid-line ones the file writes after a `*` or `†`.
+  return stripVerseNumbers(chosen.map((v) => v.text).join('\n'));
 }
 
 /**

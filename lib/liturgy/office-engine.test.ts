@@ -15,6 +15,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { generateCanonicalOffice } from './office-engine';
+import { getLatinPsalmText } from './latin-texts';
 
 /** Monday 2026-09-07 — a minor hour here draws on a subdivided Psalm 119. */
 const MONDAY = new Date('2026-09-07T12:00:00');
@@ -135,22 +136,36 @@ test('the Latin psalter is the Nova Vulgata, in the office\'s own numbering', as
   const vespers = await generateCanonicalOffice({
     date: new Date(Date.UTC(2026, 0, 4)), hour: 'vespers', lang: 'la', psalterWeek: 1,
   });
-  const psalm23 = (await generateCanonicalOffice({
+  const lauds = (await generateCanonicalOffice({
     date: new Date(Date.UTC(2026, 0, 4)), hour: 'lauds', lang: 'la', psalterWeek: 1,
   })).concat(vespers);
-  assert.ok(psalm23.length > 0);
+  assert.ok(lauds.length > 0);
+  assert.match(getLatinPsalmText('23')!, /^Dóminus pascit me/);
 
-  // Verse numbers and the flex are already in the source, and must survive.
+  // The flex is in the source and must survive; the verse numbers must not.
   // The Gospel canticles are excluded: NovaVulgata.txt is the psalter only,
-  // so they still come from the jgabc canticle files, which carry no verse
-  // numbers.
+  // so they still come from the jgabc canticle files.
   const psalms = (await everyMajorHourBlock('la')).filter(
     (b) => b.type === 'psalm'
       && !/^(OT|NT) \d+$/.test(String(b.psalmNumber))
       && !['Magnificat', 'Benedictus', 'Nunc dimittis'].includes(String(b.psalmNumber)),
   );
   assert.ok(psalms.some((p) => /†/.test(p.content)), 'no psalm kept its flex');
-  assert.ok(psalms.every((p) => /^\d+\s/.test(p.content)), 'a psalm lost its verse numbering');
+});
+
+test('no psalm or canticle prints a verse number, in either language', async () => {
+  // A verse number left in the text is not only unwanted in the office: the
+  // pointing engines count syllables from the end of each hemistich, so the
+  // "3" in "…virtútum! * 3 Concupíscit…" was syllabified as a token and every
+  // mark on that hemistich landed one syllable early. 106 lines of the Latin
+  // psalter were mispointed that way.
+  const VERSE_NUMBER = /(^|[*†]\s*)\[?\d/m;
+  for (const lang of ['la', 'en'] as const) {
+    const offenders = (await everyMajorHourBlock(lang))
+      .filter((b) => b.type === 'psalm' && VERSE_NUMBER.test(b.content))
+      .map((b) => `${lang} ${b.psalmNumber}: ${b.content.match(VERSE_NUMBER)![0]}`);
+    assert.deepEqual([...new Set(offenders)], []);
+  }
 });
 
 test('a psalm split over two slots does not print itself twice', async () => {
