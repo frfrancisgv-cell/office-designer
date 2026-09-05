@@ -1546,7 +1546,6 @@ const englishModes: Record<string, Record<string, PointFn>> = {
       let ac = 0;
       let mc = 0;
       let idx = -1;
-      let final = 0;
       const i: number[] = [];
       const a: string[] = [];
       while (l.length) {
@@ -1557,26 +1556,13 @@ const englishModes: Record<string, Record<string, PointFn>> = {
           i.push(idx);
           if ((hasAcc(syl))&&(ac == 0)) {
             ac++;
-            if (sc == 1) {
-              a.push('\\mi{' + syl + '}');
-              final++;
-            } else {
-              a.push('\\pl{' + syl + '}');
-            }
+            a.push('\\pl{' + syl + '}');
             mc++;
           } else if (mc == 1 ) {
-            if (final) {
-              a.push('\\pl{' + syl + '}');
-            } else {
-              a.push('\\mi{' + syl + '}');
-            }
+            a.push('\\mi{' + syl + '}');
             mc++;
           } else if (mc == 2) {
-            if (final) {
-              a.push('\\dmi{' + syl + '}');
-            } else {
-              a.push('\\mi{' + syl + '}');
-            }
+            a.push('\\mi{' + syl + '}');
             mc++;
           } else {
             a.push(syl);

@@ -109,12 +109,18 @@ sub a {
  return $r;
 }
 
+# A hemistich whose last syllable is accented used to switch to an alternate
+# cadence -- \\mi on the accent itself, \\pl on the syllable before it and
+# \\dmi on the one before that -- so the plus retreated off the word it
+# belongs to. The normal tone simply finishes on the accent, so there is no
+# alternate: the accent always takes \\pl and the two syllables before it
+# always take \\mi. 4387 of the corpus's 14750 hemistichs end on an accent,
+# and exactly those change.
 sub b {
  my $sc = 0;
  my $ac = 0;
  my $mc = 0;
  my $idx = -1;
- my $final = 0;
  my @i;
  my @a;
  my @l = split(' ',shift); 
@@ -126,31 +132,15 @@ sub b {
    push(@i, $idx);
    if (($syl=~tr/áéíóúýÁÉÍÓÚÝ//)&&($ac == 0)){
     $ac++;
-    if ($sc == 1){
-     push(@a, '\\mi{'.$syl.'}');
-     $final++;
-    }
-    else {
-     push(@a, '\\pl{'.$syl.'}');
-    }
+    push(@a, '\\pl{'.$syl.'}');
     $mc++;
    }
    elsif ($mc == 1 ){
-    if ($final){
-     push(@a,'\\pl{'.$syl.'}');
-    }
-    else {
-     push(@a,'\\mi{'.$syl.'}');
-    }
+    push(@a,'\\mi{'.$syl.'}');
     $mc++;
    }
    elsif ($mc == 2){
-    if ($final){
-     push(@a,'\\dmi{'.$syl.'}');
-    }
-    else {
-     push(@a,'\\mi{'.$syl.'}');
-    }
+    push(@a,'\\mi{'.$syl.'}');
     $mc++
    }
    else{
