@@ -21,6 +21,58 @@ const OPTION_RUBRIC = /^The Invitatory is said when/i;
  */
 const INVITATORY_ALTERNATIVE = /^If the Invitatory is not said/i;
 
+/**
+ * The alternative opening itself, matched on its own words.
+ *
+ * The Latin page needs this: it prints the same alternative but puts its
+ * rubric *after* it — "Omnia supra dicta omituntur, quando Invitatorium
+ * immediate præcedit" — so there is no introducing rubric to key on. Matching
+ * the versicle starts the same drop, and the trailing rubric falls inside it.
+ */
+const ALTERNATIVE_OPENING = /come to my assistance|adiut[oó]rium meum/i;
+
+/**
+ * Headings that iBreviary sometimes runs together with the citation that
+ * follows them — "READINGJames 1:19-22", "LECTIO BREVISCant 8, 7".
+ *
+ * Sorted longest first, and that ordering is load-bearing: a Latin heading
+ * must match its own word rather than the shorter English or Italian one it
+ * happens to begin with. 'HYMNUS' has to be tried before 'HYMN', or the Latin
+ * hymn is headed "HYMN" with a stray rubric "US" beside it.
+ */
+const SECTION_KEYWORDS = [
+  'READING', 'RESPONSORY', 'PSALMODY', 'HYMN',
+  'GOSPEL CANTICLE', 'BENEDICTUS', 'MAGNIFICAT',
+  'INTERCESSIONS', 'INTRODUCTION', 'INVITATORY', 'BLESSING',
+  // Italian
+  'LETTURA', 'RESPONSORIO', 'SALMODIA', 'INNO',
+  'CANTICO DEL VANGELO', 'CANTICO EVANGELICO',
+  'INTERCESSIONI', 'INVITATORIO', 'ORAZIONE',
+  // Latin
+  'AD INVITATORIUM', 'HYMNUS', 'PSALMODIA', 'LECTIO BREVIS', 'LECTIO',
+  'RESPONSORIUM BREVE', 'RESPONSORIUM', 'CANTICUM EVANGELICUM', 'CANTICUM',
+  'PRECES', 'PATER NOSTER', 'ORATIO', 'CONCLUSIO',
+].sort((a, b) => b.length - a.length);
+
+/**
+ * The line that names a psalm or canticle, in either language: "Psalm 92",
+ * "Psalmus 91 (92)", "Canticle: Deuteronomy 32:1-12", "Canticum Deut 32,
+ * 1-12". It titles the text that follows and is a rubric, not part of it.
+ */
+const PSALM_TITLE = /^(?:Psalm |Psalmus |Canticle[: ]|Canticum |I{1,3}V?\s*$|IV\s*$|\d+:\d)/i;
+
+/**
+ * A scripture citation standing alone, as the reading's reference or the
+ * antiphon-source line under a psalm title.
+ *
+ * The book abbreviation must be followed by a number, and that is the whole
+ * point of this being separate: matching a bare "Ex " turned the second
+ * strophe of Psalm 8 — "Ex ore infántium et lactántium…" — into a rubric on
+ * every Latin Lauds that prays it.
+ */
+const SCRIPTURE_CITATION =
+  /^(?:Luke|Lc|Col|Eph|Phil|Rev|Ap|Dan|Is|Jer|Hab|Ez|Ex|Deut|Sam|Chr|Tob|Jud|Wis|Sir|Hebr?|Cant)\s+\d/i;
+
 /** A section heading, which ends whatever the previous rubric was governing. */
 const SECTION_HEADING = /class="(?:capolettera_piccolo|titoletto)"/;
 
@@ -87,7 +139,8 @@ export function parseBlocks(
           if (linkText && linkText === rawText) continue;
 
           if (currentSection === 'INVITATORY' && OPTION_RUBRIC.test(rawText)) continue;
-          if (currentSection === 'INVITATORY' && INVITATORY_ALTERNATIVE.test(rawText)) {
+          if (currentSection === 'INVITATORY'
+              && (INVITATORY_ALTERNATIVE.test(rawText) || ALTERNATIVE_OPENING.test(rawText))) {
              droppingInvitatoryAlternative = true;
              continue;
           }
@@ -112,10 +165,18 @@ export function parseBlocks(
             nextIsPsalmPrayer = false;
             const up = rawText.toUpperCase();
             if (up.includes('PSALMODY') || up.includes('SALMODIA')) currentSection = 'PSALMODY';
-            else if (up.includes('INVITATORY') || up.includes('INVITATORIO')) currentSection = 'INVITATORY';
+            // The Latin heading is "AD INVITATORIUM", which matches neither the
+            // English nor the Italian word, so a Latin office never entered
+            // this section at all: its invitatory antiphon was typed
+            // `antiphon`, the keep-first-and-last rule never ran, and the
+            // psalm came through in several blocks instead of one. Matched on
+            // its own word rather than by shortening the Italian one, so the
+            // heading block still prints whatever the page wrote.
+            else if (up.includes('INVITATORY') || up.includes('INVITATORIO')
+                     || up.includes('INVITATORIUM')) currentSection = 'INVITATORY';
             else if (up.includes('READING') || up.includes('LETTURA') || up.includes('LECTIO')) currentSection = 'READING';
             else if (up.includes('RESPONSORY') || up.includes('RESPONSORIO') || up.includes('RESPONSORIUM')) currentSection = 'RESPONSORY';
-            else if (up.includes('CANTICLE') || up.includes('GOSPEL') || up.includes('MAGNIFICAT') || up.includes('BENEDICTUS') || up.includes('CANTICO')) {
+            else if (up.includes('CANTICLE') || up.includes('GOSPEL') || up.includes('MAGNIFICAT') || up.includes('BENEDICTUS') || up.includes('CANTICO') || up.includes('CANTICUM')) {
               currentSection = 'CANTICLE';
               // Detect which gospel canticle this is for psalmNumber stamping
               if (up.includes('MAGNIFICAT') || up.includes('MARY')) currentCanticleName = 'Magnificat';
@@ -128,18 +189,12 @@ export function parseBlocks(
             else if (up.includes('CONCLUDING') || up.includes("LORD'S PRAYER") || up.includes('BLESSING') || up.includes('ORAZIONE') || up.includes('CONCLUSIO')) currentSection = 'CONCLUSION';
             else if (up.includes('INTRODUCTION') || up.includes('INTRODUZIONE')) currentSection = 'INTRODUCTION';
 
-            // Split "READINGJames 1:19-22" → heading + citation rubric (no duplicate push).
-            // Includes Italian/Latin heading variants for correct splitting.
-            const sectionKeywords = [
-              'READING', 'RESPONSORY', 'PSALMODY', 'HYMN',
-              'GOSPEL CANTICLE', 'BENEDICTUS', 'MAGNIFICAT',
-              'INTERCESSIONS', 'INTRODUCTION', 'INVITATORY', 'BLESSING',
-              // Italian / Latin variants
-              'LETTURA', 'RESPONSORIO', 'RESPONSORIUM', 'SALMODIA', 'INNO',
-              'CANTICO DEL VANGELO', 'CANTICO EVANGELICO',
-              'INTERCESSIONI', 'INVITATORIO', 'ORAZIONE',
-            ];
-            const matchedKw = sectionKeywords.find(kw => rawText.toUpperCase().startsWith(kw));
+            // Split "READINGJames 1:19-22" → heading + citation rubric (no
+            // duplicate push). The longest keyword wins, which is what keeps a
+            // heading in its own language: "HYMNUS" was matching 'HYMN' and
+            // coming out as a heading "HYMN" followed by a rubric "US", and
+            // "LECTIO BREVISCant 8, 7" had no Latin keyword to cut at.
+            const matchedKw = SECTION_KEYWORDS.find(kw => rawText.toUpperCase().startsWith(kw));
             if (matchedKw && rawText.length > matchedKw.length + 1) {
               parsedBlocks.push({ id: generateId(), type: 'heading', content: rawText.slice(0, matchedKw.length).trim() });
               parsedBlocks.push({ id: generateId(), type: 'rubric', content: rawText.slice(matchedKw.length).trim() });
@@ -200,7 +255,18 @@ export function parseBlocks(
                   else if (upFt.includes('NUNC DIMITTIS') || upFt.includes('NUNC DIMITIS') || upFt.includes('SIMEON')) currentCanticleName = 'Nunc dimittis';
                 }
                 // Psalm/canticle intro lines → rubric (not psalm text)
-                 const isPsalmIntro = /^(Psalm |Canticle[: ]|Luke |Col |Eph |Phil |Rev |Ap |Dan |Is |Jer |Hab |Ez |Ex |Deut |Sam |Chr |Tob |Jud |Wis |Sir |I{1,3}V?\s*$|IV\s*$|\d+:\d)/i.test(finalText)
+                 const isPsalmIntro = PSALM_TITLE.test(finalText)
+                  || SCRIPTURE_CITATION.test(finalText)
+                  // A part that is nothing but a rubrica span is a rubric,
+                  // never a verse. The English rubrics of these sections
+                  // happen to be caught by the names above — "Psalm 95",
+                  // "Psalm Prayer", "Canticle of Zechariah" — so the class
+                  // itself was never consulted; Latin has none of those
+                  // names, so once the Latin headings started opening their
+                  // sections its titles came through as psalm text and were
+                  // merged into the psalm they title. Tested only here,
+                  // where the alternative is to typeset a rubric as a verse.
+                  || part$('.rubrica').text().trim() === rawText
                   || (finalText.length < 80 && /^[A-Z][a-z]+ \d|^\d+[,.]\d/.test(finalText))
                   || /^(The Invitatory is said|The antiphon is repeated|If the Invitatory is not said)/i.test(finalText);
                if (isPsalmIntro) {
