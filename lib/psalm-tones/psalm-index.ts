@@ -8,6 +8,22 @@
  *   revisedGrailPsalter/  — Psalm N (Revised Grail psalms)
  *   theAbbeyPsalmsAndCanticles/ — OT N, NT N (Abbey canticles)
  *
+ * File shape, which the parser below relies on and which was verified across
+ * every file in both collections:
+ *
+ *   Psalm 116B          ← optional heading line, alone in its own block
+ *                       ← blank line
+ *   10 first verse…     ← a strophe: one or more verses, no blank line inside
+ *   second line of 10
+ *   11 next verse…
+ *                       ← blank line separates strophes
+ *   12 …
+ *
+ *   Glóry to the Fáther…← the doxology, always the last block, always its own
+ *
+ * The blank lines are the strophes, and the strophes are what gets sung, so
+ * they are carried through parsing as `strophe` and put back by `render`.
+ *
  * The index is built once at module load time (server-side only).
  */
 
@@ -16,12 +32,19 @@ import path from 'path';
 
 export type PsalmCollection = 'grail' | 'abbey';
 
+export interface PsalmVerse {
+  num: number;           // verse number as printed ("11:17" and "1b" both count)
+  text: string;          // the verse's own lines, joined with '\n', label stripped
+  strophe: number;       // index of the blank-line-separated block it belongs to
+}
+
 export interface PsalmEntry {
   key: string;           // e.g. "psalm-1", "ot-3", "nt-2"
   source: PsalmCollection;
   title: string;         // original file name
+  heading: string;       // the file's own heading line, e.g. "Psalm 116B" ('' if none)
   rawText: string;       // full text as stored, with stress marks
-  verses: { num: number, text: string }[];      // individual verse texts (may span multiple lines)
+  verses: PsalmVerse[];  // individual verse texts (may span multiple lines)
   doxology: string;      // The Glory Be
 }
 
@@ -47,62 +70,97 @@ function normaliseKey(filename: string): string {
   return filename.toLowerCase().replace(/\s+/g, '-');
 }
 
-function parseVerses(rawText: string): { verses: { num: number, text: string }[], doxology: string } {
-  const lines = rawText.split('\n');
-  const verses: { num: number, text: string }[] = [];
-  let currentNum = 0;
-  let currentText = '';
-  let doxologyLines: string[] = [];
-  let inDoxology = false;
+// A verse label: "10 ", "1b " (Abbey's part-verses), "11:17 " (Abbey's
+// chapter:verse canticle references). The captured number is the *verse*, so
+// "11:17" is verse 17 — a chapter number is not something a range asks for.
+const VERSE_LABEL = /^(\d+:)?(\d+)[a-z]?\s+(\S.*)$/;
 
-  for (const line of lines) {
+// A heading is the file naming itself — "Psalm 116B", "Psalm 119:1-8", "OT 2" —
+// alone on its block's only line. Anything else in first place is text: NT 12
+// opens on "Allelúia!" and NT 7 on a response, and both belong to the canticle.
+const HEADING = /^(?:Psalm|Canticle|OT|NT)\s+[\d.:A-Za-z-]+(?:\s+[A-Z])?$/i;
+
+function isDoxology(line: string): boolean {
+  const plain = stripStressMarks(line).toLowerCase();
+  return plain.startsWith('glory to the father') || plain.startsWith('glory be to the father');
+}
+
+/** Split a file into its blank-line-separated blocks of trimmed lines. */
+function splitBlocks(rawText: string): string[][] {
+  const blocks: string[][] = [];
+  let current: string[] = [];
+  for (const line of rawText.split('\n')) {
     const trimmed = line.trim();
-    if (!trimmed) {
-      if (currentText.trim() && !inDoxology) {
-        verses.push({ num: currentNum, text: currentText.trim() });
-        currentText = '';
-      }
-      continue;
+    if (trimmed) {
+      current.push(trimmed);
+    } else if (current.length) {
+      blocks.push(current);
+      current = [];
     }
+  }
+  if (current.length) blocks.push(current);
+  return blocks;
+}
 
-    // Check if we hit the Glory Be
-    if (stripStressMarks(trimmed).toLowerCase().startsWith('glory to the father') || 
-        stripStressMarks(trimmed).toLowerCase().startsWith('glory be to the father')) {
-      if (currentText.trim()) {
-        verses.push({ num: currentNum, text: currentText.trim() });
-        currentText = '';
-      }
-      inDoxology = true;
-    }
+interface ParsedFile {
+  heading: string;
+  verses: PsalmVerse[];
+  doxology: string;
+}
 
-    if (inDoxology) {
-      doxologyLines.push(trimmed);
-      continue;
-    }
+function parsePsalmFile(rawText: string): ParsedFile {
+  const blocks = splitBlocks(rawText);
 
-    // New numbered verse
-    const match = trimmed.match(/^(\d+)\s(.*)/);
-    if (match) {
-      if (currentText.trim()) {
-        verses.push({ num: currentNum, text: currentText.trim() });
-      }
-      currentNum = parseInt(match[1], 10);
-      currentText = match[2];
-    } else {
-      if (currentText) {
-        currentText += '\n' + trimmed;
+  let heading = '';
+  if (blocks.length && blocks[0].length === 1
+      && !VERSE_LABEL.test(blocks[0][0])
+      && HEADING.test(stripStressMarks(blocks[0][0]))) {
+    heading = blocks.shift()![0];
+  }
+
+  let doxology = '';
+  if (blocks.length && isDoxology(blocks[blocks.length - 1][0])) {
+    doxology = blocks.pop()!.join('\n');
+  }
+
+  const verses: PsalmVerse[] = [];
+  blocks.forEach((block, strophe) => {
+    let current: PsalmVerse | null = null;
+    for (const line of block) {
+      const match = line.match(VERSE_LABEL);
+      if (match) {
+        current = { num: parseInt(match[2], 10), text: match[3], strophe };
+        verses.push(current);
+      } else if (current) {
+        // A continuation line of the verse in progress.
+        current.text += '\n' + line;
       } else {
-        // If there's no number at the very beginning of the file, treat it as verse 1 or 0
-        currentText = trimmed;
+        // Unnumbered text opening a strophe — a lone "Alleluia!", a response.
+        // It is sung with the verse it stands next to, so it inherits that
+        // number and a range that reaches the neighbour reaches it too.
+        current = { num: verses.length ? verses[verses.length - 1].num : 0, text: line, strophe };
+        verses.push(current);
       }
     }
-  }
+  });
 
-  if (currentText.trim() && !inDoxology) {
-    verses.push({ num: currentNum, text: currentText.trim() });
-  }
+  return { heading, verses, doxology };
+}
 
-  return { verses, doxology: doxologyLines.join('\n') };
+/** Put the verses back as text, one blank line between strophes, none inside. */
+function render(verses: PsalmVerse[], doxology: string): string {
+  const strophes: string[][] = [];
+  let currentStrophe: number | null = null;
+  for (const verse of verses) {
+    if (verse.strophe !== currentStrophe) {
+      strophes.push([]);
+      currentStrophe = verse.strophe;
+    }
+    strophes[strophes.length - 1].push(verse.text);
+  }
+  const parts = strophes.map(lines => lines.join('\n'));
+  if (doxology) parts.push(doxology);
+  return parts.join('\n\n');
 }
 
 function loadDir(dir: string, source: PsalmCollection, index: PsalmIndex): void {
@@ -110,25 +168,25 @@ function loadDir(dir: string, source: PsalmCollection, index: PsalmIndex): void 
   const files = fs.readdirSync(dir);
   for (const file of files) {
     if (file.startsWith('.')) continue;
+    // accents.pl and fixformat live beside the texts; they are tooling.
+    if (!/^(?:Psalm|Canticle|OT|NT)\b/i.test(file)) continue;
     const fullPath = path.join(dir, file);
     try {
       const stat = fs.statSync(fullPath);
       if (!stat.isFile()) continue;
       const rawText = fs.readFileSync(fullPath, 'utf8');
       const key = normaliseKey(file);
-      const { verses, doxology } = parseVerses(rawText);
-      const textParts = verses.filter(v => v.num !== 0).map(v => v.text);
-      if (doxology) textParts.push('', doxology);
-      
-      const entry: PsalmEntry = {
+      const { heading, verses, doxology } = parsePsalmFile(rawText);
+
+      index.set(key, {
         key,
         source,
         title: file,
-        rawText: textParts.join('\n\n'),
+        heading,
+        rawText: render(verses, doxology),
         verses,
-        doxology
-      };
-      index.set(key, entry);
+        doxology,
+      });
     } catch {
       // Skip unreadable files silently
     }
@@ -149,32 +207,69 @@ function getIndex(): PsalmIndex {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-function applyVersesRange(entry: PsalmEntry, versesRange?: string): PsalmEntry {
-  let filteredVerses = entry.verses;
-  
-  if (versesRange) {
-    const [startStr, endStr] = versesRange.split('-');
-    const start = parseInt(startStr, 10);
-    const end = parseInt(endStr, 10);
-    
-    if (!isNaN(start) && !isNaN(end)) {
-      filteredVerses = entry.verses.filter(v => v.num >= start && v.num <= end);
+/** Parse "10-19", "10–19" or a bare "10" into inclusive bounds. */
+function parseRange(versesRange: string): { start: number, end: number } | null {
+  const match = versesRange.trim().match(/^(\d+)\s*(?:[-–]\s*(\d+))?$/);
+  if (!match) return null;
+  const start = parseInt(match[1], 10);
+  const end = match[2] === undefined ? start : parseInt(match[2], 10);
+  return end < start ? null : { start, end };
+}
+
+/**
+ * Cut an entry down to a verse range. Returns null when the range names no
+ * verse the psalm has: the caller's placeholder is a better answer than a
+ * psalm consisting of nothing but its Glory Be, which is what a silently
+ * empty selection used to produce.
+ */
+function applyVersesRange(entry: PsalmEntry, versesRange?: string): PsalmEntry | null {
+  if (!versesRange) return entry;
+
+  const range = parseRange(versesRange);
+  if (!range) return entry;
+
+  const filtered = entry.verses.filter(v => v.num >= range.start && v.num <= range.end);
+  if (!filtered.length) return null;
+
+  return { ...entry, verses: filtered, rawText: render(filtered, entry.doxology) };
+}
+
+/**
+ * Order the parts of a split psalm as they are prayed: 116A before 116B, and
+ * 119.9-16 before 119.105-112 — which is the opposite of what sorting the keys
+ * as strings gives.
+ */
+function comparePartKeys(a: string, b: string): number {
+  const first = (key: string) => {
+    const match = key.match(/\.(\d+)/);
+    return match ? parseInt(match[1], 10) : NaN;
+  };
+  const [na, nb] = [first(a), first(b)];
+  if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+  return a.localeCompare(b);
+}
+
+/** Join the parts of a split psalm into one entry, with a single doxology. */
+function combineParts(key: string, parts: PsalmEntry[]): PsalmEntry {
+  const verses: PsalmVerse[] = [];
+  let stropheOffset = 0;
+  for (const part of parts) {
+    for (const verse of part.verses) {
+      verses.push({ ...verse, strophe: verse.strophe + stropheOffset });
     }
-  } else {
-    // If no explicit range, at least filter out the title (num 0)
-    filteredVerses = entry.verses.filter(v => v.num !== 0);
+    stropheOffset += part.verses.reduce((max, v) => Math.max(max, v.strophe), -1) + 1;
   }
-  
-  // Reconstruct rawText for the filtered range WITHOUT verse numbers
-  const filteredTextParts = filteredVerses.map(v => v.text);
-  if (entry.doxology) {
-    filteredTextParts.push('', entry.doxology);
-  }
-  
+  // Every part carries its own Glory Be; the joined psalm gets one, at the end.
+  const doxology = parts.map(p => p.doxology).find(Boolean) ?? '';
+
   return {
-    ...entry,
-    verses: filteredVerses,
-    rawText: filteredTextParts.join('\n\n')
+    key,
+    source: parts[0].source,
+    title: key,
+    heading: parts[0].heading,
+    rawText: render(verses, doxology),
+    verses,
+    doxology,
   };
 }
 
@@ -193,41 +288,20 @@ export function getPsalmText(
   const entry = idx.get(key);
   if (entry) return applyVersesRange(entry, versesRange);
 
-  // Fallback match for sub-parts e.g. "116" -> combine "psalm-116a", "psalm-116b"
-  // or "119" -> combine all 22 strophes "psalm-119.1-8" ...
-  const matchingKeys = Array.from(idx.keys()).filter(k => 
-    k === `psalm-${rawNum}a` || 
-    k === `psalm-${rawNum}b` || 
+  // Psalms 116, 119 and 147 are on file only in their prayed parts: combine
+  // "psalm-116a" + "psalm-116b", or all 22 strophes of "psalm-119.N-M".
+  const matchingKeys = Array.from(idx.keys()).filter(k =>
+    k === `psalm-${rawNum}a` ||
+    k === `psalm-${rawNum}b` ||
     k.startsWith(`psalm-${rawNum}.`)
-  );
+  ).sort(comparePartKeys);
 
   if (matchingKeys.length > 0) {
-    const combinedTexts: string[] = [];
-    let source: PsalmCollection = 'grail';
-
-    for (const k of matchingKeys) {
-      const e = idx.get(k);
-      if (e) {
-        source = e.source;
-        // Don't include the doxology from the sub-parts if we are joining them,
-        // unless it's the last one, or we just reconstruct it from rawText.
-        // But lypsautierant includes the doxology at the end of every file.
-        // Actually, just returning the joined rawText is fine, we don't need to apply versesRange across split files.
-        combinedTexts.push(e.rawText);
-      }
-    }
-
-    const fullRawText = combinedTexts.join('\n\n');
-    const { verses, doxology } = parseVerses(fullRawText);
-    const combinedEntry = {
-      key,
-      source,
-      title: `Psalm ${rawNum}`,
-      rawText: fullRawText,
-      verses,
-      doxology
-    };
-    return applyVersesRange(combinedEntry, versesRange);
+    // Combine the parsed verses, not the rendered text: re-parsing the joined
+    // text found part A's doxology in the middle and swept everything after it
+    // into the Glory Be, which is how Psalm 116:10-19 came out doxology-first.
+    const parts = matchingKeys.map(k => idx.get(k)!).filter(Boolean);
+    return applyVersesRange(combineParts(key, parts), versesRange);
   }
 
   return null;
