@@ -24,6 +24,8 @@ import type { GospelCanticle } from './english-canticles';
 import { getLiturgicalContext } from './calendar-context';
 import type { OfficeHour } from './calendar-context';
 import { getOfflineProper } from './offline-propers';
+import { buildInvitatoryBlocks } from './invitatory';
+import type { InvitatoryChant } from './invitatory';
 
 export interface OfficeSpec {
   date: Date;
@@ -33,6 +35,14 @@ export interface OfficeSpec {
   psalterWeek?: 1 | 2 | 3 | 4;
   rank?: 'SOLEMNITY' | 'SUNDAY' | 'FEAST' | 'MEMORIAL' | 'FERIAL';
   saintName?: string;
+  /**
+   * The day's invitatory antiphon and its psalm tone, already resolved from
+   * OCO and Gregobase. The engine assembles the Invitatory but does not look
+   * it up: the chant indexes live under `app/api/ibreviary`, and `lib/` is
+   * not to reach into them. Absent, Lauds prints the section with the gap
+   * named rather than an invented psalm.
+   */
+  invitatory?: InvitatoryChant | null;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -301,20 +311,27 @@ export async function generateCanonicalOffice(spec: OfficeSpec): Promise<Block[]
   blocks.push({ id: generateId(), type: 'subheading', content: serviceNames[hour] || hour });
 
   // ── 2. Opening Verse ─────────────────────────────────────────────────────
-  blocks.push({ id: generateId(), type: 'heading', content: 'INTRODUCTION' });
-  // Compline uses a different opening
-  if (hour === 'compline') {
-    blocks.push({
-      id: generateId(), type: 'rubric',
-      content: lang === 'la'
-        ? 'V. Convérte nos, Deus, salutáris noster.\nR. Et avérte iram tuam a nobis.'
-        : 'V. Convert us, O God our savior.\nR. And let your anger cease from us.',
-    });
+  // Lauds is the first hour of the day, so it opens with the Invitatory, and
+  // the Invitatory *replaces* the "Deus in adiutorium" rather than following
+  // it — GILH 34. Every other hour keeps the ordinary opening.
+  if (hour === 'lauds') {
+    blocks.push(...buildInvitatoryBlocks(lang, spec.invitatory, generateId));
   } else {
-    const introText = lang === 'la'
-      ? 'V. Deus, in adiutórium meum inténde.\nR. Dómine, ad adiuvándum me festína.\nGlória Patri, et Fílio, et Spirítui Sancto: sicut erat in princípio, et nunc et semper, et in sǽcula sæculórum. Amen. Allelúia.'
-      : 'God, + come to my assistance. — Lord, make haste to help me. Glory to the Father, and to the Son, and to the Holy Spirit: as it was in the beginning, is now, and will be for ever. Amen. Alleluia.';
-    blocks.push({ id: generateId(), type: 'text', content: introText });
+    blocks.push({ id: generateId(), type: 'heading', content: 'INTRODUCTION' });
+    if (hour === 'compline') {
+      // Compline uses a different opening
+      blocks.push({
+        id: generateId(), type: 'rubric',
+        content: lang === 'la'
+          ? 'V. Convérte nos, Deus, salutáris noster.\nR. Et avérte iram tuam a nobis.'
+          : 'V. Convert us, O God our savior.\nR. And let your anger cease from us.',
+      });
+    } else {
+      const introText = lang === 'la'
+        ? 'V. Deus, in adiutórium meum inténde.\nR. Dómine, ad adiuvándum me festína.\nGlória Patri, et Fílio, et Spirítui Sancto: sicut erat in princípio, et nunc et semper, et in sǽcula sæculórum. Amen. Allelúia.'
+        : 'God, + come to my assistance. — Lord, make haste to help me. Glory to the Father, and to the Son, and to the Holy Spirit: as it was in the beginning, is now, and will be for ever. Amen. Alleluia.';
+      blocks.push({ id: generateId(), type: 'text', content: introText });
+    }
   }
 
   // ── 3. Hymn ──────────────────────────────────────────────────────────────

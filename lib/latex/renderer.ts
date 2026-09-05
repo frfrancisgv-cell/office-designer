@@ -706,8 +706,24 @@ function renderBlock(
     }
 
     case 'psalm': {
-      const strophes = psalmToLatexStrophes(block.content);
       out.push('\\officevmd');
+
+      // A psalm that carries its own score is engraved, not pointed: the
+      // invitatory's Venite exsultemus is the whole of Psalm 94 written out
+      // with its melody, and its words are already in the score. Printing
+      // `block.content` under it would set the psalm twice.
+      if (block.gabcScore) {
+        const idx = gabcIndex.count++;
+        const gabcFilename = `psalm-${idx}.gabc`;
+        const title = block.content.split(/[\n<]/)[0].slice(0, 60)
+          .replace(/[^a-zA-Z0-9 ]/g, '').trim();
+        gabcFiles[gabcFilename] = buildGabcFile(title || `Psalm ${idx}`, block.gabcScore);
+        out.push(`\\gregorioscore{psalm-${idx}.gtex}`);
+        out.push('\\officevsm');
+        break;
+      }
+
+      const strophes = psalmToLatexStrophes(block.content);
       for (const strophe of strophes) {
         out.push(`\\begin{psalmverse}\n${strophe}\n\\end{psalmverse}`);
         out.push('\\officevsm');

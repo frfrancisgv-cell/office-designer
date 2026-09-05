@@ -20,8 +20,32 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { getLiturgicalContext, invitatoryOccasionCodes } from './calendar-context';
-import { invByOccasion, invitatoryToneByMode, invitatoryToneLabel } from '@/app/api/ibreviary/gabc-lookup';
+import {
+  invByOccasion, invitatoryToneByMode, invitatoryToneLabel, resolveInvitatory,
+} from '@/app/api/ibreviary/gabc-lookup';
 import { getInvs } from '@/app/api/ibreviary/gabc-loaders';
+import { generateCanonicalOffice } from './office-engine';
+import { getLatinPsalmText } from './latin-texts';
+import {
+  INVITATORY_LATIN_NOTE, buildInvitatoryBlocks, gabcText, splitInvitatoryTone,
+} from './invitatory';
+
+/** The eleven modes `IDX_INV.csv` records, and no more. */
+const MODES = ['2', '3', '4', '4*', '4**', '5', '6', '6*', '7', 'D', 'E'];
+
+/** An ordinary Tuesday in Ordinary Time, with nothing proper about it. */
+const A_DAY = new Date(Date.UTC(2026, 8, 8));
+
+/** Lauds as the route builds it: the engine, with the invitatory resolved. */
+async function lauds(lang: 'en' | 'la') {
+  const context = await getLiturgicalContext(A_DAY, 'lauds');
+  return generateCanonicalOffice({
+    date: A_DAY,
+    hour: 'lauds',
+    lang,
+    invitatory: resolveInvitatory(invitatoryOccasionCodes(context)),
+  });
+}
 
 /** Every day of 2026, resolved as Lauds. */
 async function everyDay() {
@@ -214,4 +238,160 @@ test('the antiphon ends on the intonation of the tone chosen for it', () => {
       `day ${day} (mode ${antiphon.mode}): the antiphon's quotation and the tone differ`,
     );
   }
+});
+
+// ── The Invitatory in the offline office ────────────────────────────────────
+//
+// Before this, `generateCanonicalOffice` went from the headings straight to
+// "Deus, in adiutórium meum inténde" and then the hymn: no INVITATORY section,
+// no versicle, no Psalm 94, in either language. The Invitatory does not
+// *precede* that opening, it replaces it.
+
+test('every mode of the Venite exsultemus divides into five strophes and the doxology', () => {
+  for (const mode of MODES) {
+    const tone = invitatoryToneByMode(mode);
+    assert.ok(tone, `mode ${mode} has no tone`);
+
+    const strophes = splitInvitatoryTone(tone.gabc);
+    assert.equal(strophes.length, 6, `mode ${mode} divides into ${strophes.length}`);
+
+    // The last is the Gloria Patri, and the first opens the psalm. Mode 4*
+    // hides its double bar inside the last neume of each strophe and mode 4**
+    // writes six strophes in four paragraphs, so neither the bar as its own
+    // group nor the blank line would have found these.
+    const words = strophes.map(s => gabcText(s).replace(/\s+/g, ' '));
+    assert.match(words[0], /^Ve[nN]íte, exsultémus Dómino/, `mode ${mode} strophe 1`);
+    assert.match(words[5], /^Glória Patri/, `mode ${mode} doxology`);
+  }
+});
+
+test('a Latin Lauds opens with the Invitatory, not with the Deus in adiutorium', async () => {
+  const blocks = await lauds('la');
+  const at = (content: string) => blocks.findIndex(b => b.content === content);
+
+  assert.ok(at('INVITATORY') >= 0, 'no INVITATORY heading');
+  assert.ok(at('INVITATORY') < at('HYMN'), 'the Invitatory follows the hymn');
+  assert.ok(blocks.some(b => b.content.includes('Dómine, lábia mea apéries')),
+    'no "Lord, open my lips"');
+
+  // Replaced, not preceded.
+  assert.equal(at('INTRODUCTION'), -1, 'Lauds still prints an INTRODUCTION heading');
+  assert.ok(!blocks.some(b => b.content.includes('in adiutórium')),
+    'Lauds still prints the Deus in adiutorium');
+});
+
+test('an English Lauds gets the same Latin chant, and says so', async () => {
+  const blocks = await lauds('en');
+
+  assert.ok(blocks.some(b => b.content === 'INVITATORY'), 'no INVITATORY heading');
+  assert.ok(blocks.some(b => b.content.includes('open my lips')), 'no versicle');
+  assert.ok(!blocks.some(b => b.content.includes('come to my assistance')),
+    'Lauds still prints the Deus in adiutorium');
+
+  // The user's ruling is that the whole invitatory is Latin Gregorian chant,
+  // which makes it the one part of an English Lauds printed in Latin. That is
+  // stated in the booklet rather than mended.
+  assert.ok(blocks.some(b => b.type === 'rubric' && b.content === INVITATORY_LATIN_NOTE),
+    'the English office does not say the Invitatory is in Latin');
+  assert.ok(blocks.some(b => b.content.includes('exsultémus Dómino')),
+    'no Latin Psalm 94');
+});
+
+test('no other hour grew an Invitatory', async () => {
+  for (const hour of ['vespers', 'compline', 'terce', 'readings'] as const) {
+    const blocks = await generateCanonicalOffice({ date: A_DAY, hour, lang: 'la' });
+    assert.ok(!blocks.some(b => b.content === 'INVITATORY'), `${hour} has an Invitatory`);
+    assert.ok(blocks.some(b => b.content === 'INTRODUCTION'), `${hour} lost its opening`);
+  }
+});
+
+test('the psalm is sung from its own score, and its words are the score’s', async () => {
+  const blocks = await lauds('la');
+  const psalms = blocks.filter(b => b.type === 'psalm' && b.psalmNumber === '95');
+  assert.equal(psalms.length, 6, 'Psalm 94 is not in five strophes and a doxology');
+
+  for (const psalm of psalms) {
+    assert.ok(psalm.gabcScore, 'a strophe with no score');
+    assert.ok(psalm.content.trim(), 'a strophe with no words');
+    // The score is the psalm, not a formula to point the psalm with, so
+    // nothing here may carry a tone for the pointing engine to act on.
+    assert.equal(psalm.psalmTone, undefined);
+  }
+
+  // Gregobase sings the Roman Psalter, not the Nova Vulgata — "Quóniam non
+  // repéllet Dóminus plebem suam" is in the score and in no verse of the Nova
+  // Vulgata. Setting the psalter's text under this score would print words
+  // its own music contradicts.
+  const sung = psalms.map(p => p.content).join('\n');
+  assert.match(sung, /non rep[eé]llet/i);
+  assert.ok(!getLatinPsalmText('95')!.includes('repéllet'),
+    'the Nova Vulgata has grown the verse this test rests on');
+});
+
+test('the antiphon is sung before every strophe and again at the end', async () => {
+  const blocks = await lauds('la');
+  const invitatory = blocks.slice(blocks.findIndex(b => b.content === 'INVITATORY'),
+                                  blocks.findIndex(b => b.content === 'HYMN'));
+
+  const kinds = invitatory.filter(b => b.type === 'invitatory-antiphon' || b.type === 'psalm')
+    .map(b => b.type === 'psalm' ? 'ps' : 'ant');
+  assert.deepEqual(kinds, [
+    'ant', 'ps', 'ant', 'ps', 'ant', 'ps', 'ant', 'ps', 'ant', 'ps', 'ant', 'ps', 'ant',
+  ]);
+
+  const texts = new Set(invitatory
+    .filter(b => b.type === 'invitatory-antiphon').map(b => b.content));
+  assert.equal(texts.size, 1, 'the repeats are not the same antiphon');
+  assert.ok([...texts][0].trim(), 'the antiphon has no text');
+});
+
+test('every day of the year builds a complete Invitatory', async () => {
+  const broken: string[] = [];
+  for (let i = 0; i < 365; i++) {
+    const date = new Date(Date.UTC(2026, 0, 1 + i));
+    const context = await getLiturgicalContext(date, 'lauds');
+    const chant = resolveInvitatory(invitatoryOccasionCodes(context));
+    const blocks = buildInvitatoryBlocks('la', chant, () => 'x');
+
+    const psalms = blocks.filter(b => b.type === 'psalm');
+    const ants = blocks.filter(b => b.type === 'invitatory-antiphon');
+    if (psalms.length !== 6 || ants.length !== 7 || psalms.some(p => !p.gabcScore)) {
+      broken.push(`${date.toISOString().slice(0, 10)}: ${ants.length} antiphons, `
+        + `${psalms.length} strophes, mode ${chant?.mode}`);
+    }
+  }
+  assert.deepEqual(broken, []);
+});
+
+test('a day with no antiphon prints the gap, not a psalm', () => {
+  const blocks = buildInvitatoryBlocks('la', null, () => 'x');
+  assert.ok(!blocks.some(b => b.type === 'psalm'), 'a psalm with no antiphon to sing it under');
+  assert.ok(blocks.some(b => b.type === 'rubric' && b.content.startsWith('[No invitatory')),
+    'the gap is silent');
+
+  // An antiphon in a mode Gregobase has no Venite exsultemus for keeps the
+  // antiphon and says what is missing.
+  const toneless = buildInvitatoryBlocks('la',
+    { antiphon: 'Christus natus est nobis', mode: 'Zz' }, () => 'x');
+  assert.ok(!toneless.some(b => b.type === 'psalm'));
+  assert.equal(toneless.filter(b => b.type === 'invitatory-antiphon').length, 2);
+  assert.ok(toneless.some(b => b.type === 'rubric' && b.content.includes('Venite exsultemus')));
+});
+
+test('a proper antiphon is printed, not offered against the ferial one', async () => {
+  // 8 September resolves `8/9` then `1-4H3` — the Nativity of Our Lady and the
+  // Tuesday ferial. Those are ranked, not alternative: asking the index for
+  // both at once and then treating two answers as a choice left the feast's
+  // own antiphon unengraved on every proper day of the year.
+  const context = await getLiturgicalContext(A_DAY, 'lauds');
+  assert.deepEqual(invitatoryOccasionCodes(context), ['8/9', '1-4H3']);
+
+  const chant = resolveInvitatory(invitatoryOccasionCodes(context));
+  assert.match(chant!.antiphon, /^Nativitatem Virginis Mariæ/);
+  assert.ok(chant!.antiphonGabc, 'the feast’s antiphon has no score');
+  assert.equal(chant!.antiphonCandidates, undefined, 'the ferial is offered against the feast');
+
+  // Two rows under one code is the real choice, and is still left open.
+  const lent = resolveInvitatory(['Q']);
+  assert.equal(lent!.antiphonCandidates?.length, 2);
 });

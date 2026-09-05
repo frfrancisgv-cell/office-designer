@@ -17,6 +17,7 @@
 // Types are imported as types: this module is loaded outside Next by the
 // tests, and a value import of an interface fails there at parse time.
 import type { Block, GabcCandidate } from '@/lib/types';
+import type { InvitatoryChant } from '@/lib/liturgy/invitatory';
 import * as cheerio from 'cheerio';
 import type { AntEntry, HymEntry, InvEntry, RbEntry } from './gabc-loaders';
 import {
@@ -426,6 +427,38 @@ export function invitatoryToneByMode(mode: string | undefined): { gabc: string; 
 
   if (!ids.length) return null;
   return { gabc: grego[ids[0]].gabc, gbId: Number(ids[0]) };
+}
+
+/**
+ * The day's whole invitatory chant — the antiphon `IDX_INV.csv` gives for it
+ * and the *Venite exsultemus* its mode is sung to.
+ *
+ * This is the seam between the chant indexes, which live here, and the office
+ * engine, which assembles the blocks and does not read them.
+ *
+ * Only the winning code's own rows are a choice. `invitatoryOccasionCodes`
+ * returns a *precedence* list — on 8 September that is `8/9` then `1-4H3`,
+ * the Nativity of Our Lady and the Tuesday ferial — and asking for all of
+ * them at once and then calling two answers ambiguous would leave the feast's
+ * antiphon unprinted in favour of a menu. Two rows under one code, which is
+ * what `Ded`, `BMV`, `Q` and `Ap` have, is the real *ad libitum* choice.
+ */
+export function resolveInvitatory(occasionCodes: string[]): InvitatoryChant | null {
+  let candidates: GabcCandidate[] = [];
+  for (const code of occasionCodes) {
+    candidates = invByOccasion([code]);
+    if (candidates.length) break;
+  }
+  const chosen = candidates[0];
+  if (!chosen) return null;
+
+  return {
+    antiphon: chosen.incipit,
+    antiphonGabc: chosen.gabc || undefined,
+    antiphonCandidates: candidates.length > 1 ? candidates : undefined,
+    mode: chosen.mode,
+    toneGabc: invitatoryToneByMode(chosen.mode)?.gabc,
+  };
 }
 
 

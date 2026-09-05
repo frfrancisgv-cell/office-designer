@@ -35,7 +35,13 @@ export async function GET(request: NextRequest) {
       throw new Error(`unsupported hour: ${hour}`);
     }
     const context = await getLiturgicalContext(date, hour);
-    
+
+    // The chant indexes are read here, not in the engine: `lib/liturgy` does
+    // not reach into `app/api/ibreviary`, so the invitatory is resolved and
+    // handed in.
+    const { resolveInvitatory } = require('@/app/api/ibreviary/gabc-lookup');
+    const invitatoryCodes = invitatoryOccasionCodes(context);
+
     // 1. Generate the structural blocks and texts
     const rawBlocks = await generateCanonicalOffice({
       date,
@@ -43,6 +49,7 @@ export async function GET(request: NextRequest) {
       lang,
       collection,
       psalterWeek,
+      invitatory: hour === 'lauds' ? resolveInvitatory(invitatoryCodes) : null,
     });
 
     // 2. Use the same romcal context for texts, psalter, and OCO. Prefer a
@@ -73,7 +80,7 @@ export async function GET(request: NextRequest) {
       null, // occasionOverride
       date.getUTCDay() === 6,
       context.isFirstVespers,
-      invitatoryOccasionCodes(context)
+      invitatoryCodes
     );
 
     // Inject the OCO short responsory block (Rb.) directly before the GOSPEL CANTICLE heading
