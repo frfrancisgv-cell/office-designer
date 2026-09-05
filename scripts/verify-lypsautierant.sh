@@ -27,22 +27,22 @@ if [ ! -d "$PSAUTIER" ]; then
   exit 1
 fi
 
-COLLECTIONS=(revisedGrailPsalter theAbbeyPsalmsAndCanticles commons seasons sanctoral)
-
 # ── Corpus: every text line of every psalm, minus each file's title line,
 # ── which modes.pl also skips (it applies sedsyllables to lines 2..$).
+# ──
+# ── Which files count as text is `scripts/psalter-corpus.mjs`, shared with the
+# ── syllable audit. A plain `"$d"/*` swept in the psalter book's own sed and
+# ── perl tooling and the .tex output of the file beside it.
 cd "$PSAUTIER"
-for d in "${COLLECTIONS[@]}"; do
-  [ -d "$d" ] || continue
-  for f in "$d"/*; do
-    [ -f "$f" ] || continue
-    tail -n +2 "$f"
-    echo
-  done
-done > "$WORK/raw.txt"
+node "$ROOT/scripts/psalter-corpus.mjs" "$PSAUTIER" > "$WORK/files.txt"
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  tail -n +2 "$f"
+  echo
+done < "$WORK/files.txt" > "$WORK/raw.txt"
 
 RAW_LINES=$(wc -l < "$WORK/raw.txt")
-echo "corpus: $RAW_LINES lines from ${#COLLECTIONS[@]} collections"
+echo "corpus: $RAW_LINES lines from $(wc -l < "$WORK/files.txt") files"
 
 # ══════════════════════════════════════════════════════════════════════════
 # 1. Syllabification
@@ -200,27 +200,22 @@ register('$WORK/tsresolve.mjs', pathToFileURL('$WORK/'));
 JS
 
 rpass=0; rfail=0; rskip=0; rfailed=()
-for d in "${COLLECTIONS[@]}"; do
-  [ -d "$PSAUTIER/$d" ] || continue
-  for f in "$PSAUTIER/$d"/*; do
-    [ -f "$f" ] || continue
-    # Skip the stray scripts and data files that share these directories.
-    case "$(basename "$f")" in *.pl|fixformat|seasons) rskip=$((rskip+1)); continue;; esac
-    # Skip files where modes.pl has no title line to consume (see above).
-    if [ -n "$(sed -n '2p' "$f" | tr -d '[:space:]')" ]; then rskip=$((rskip+1)); continue; fi
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  # Skip files where modes.pl has no title line to consume (see above).
+  if [ -n "$(sed -n '2p' "$f" | tr -d '[:space:]')" ]; then rskip=$((rskip+1)); continue; fi
 
-    rel="$d/$(basename "$f")"
-    esc=$(printf '%s' "$rel" | sed 's/ /\\ /g')
-    ( cd "$PSAUTIER" && perl -I. "$WORK/roles.pl" "$esc" modes three a b ) 2>/dev/null \
-      | grep -oE 'FIRST|TERM|FLEX' > "$WORK/pr.out"
-    node --import "$WORK/tsresolve-reg.mjs" "$WORK/roledrive.mjs" "$f" 2>/dev/null > "$WORK/tr.out"
-    if cmp -s "$WORK/pr.out" "$WORK/tr.out"; then
-      rpass=$((rpass + 1))
-    else
-      rfail=$((rfail + 1)); rfailed+=("$rel")
-    fi
-  done
-done
+  rel="${f#"$PSAUTIER"/}"
+  esc=$(printf '%s' "$rel" | sed 's/ /\\ /g')
+  ( cd "$PSAUTIER" && perl -I. "$WORK/roles.pl" "$esc" modes three a b ) 2>/dev/null \
+    | grep -oE 'FIRST|TERM|FLEX' > "$WORK/pr.out"
+  node --import "$WORK/tsresolve-reg.mjs" "$WORK/roledrive.mjs" "$f" 2>/dev/null > "$WORK/tr.out"
+  if cmp -s "$WORK/pr.out" "$WORK/tr.out"; then
+    rpass=$((rpass + 1))
+  else
+    rfail=$((rfail + 1)); rfailed+=("$rel")
+  fi
+done < "$WORK/files.txt"
 
 if [ "$rfail" -eq 0 ]; then
   echo "  structure: OK — role sequence matches modes.pl on all $rpass psalms ($rskip skipped)"

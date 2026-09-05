@@ -27,13 +27,9 @@
  */
 
 import fs from 'fs';
-import path from 'path';
 import { syllabifyLine } from '../lib/psalm-tones/lypsautierant-syllabify.ts';
+import { corpusFiles } from './psalter-corpus.mjs';
 
-const COLLECTIONS = [
-  'revisedGrailPsalter', 'theAbbeyPsalmsAndCanticles', 'commons', 'seasons', 'sanctoral',
-];
-const ROOT = path.join(process.cwd(), 'vendor', 'psautier');
 const VOWELS = /[aeiouyáéíóúýAEIOUYÁÉÍÓÚÝ]/;
 
 /** Words protected by an explicit rule in sedsyllables and correct as they are. */
@@ -53,17 +49,11 @@ function isPsalmWord(word) {
 
 function corpusWords() {
   const counts = new Map();
-  for (const collection of COLLECTIONS) {
-    let entries;
-    try { entries = fs.readdirSync(path.join(ROOT, collection)); } catch { continue; }
-    for (const name of entries) {
-      const file = path.join(ROOT, collection, name);
-      if (!fs.statSync(file).isFile()) continue;
-      // modes.pl skips line 1, so the corpus does too.
-      const text = fs.readFileSync(file, 'utf8').split('\n').slice(1).join('\n');
-      for (const word of text.match(/[A-Za-zÁÉÍÓÚáéíóúý'’-]+/gu) ?? []) {
-        if (isPsalmWord(word)) counts.set(word, (counts.get(word) ?? 0) + 1);
-      }
+  for (const file of corpusFiles()) {
+    // modes.pl skips line 1, so the corpus does too.
+    const text = fs.readFileSync(file, 'utf8').split('\n').slice(1).join('\n');
+    for (const word of text.match(/[A-Za-zÁÉÍÓÚáéíóúý'’-]+/gu) ?? []) {
+      if (isPsalmWord(word)) counts.set(word, (counts.get(word) ?? 0) + 1);
     }
   }
   return counts;
