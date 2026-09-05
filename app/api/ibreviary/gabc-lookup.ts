@@ -14,10 +14,12 @@
  * Data loading, caching, and normalisation utilities live in gabc-loaders.ts.
  */
 
-import { Block, GabcCandidate } from '@/lib/types';
+// Types are imported as types: this module is loaded outside Next by the
+// tests, and a value import of an interface fails there at parse time.
+import type { Block, GabcCandidate } from '@/lib/types';
 import * as cheerio from 'cheerio';
+import type { AntEntry, HymEntry, InvEntry, RbEntry } from './gabc-loaders';
 import {
-  AntEntry, HymEntry, InvEntry, RbEntry,
   getAnts, getHyms, getInvs, getRbs, getGrego,
   normalize,
 } from './gabc-loaders';
@@ -338,19 +340,92 @@ const MIN_SCORE = 0.4; // minimum leading-token match ratio
 
 
 
-function invByOccasion(occasionCode: string): GabcCandidate[] {
-  const match = getInvs().find(e => e.occasion === occasionCode);
-  if (match) {
-    const rawGabc = resolveGabc(match.gbId, match.gabc) || '';
-    const gabc = rawGabc ? withAnnotation(rawGabc, match.incipit, match.mode) : '';
-    return [{
-      incipit: match.incipit, gabc, mode: match.mode,
-      office: 'INV', occasion: match.occasion,
-      source: match.gbId > 0 ? 'gregobase' : 'OCO',
-      gbId: match.gbId || undefined,
-    }];
+/** Does an `IDX_INV.csv` occasion cell name this code? "29/9 2/10" names two. */
+function invOccasionMatches(cell: string, code: string): boolean {
+  return cell === code || cell.split(/\s+(?=\d)/).includes(code);
+}
+
+/**
+ * Every invitatory antiphon offered for a day, in the order the codes were
+ * asked for.
+ *
+ * All matches are returned, not the first: `Ded`, `BMV`, `Q` and `Ap` each
+ * have two rows in the index, and those are genuine *ad libitum* options that
+ * the editor should be able to choose between — the same way the antiphon path
+ * already offers `gabcCandidates`.
+ */
+export function invByOccasion(occasionCodes: string | string[]): GabcCandidate[] {
+  const codes = Array.isArray(occasionCodes) ? occasionCodes : [occasionCodes];
+  const out: GabcCandidate[] = [];
+  const seen = new Set<string>();
+
+  for (const code of codes) {
+    if (!code) continue;
+    for (const match of getInvs()) {
+      if (!invOccasionMatches(match.occasion, code)) continue;
+      if (seen.has(match.text)) continue;
+      seen.add(match.text);
+
+      const rawGabc = resolveGabc(match.gbId, match.gabc) || '';
+      out.push({
+        // The antiphon is the `Text` column; `Title` is a label, and eleven
+        // Easter rows label themselves "- cum alleluia".
+        incipit: match.text || match.incipit,
+        gabc: rawGabc ? withAnnotation(rawGabc, match.incipit, match.mode) : '',
+        mode: match.mode,
+        office: 'INV', occasion: match.occasion,
+        source: match.gbId > 0 ? 'gregobase' : 'OCO',
+        gbId: match.gbId || undefined,
+      });
+    }
   }
-  return [];
+  return out;
+}
+
+/**
+ * The mode a `IDX_INV.csv` row records → the Gregobase label of the invitatory
+ * psalm sung to it.
+ *
+ * The eleven distinct modes the index uses are `2 3 4 4* 4** 5 6 6* 7 D E`,
+ * and Gregobase has a complete Solesmes *Venite exsultemus* for every one of
+ * them, labelled by Roman numeral with the asterisks kept and the two
+ * letter-modes passed through. These are not tone formulas: each is the whole
+ * of Psalm 94 written out with its melody, so the Latin invitatory is engraved
+ * as chant with no pointing step.
+ */
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+
+export function invitatoryToneLabel(mode: string | undefined): string | null {
+  const m = (mode ?? '').trim().match(/^([1-8]|[A-G])(\*{0,2})$/);
+  if (!m) return null;
+  const stem = /^[1-8]$/.test(m[1]) ? ROMAN[Number(m[1])] : m[1];
+  return `Venite exsultemus ${stem}${m[2]}`;
+}
+
+/**
+ * The Gregobase invitatory psalm for a mode, as GABC.
+ *
+ * The label must match exactly. Gregobase also carries a second, parallel
+ * naming scheme for the same tones — "Venite exsultemus (mode 7a simplex)",
+ * "(mode 4g festivus)", "(mode 3f solemnis)" — and a "Venite exsultemus IV*
+ * (ad lib)". Those are real alternatives worth offering in the editor one day,
+ * but mixing the two schemes silently is how you end up singing a festive tone
+ * on a ferial Tuesday. Where a label has more than one entry the lowest id
+ * wins, which is the plain Solesmes setting.
+ */
+export function invitatoryToneByMode(mode: string | undefined): { gabc: string; gbId: number } | null {
+  const label = invitatoryToneLabel(mode);
+  if (!label) return null;
+
+  const wanted = label.toLowerCase();
+  const grego = getGrego();
+  const ids = Object.keys(grego)
+    .filter(id => grego[id].officePart === 'ps'
+      && (grego[id].incipit || '').trim().toLowerCase() === wanted)
+    .sort((a, b) => Number(a) - Number(b));
+
+  if (!ids.length) return null;
+  return { gabc: grego[ids[0]].gabc, gbId: Number(ids[0]) };
 }
 
 
@@ -477,7 +552,14 @@ export async function populateGabc(
   ferialCode?: string | null,
   occasionOverride?: string | null,
   isSaturday: boolean = false,
-  isFirstVespers: boolean = false
+  isFirstVespers: boolean = false,
+  /**
+   * The `IDX_INV.csv` codes to try for the invitatory, most specific first —
+   * `invitatoryOccasionCodes(context)`. That index uses a code shape of its
+   * own, so `occasionCode` reaches it on almost no day of the year; callers
+   * that do not pass this get the old behaviour, which is that one code.
+   */
+  invitatoryCodes?: string[] | null
 ): Promise<Block[]> {
 
   let finalOccasion = occasionOverride || occasionCode;
@@ -551,13 +633,13 @@ export async function populateGabc(
        }
        if (seenInvitatories[normText]) return { ...block, ...seenInvitatories[normText] };
 
-       let cands: GabcCandidate[] = [];
-       
-       if (occasionCode) {
-         cands = invByOccasion(occasionCode);
-         if (cands.length > 0) {
-            console.log(`[OCO] INV direct lookup for occasion ${occasionCode}`);
-         }
+       const codes = invitatoryCodes?.length ? invitatoryCodes
+         : (occasionCode ? [occasionCode] : []);
+       const cands = codes.length ? invByOccasion(codes) : [];
+       if (cands.length > 0) {
+          console.log(`[OCO] INV ${cands.length} candidate(s) for ${codes.join(' → ')}`);
+       } else if (codes.length) {
+          console.log(`[OCO] INV no antiphon for ${codes.join(' → ')}`);
        }
 
 

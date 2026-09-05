@@ -40,9 +40,12 @@ export interface HymEntry {
 }
 
 export interface InvEntry {
+  /** The `Title` column: a short label, e.g. "Regem martyrum 1". */
   incipit: string;
   normTitle: string;
   titleWords: string[];
+  /** The `Text` column: the antiphon as it is sung. */
+  text: string;
   gabc: string;
   gbId: number;
   mode: string;
@@ -162,14 +165,27 @@ function loadInvCsv(): InvEntry[] {
     const c = parseCsvLine(line);
     if (c.length < 9) continue;
     // Title(0) Text(1) Src(2) Mode(3) Melody(4) Src1(5) gabc(6) GB_ID(7) Occasion(8)
-    const incipit  = c[0] || '';
+    let incipit    = c[0] || '';
+    const text     = c[1] || '';
     const gabc     = c[6] || '';
     const gbId     = parseInt(c[7] || '0', 10) || 0;
     const mode     = c[3] || '';
     const occasion = c[8] || '';
     if (!incipit) continue;
+    // Eleven Easter-season rows are titled "- cum alleluia": upstream's ditto
+    // mark for "the row above, with alleluia". Taking `Title` for the antiphon,
+    // as this used to, printed the literal string "- cum alleluia" wherever one
+    // of them was chosen.
+    //
+    // Their own `Text` is written out in full, so it is the antiphon; the label
+    // is rebuilt from its opening words rather than from the row above, because
+    // the rows are not in the book's order — "PlM TP" is last in the file and
+    // its neighbour is the Visitation.
+    if (incipit.startsWith('-') && text) {
+      incipit = text.split(/\s+/).slice(0, 4).join(' ').replace(/[.,:;]$/, '');
+    }
     const norm = normalize(incipit);
-    out.push({ incipit, normTitle: norm, titleWords: toWords(norm), gabc, gbId, mode, occasion });
+    out.push({ incipit, normTitle: norm, titleWords: toWords(norm), text, gabc, gbId, mode, occasion });
   }
   console.log(`[OCO] Loaded ${out.length} invitatory entries from IDX_INV.csv`);
   return out;

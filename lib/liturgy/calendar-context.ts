@@ -258,3 +258,147 @@ export function getCommonOccasionCode(context: Pick<LiturgicalContext, 'commons'
   if (has('HolyWomen')) return 'Mul';
   return null;
 }
+
+/**
+ * A movable celebration that `IDX_INV.csv` names by a code of its own rather
+ * than by date. Keyed on romcal's stable id, never on the display name.
+ *
+ * `Bapt`, `Fam` and `Ded` are feasts and the rest solemnities; all of them
+ * fall on a different date each year (or, for the Lateran, have a date the
+ * index prefers not to use), which is why `properOccasionCode` cannot reach
+ * them.
+ */
+const INVITATORY_BY_KEY: Record<string, string> = {
+  most_holy_trinity: 'Trn',
+  most_holy_body_and_blood_of_christ: 'Corp',
+  most_sacred_heart_of_jesus: 'Cord',
+  our_lord_jesus_christ_king_of_the_universe: 'Reg',
+  holy_family_of_jesus_mary_and_joseph: 'Fam',
+  baptism_of_the_lord: 'Bapt',
+  commemoration_of_all_the_faithful_departed: 'Def',
+  dedication_of_the_lateran_basilica: 'Ded',
+};
+
+/**
+ * `getCommonOccasionCode`'s answer → the invitatory index's own codes.
+ *
+ * Two of the commons are split by rank in `IDX_INV.csv` — a martyr's feast
+ * takes "Regem martyrum" in mode 4*, a martyr's memorial the shorter mode-E
+ * setting — so the pair is returned in rank order. `Mis` and `Educ` have no
+ * invitatory of their own and fall through to the season or the ferial.
+ */
+function invitatoryCommonCodes(
+  common: string | null,
+  rank: OfficeRank,
+): { codes: string[]; easterStems: string[] } {
+  const solemn = rank === 'SOLEMNITY' || rank === 'FEAST' || rank === 'SUNDAY';
+  switch (common) {
+    case 'Doct': return { codes: ['Doct'], easterStems: ['Doct'] };
+    case 'Ap':   return { codes: ['Ap'], easterStems: ['Ap'] };
+    case 'BMV':  return { codes: ['BMV'], easterStems: ['BMV'] };
+    case 'Past': return { codes: ['Past'], easterStems: ['Past'] };
+    case 'Virg': return { codes: [solemn ? 'Virg soll. fest.' : 'Virg mem.'], easterStems: ['Virg'] };
+    case 'PlM':
+    case 'UnM':  return {
+      codes: [solemn ? 'Mart soll. fest.' : 'Mart mem.'],
+      easterStems: ['Mart', 'PlM'],
+    };
+    case 'Rel':
+    case 'Mul':  return { codes: ['Vir Mul Rel'], easterStems: ['Vir Mul Rel'] };
+    default:     return { codes: [], easterStems: [] };
+  }
+}
+
+/** The season's own invitatory codes, most specific first. */
+function invitatorySeasonCodes(context: Pick<LiturgicalContext,
+  'season' | 'seasonWeek' | 'key' | 'celebrationDate' | 'ferialOccasionCode'>): string[] {
+  const date = context.celebrationDate;
+  const day = date.getUTCDate();
+  const month = date.getUTCMonth() + 1;
+
+  switch (context.season) {
+    case 'advent': {
+      // Split on 17 December, and on Sunday against the weekdays — which is
+      // what the index's "H1" and "H2-7" mean.
+      const late = month === 12 && day >= 17;
+      return [`Adv ${late ? 'post' : 'ante'} 17/12 ${date.getUTCDay() === 0 ? 'H1' : 'H2-7'}`];
+    }
+    case 'christmas': {
+      if (context.key === 'epiphany_of_the_lord') return ['Ep'];
+      if (month === 12 && day === 25) return ['N-25/12'];
+      if (month === 1 && day === 1) return ['N-1/1'];
+      // Epiphany opens the third week of Christmas, whichever day it falls on,
+      // so the week number is the boundary and does not depend on whether the
+      // calendar keeps Epiphany on 6 January or on the Sunday.
+      return [(context.seasonWeek ?? 1) >= 3 ? 'N post Ep' : 'N ante Ep'];
+    }
+    case 'lent':
+      // "Q" is the two ad libitum Lenten invitatories. The ferial code is
+      // tried first because Good Friday and Holy Saturday have their own —
+      // "6Q6" and "6Q7" — and nothing else in Lent matches that shape.
+      return [context.ferialOccasionCode, 'Q'];
+    case 'easter': {
+      if (context.key === 'ascension_of_the_lord') return ['Asc'];
+      if (context.key === 'pentecost_sunday') return ['Pent'];
+      // Ascension opens the seventh week of Easter in the configured calendar;
+      // `invitatoryOccasionCodes` has a test pinning that, because a calendar
+      // that kept Ascension on the Thursday would move the boundary into the
+      // sixth week. Note upstream's lower-case "Tp" in the second code.
+      return [(context.seasonWeek ?? 1) >= 7 ? 'Tp post Asc' : 'TP ante Asc'];
+    }
+    default:
+      return [];
+  }
+}
+
+/**
+ * The `IDX_INV.csv` occasion codes to try for a day, most specific first.
+ *
+ * The invitatory index does not use the codes the rest of the app computes.
+ * `app/api/liturgy/route.ts` asks OCO for a ferial `1H4`, a dated `15/8` or a
+ * common `Doct`; `IDX_INV.csv` writes the ferial cycle as `1-4H4` — one set of
+ * seven for every psalter week — Lent as `Q`, Advent as
+ * `Adv ante 17/12 H2-7`, and Easter as `TP ante Asc`. So the old
+ * `find(e => e.occasion === occasionCode)` matched on a handful of commons and
+ * dated feasts and on **no ferial, Advent, Lent, Christmas or Easter day at
+ * all**, which is most of the year.
+ *
+ * In Easter season the alleluia variant of whichever code wins is tried first.
+ * Upstream spaces those inconsistently — `Ded TP` but `BMVTP`, `Past TP` but
+ * `DefTP` — so both spellings are offered and the lookup takes whichever the
+ * index actually has.
+ */
+export function invitatoryOccasionCodes(context: Pick<LiturgicalContext,
+  'season' | 'seasonWeek' | 'key' | 'celebrationDate' | 'ferialOccasionCode'
+  | 'properOccasionCode' | 'rank' | 'commons' | 'titles' | 'saintCount'>): string[] {
+  const proper = context.properOccasionCode;
+  const byKey = INVITATORY_BY_KEY[context.key];
+  const common = invitatoryCommonCodes(getCommonOccasionCode(context), context.rank);
+
+  // Each step is one level of precedence: the codes it contributes, and the
+  // stems whose Easter variant stands for it. They differ where the index
+  // splits a common by rank — the plain code is "Virg mem." but the alleluia
+  // one is "Virg TP".
+  const steps: { codes: string[]; easterStems: string[] }[] = [
+    { codes: proper ? [proper] : [], easterStems: proper ? [proper] : [] },
+    { codes: byKey ? [byKey] : [], easterStems: byKey ? [byKey] : [] },
+    { codes: common.codes, easterStems: common.easterStems },
+    { codes: invitatorySeasonCodes(context), easterStems: [] },
+    // The seven ferial invitatories, one per weekday, shared by all four
+    // psalter weeks — which is what the "1-4" in the code means.
+    { codes: [`1-4H${context.celebrationDate.getUTCDay() + 1}`], easterStems: [] },
+  ];
+
+  const easter = context.season === 'easter';
+  return steps.flatMap(step => [
+    // The alleluia variant is preferred *within its own step*, not ahead of
+    // every step. Hoisting it to the front made St Mark take "Ap TP", the
+    // apostles' Easter invitatory, when his own dated row — "25/4", "Dominum
+    // loquentem in evangelio … alleluia" — is already the alleluia form, 25
+    // April always falling in Easter. Upstream spaces these inconsistently
+    // ("Ded TP" but "BMVTP", "Past TP" but "DefTP"), so both spellings are
+    // offered and the lookup takes whichever the index has.
+    ...(easter ? step.easterStems.flatMap(stem => [`${stem} TP`, `${stem}TP`]) : []),
+    ...step.codes,
+  ]);
+}

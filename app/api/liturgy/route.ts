@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateCanonicalOffice } from '@/lib/liturgy/office-engine';
-import { getCommonOccasionCode, getLiturgicalContext } from '@/lib/liturgy/calendar-context';
+import { getCommonOccasionCode, getLiturgicalContext, invitatoryOccasionCodes } from '@/lib/liturgy/calendar-context';
 import type { OfficeHour } from '@/lib/liturgy/calendar-context';
 import { getAnts, getHyms, getRbs } from '@/app/api/ibreviary/gabc-loaders';
 
@@ -72,7 +72,8 @@ export async function GET(request: NextRequest) {
       ferialCode,
       null, // occasionOverride
       date.getUTCDay() === 6,
-      context.isFirstVespers
+      context.isFirstVespers,
+      invitatoryOccasionCodes(context)
     );
 
     // Inject the OCO short responsory block (Rb.) directly before the GOSPEL CANTICLE heading
