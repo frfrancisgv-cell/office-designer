@@ -162,33 +162,44 @@ function merge(base: OfflineProper, overlay: OfflineProper, sourceFile?: string)
   };
 }
 
+/**
+ * romcal ids for the temporal days that have their own file. These are matched
+ * exactly rather than by substring: the ids are stable and locale-independent,
+ * where a display name is neither.
+ */
+const TRIDUUM_KEYS = new Set(['holy_thursday', 'friday_of_the_passion_of_the_lord', 'holy_saturday']);
+
 function temporalFile(context: LiturgicalContext): string | null {
   const weekday = context.celebrationDate.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }).toLowerCase();
-  const key = context.key.toLowerCase();
+  const key = context.key;
   const month = context.celebrationDate.getUTCMonth() + 1;
   const day = context.celebrationDate.getUTCDate();
-  if (key.includes('christtheking')) return 'seasons/ordinaryTime/christtheking';
+  if (key === 'our_lord_jesus_christ_king_of_the_universe') return 'seasons/ordinaryTime/christtheking';
   if (context.season === 'advent' && month === 12 && day === 24) return 'seasons/advent/dec24';
   if (context.season === 'christmas') {
-    if (key === 'christmas') return 'seasons/christmas/dec25';
-    if (key.includes('marymotherofgod')) return 'seasons/christmas/motherofgod';
-    if (key.includes('holyfamily')) return 'seasons/christmas/holyfamily';
-    if (key.includes('epiphany')) return 'seasons/christmas/epiphany';
-    if (key.includes('baptism')) return 'seasons/christmas/baptism';
+    if (key === 'nativity_of_the_lord') return 'seasons/christmas/dec25';
+    if (key === 'mary_mother_of_god') return 'seasons/christmas/motherofgod';
+    if (key === 'holy_family_of_jesus_mary_and_joseph') return 'seasons/christmas/holyfamily';
+    if (key === 'epiphany_of_the_lord') return 'seasons/christmas/epiphany';
+    // The weekdays either side of Epiphany have their own sections in the
+    // psautier; the solemnity's own proper does not belong to them.
+    if (/_after_epiphany$/.test(key)) return 'seasons/christmas/afterepiphany';
+    if (/^christmas_time_january_\d+$/.test(key)) return 'seasons/christmas/jan2-epiphany';
+    if (key === 'baptism_of_the_lord') return 'seasons/christmas/baptism';
     if (month === 12 && day >= 26 && day <= 28) return `seasons/christmas/dec${day}`;
     if (month === 12 && day >= 29) return 'seasons/christmas/dec29-31';
     return 'seasons/christmas/Christmas';
   }
   if (context.season === 'lent') {
-    if (key.includes('palmsunday')) return 'seasons/lent/palmsunday';
-    if (/holy(?:thursday|friday|saturday)|triduum/.test(key)) return 'seasons/lent/triduum';
+    if (key === 'palm_sunday_of_the_passion_of_the_lord') return 'seasons/lent/palmsunday';
+    if (TRIDUUM_KEYS.has(key)) return 'seasons/lent/triduum';
     if (context.seasonWeek === 6) return 'seasons/lent/holyweek';
     return `seasons/lent/${weekday}`;
   }
   if (context.season === 'easter') {
-    if (key === 'easter') return 'seasons/easter/easter';
-    if (key.includes('ascension')) return 'seasons/easter/ascension';
-    if (key.includes('pentecost')) return 'seasons/easter/pentecost';
+    if (key === 'easter_sunday') return 'seasons/easter/easter';
+    if (key === 'ascension_of_the_lord') return 'seasons/easter/ascension';
+    if (key === 'pentecost_sunday') return 'seasons/easter/pentecost';
     return `seasons/easter/${weekday}`;
   }
   if (context.season === 'ordinary') return `seasons/ordinaryTime/week${['one', 'two', 'three', 'four'][context.psalterWeek - 1]}`;

@@ -4,7 +4,6 @@
  * Shared liturgical constants for the iBreviary API route:
  *   - FEAST_CALENDAR: date codes → feast name overrides
  *   - ORDINALS / DAY_TO_FERIA: English word → number maps for deriveContext()
- *   - mapRomcalToOccasion(): romcal event name → OCO occasion code
  */
 
 // ── Feast Calendar ─────────────────────────────────────────────────────────────
@@ -83,15 +82,3 @@ export const ORDINALS: Record<string, number> = {
 export const DAY_TO_FERIA: Record<string, number> = {
   monday:2, tuesday:3, wednesday:4, thursday:5, friday:6, saturday:7,
 };
-
-// ── Occasion code from romcal event name ──────────────────────────────────────
-export function mapRomcalToOccasion(name: string): string {
-  const n = name.toLowerCase();
-  if (n.includes('apostle') || n.includes('evangelist')) return 'Apost';
-  if (n.includes('virgin')) return 'Virg';
-  if (n.includes('martyr')) return 'Mart';
-  if (n.includes('pastor') || n.includes('bishop') || n.includes('pope') || n.includes('priest')) return 'Past';
-  if (n.includes('doctor')) return 'Doct';
-  if (n.includes('mary') || n.includes('lady')) return 'BMV';
-  return 'Sanct';
-}

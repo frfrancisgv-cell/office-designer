@@ -8,8 +8,8 @@
  * regex patterns below can rely on fixed English phrase structure.
  */
 
-const romcal = require('romcal');
-import { FEAST_CALENDAR, ORDINALS, DAY_TO_FERIA, mapRomcalToOccasion } from './constants';
+import { FEAST_CALENDAR, ORDINALS, DAY_TO_FERIA } from './constants';
+import { getCommonOccasionCode, getObservances } from '@/lib/liturgy/calendar-context';
 
 // ── Public types ───────────────────────────────────────────────────────────────
 
@@ -56,7 +56,7 @@ export function celebrationNamesMatch(expected: string, actual: string): boolean
  * @param hour           - Office hour (e.g. "vespers")
  * @param date           - Calendar date of the request
  */
-export function deriveContext(liturgicalName: string, hour: string, date: Date): DerivedContext {
+export async function deriveContext(liturgicalName: string, hour: string, date: Date): Promise<DerivedContext> {
   const m = date.getMonth();
   const y = date.getFullYear();
   const liturgicalStartYear = m >= 11 ? y : y - 1;
@@ -86,9 +86,10 @@ export function deriveContext(liturgicalName: string, hour: string, date: Date):
   const availableOccasions: AvailableOccasion[] = [];
 
   try {
-    const cal = romcal.calendarFor({ year: date.getUTCFullYear(), country: 'unitedStates' });
-    const dateStr = date.toISOString().split('T')[0];
-    const todayEvents = cal.filter((d: any) => d.moment.startsWith(dateStr));
+    // romcal returns the observed celebration first, then the optional
+    // memorials that may be taken up in its place.
+    const observances = await getObservances(date);
+    const observed = observances[0];
 
     // A fixed sanctoral date does not automatically outrank the celebration
     // actually observed that year. For example, Ss. Philip and James (May 3)
@@ -96,9 +97,9 @@ export function deriveContext(liturgicalName: string, hour: string, date: Date):
     // by Holy Family. Romcal has already resolved that precedence.
     if (feastCode) {
       const configuredName = FEAST_CALENDAR[feastCode];
-      const observedNames = [liturgicalName, ...todayEvents.map((event: any) => event.name)];
+      const observedNames = [liturgicalName, ...observances.map(o => o.name)];
       const isObserved = observedNames.some(name => celebrationNamesMatch(configuredName, name));
-      const hasCompetingObservance = todayEvents.some((event: any) => event.type !== 'FERIA');
+      const hasCompetingObservance = observed.romcalRank !== 'WEEKDAY';
       if (hasCompetingObservance && !isObserved) feastCode = null;
     }
 
@@ -110,11 +111,12 @@ export function deriveContext(liturgicalName: string, hour: string, date: Date):
       availableOccasions.push({ label: `Ferial/Sunday (${shortName})`, value: ferialCode });
     }
 
-    for (const event of todayEvents) {
-      if (event.type === 'MEMORIAL' || event.type === 'OPT_MEMORIAL' || event.type === 'FEAST') {
-        const ocoCode = mapRomcalToOccasion(event.name);
-        availableOccasions.push({ label: `Memorial/Feast (${event.name})`, value: ocoCode });
-      }
+    for (const observance of observances) {
+      if (!['MEMORIAL', 'OPTIONAL_MEMORIAL', 'FEAST'].includes(observance.romcalRank)) continue;
+      // Offered only when a common can actually be named for it. A menu entry
+      // whose code matches nothing in the OCO indexes would yield no chant.
+      const ocoCode = getCommonOccasionCode(observance);
+      if (ocoCode) availableOccasions.push({ label: `Memorial/Feast (${observance.name})`, value: ocoCode });
     }
 
     if (feastCode && !availableOccasions.find(o => o.label.includes('Feast') || o.label.includes('Memorial'))) {

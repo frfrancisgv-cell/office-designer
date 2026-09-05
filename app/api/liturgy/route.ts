@@ -34,10 +34,10 @@ export async function GET(request: NextRequest) {
     if (!['lauds', 'vespers', 'compline', 'terce', 'sext', 'none', 'readings'].includes(hour)) {
       throw new Error(`unsupported hour: ${hour}`);
     }
-    const context = getLiturgicalContext(date, hour);
+    const context = await getLiturgicalContext(date, hour);
     
     // 1. Generate the structural blocks and texts
-    const rawBlocks = generateCanonicalOffice({
+    const rawBlocks = await generateCanonicalOffice({
       date,
       hour,
       lang,
@@ -113,6 +113,7 @@ export async function GET(request: NextRequest) {
       psalterWeek: computedWeek,
       liturgicalContext: {
         name: context.name,
+        latinName: context.latinName,
         rank: context.rank,
         season: context.season,
         seasonWeek: context.seasonWeek,

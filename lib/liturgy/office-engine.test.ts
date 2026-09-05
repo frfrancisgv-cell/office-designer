@@ -19,9 +19,9 @@ import { generateCanonicalOffice } from './office-engine';
 /** Monday 2026-09-07 — a minor hour here draws on a subdivided Psalm 119. */
 const MONDAY = new Date('2026-09-07T12:00:00');
 
-test('a Latin minor hour renders the subdivided psalm, not a placeholder', () => {
+test('a Latin minor hour renders the subdivided psalm, not a placeholder', async () => {
   for (const hour of ['terce', 'sext', 'none'] as const) {
-    const psalms = generateCanonicalOffice({ date: MONDAY, hour, lang: 'la' })
+    const psalms = (await generateCanonicalOffice({ date: MONDAY, hour, lang: 'la' }))
       .filter((b) => b.type === 'psalm');
 
     assert.ok(psalms.length > 0, `${hour}: no psalm block at all`);
@@ -36,8 +36,8 @@ test('a Latin minor hour renders the subdivided psalm, not a placeholder', () =>
   }
 });
 
-test('the English office of the same hour is populated too', () => {
-  const psalms = generateCanonicalOffice({ date: MONDAY, hour: 'terce', lang: 'en' })
+test('the English office of the same hour is populated too', async () => {
+  const psalms = (await generateCanonicalOffice({ date: MONDAY, hour: 'terce', lang: 'en' }))
     .filter((b) => b.type === 'psalm');
 
   assert.ok(psalms.length > 0);
@@ -56,7 +56,7 @@ test('the English office of the same hour is populated too', () => {
  * The four-week psalter is walked in full, because the substitution depended
  * on which canticle each day happens to name.
  */
-function everyMajorHourBlock(lang: 'en' | 'la') {
+async function everyMajorHourBlock(lang: 'en' | 'la') {
   const blocks = [];
   for (let week = 1; week <= 4; week++) {
     for (let day = 0; day < 7; day++) {
@@ -64,7 +64,7 @@ function everyMajorHourBlock(lang: 'en' | 'la') {
       const date = new Date(Date.UTC(2026, 0, 4 + (week - 1) * 7 + day));
       for (const hour of ['lauds', 'vespers'] as const) {
         blocks.push(
-          ...generateCanonicalOffice({ date, hour, lang, psalterWeek: week as 1 | 2 | 3 | 4 }),
+          ...(await generateCanonicalOffice({ date, hour, lang, psalterWeek: week as 1 | 2 | 3 | 4 })),
         );
       }
     }
@@ -72,8 +72,8 @@ function everyMajorHourBlock(lang: 'en' | 'la') {
   return blocks;
 }
 
-test('a Latin canticle is never filled with the psalm of the same number', () => {
-  const canticles = everyMajorHourBlock('la')
+test('a Latin canticle is never filled with the psalm of the same number', async () => {
+  const canticles = (await everyMajorHourBlock('la'))
     .filter((b) => b.type === 'psalm' && /^(OT|NT) \d+$/.test(String(b.psalmNumber)));
 
   assert.ok(canticles.length > 0, 'no canticle blocks were generated at all');
@@ -91,22 +91,22 @@ test('a Latin canticle is never filled with the psalm of the same number', () =>
   }
 });
 
-test('the English Gospel canticle is in English', () => {
-  const magnificat = generateCanonicalOffice({
+test('the English Gospel canticle is in English', async () => {
+  const magnificat = (await generateCanonicalOffice({
     date: MONDAY, hour: 'vespers', lang: 'en',
-  }).find((b) => b.psalmNumber === 'Magnificat');
+  })).find((b) => b.psalmNumber === 'Magnificat');
 
   assert.ok(magnificat, 'no Magnificat block');
   assert.match(magnificat.content, /my soul proclaims/i);
   assert.doesNotMatch(magnificat.content, /Magníficat|ánima mea/);
 });
 
-test('no block carries a stray carriage return', () => {
+test('no block carries a stray carriage return', async () => {
   // The jgabc sources are CRLF and were only `.trim()`ed, so a `\r` survived
   // on every interior line, rode through stripPointing untouched, and ended
   // up inside the pointed HTML.
   for (const lang of ['en', 'la'] as const) {
-    for (const block of everyMajorHourBlock(lang)) {
+    for (const block of await everyMajorHourBlock(lang)) {
       assert.doesNotMatch(
         block.content,
         /\r/,
@@ -116,8 +116,8 @@ test('no block carries a stray carriage return', () => {
   }
 });
 
-test('every Latin psalm of the four-week psalter resolves to real text', () => {
-  const psalms = everyMajorHourBlock('la')
+test('every Latin psalm of the four-week psalter resolves to real text', async () => {
+  const psalms = (await everyMajorHourBlock('la'))
     .filter((b) => b.type === 'psalm' && !/^(OT|NT) \d+$/.test(String(b.psalmNumber)));
 
   assert.ok(psalms.length > 0);
@@ -127,24 +127,24 @@ test('every Latin psalm of the four-week psalter resolves to real text', () => {
   }
 });
 
-test('the Latin psalter is the Nova Vulgata, in the office\'s own numbering', () => {
+test('the Latin psalter is the Nova Vulgata, in the office\'s own numbering', async () => {
   // Psalm 23 is the discriminator: the Nova Vulgata numbers it the Hebrew way
   // ("Dóminus pascit me"), while the Roman Breviary's Vulgate calls the same
   // psalm 22 and reads "Dóminus regit me". The engine used to convert the
   // number and read the older book.
-  const vespers = generateCanonicalOffice({
+  const vespers = await generateCanonicalOffice({
     date: new Date(Date.UTC(2026, 0, 4)), hour: 'vespers', lang: 'la', psalterWeek: 1,
   });
-  const psalm23 = generateCanonicalOffice({
+  const psalm23 = (await generateCanonicalOffice({
     date: new Date(Date.UTC(2026, 0, 4)), hour: 'lauds', lang: 'la', psalterWeek: 1,
-  }).concat(vespers);
+  })).concat(vespers);
   assert.ok(psalm23.length > 0);
 
   // Verse numbers and the flex are already in the source, and must survive.
   // The Gospel canticles are excluded: NovaVulgata.txt is the psalter only,
   // so they still come from the jgabc canticle files, which carry no verse
   // numbers.
-  const psalms = everyMajorHourBlock('la').filter(
+  const psalms = (await everyMajorHourBlock('la')).filter(
     (b) => b.type === 'psalm'
       && !/^(OT|NT) \d+$/.test(String(b.psalmNumber))
       && !['Magnificat', 'Benedictus', 'Nunc dimittis'].includes(String(b.psalmNumber)),
@@ -153,16 +153,16 @@ test('the Latin psalter is the Nova Vulgata, in the office\'s own numbering', ()
   assert.ok(psalms.every((p) => /^\d+\s/.test(p.content)), 'a psalm lost its verse numbering');
 });
 
-test('a psalm split over two slots does not print itself twice', () => {
+test('a psalm split over two slots does not print itself twice', async () => {
   // The Latin branch ignored `unit.verses`, so Psalm 27 — prayed as 1-6 and
   // then 7-14 on the same day — filled both slots with the whole psalm.
   for (let week = 1; week <= 4; week++) {
     for (let day = 0; day < 7; day++) {
       const date = new Date(Date.UTC(2026, 0, 4 + (week - 1) * 7 + day));
       for (const hour of ['lauds', 'vespers'] as const) {
-        const psalms = generateCanonicalOffice({
+        const psalms = (await generateCanonicalOffice({
           date, hour, lang: 'la', psalterWeek: week as 1 | 2 | 3 | 4,
-        }).filter((b) => b.type === 'psalm');
+        })).filter((b) => b.type === 'psalm');
 
         for (let i = 1; i < psalms.length; i++) {
           if (psalms[i].psalmNumber !== psalms[i - 1].psalmNumber) continue;
@@ -175,4 +175,38 @@ test('a psalm split over two slots does not print itself twice', () => {
       }
     }
   }
+});
+
+/**
+ * romcal is the only source of the celebration's title, and it holds the
+ * calendar in both languages. A Latin office that titles itself in English is
+ * the same class of mistake as a Latin psalm rendered from the English book.
+ */
+test('a Latin office names its day in Latin', async () => {
+  const cases: Array<[Date, string, RegExp]> = [
+    [new Date(Date.UTC(2026, 5, 29)), 'Ss. Petri et Pauli', /apostolorum/],
+    [new Date(Date.UTC(2026, 11, 6)), 'a Sunday of Advent', /Dominica.*Adventus/],
+    [new Date(Date.UTC(2026, 8, 4)), 'a weekday in Ordinary Time', /feria.*per annum/],
+    [new Date(Date.UTC(2026, 3, 5)), 'Easter', /Dominica Pasch/],
+  ];
+
+  for (const [date, label, latin] of cases) {
+    const subheadings = (await generateCanonicalOffice({ date, hour: 'lauds', lang: 'la' }))
+      .filter((b) => b.type === 'subheading')
+      .map((b) => b.content);
+
+    assert.ok(
+      subheadings.some((s) => latin.test(s)),
+      `${label}: no Latin title among ${JSON.stringify(subheadings)}`,
+    );
+  }
+});
+
+test('an English office still names its day in English', async () => {
+  const subheadings = (await generateCanonicalOffice({
+    date: new Date(Date.UTC(2026, 5, 29)), hour: 'lauds', lang: 'en',
+  })).filter((b) => b.type === 'subheading').map((b) => b.content);
+
+  assert.ok(subheadings.some((s) => /Saints Peter and Paul/.test(s)), JSON.stringify(subheadings));
+  assert.ok(!subheadings.some((s) => /apostolorum/.test(s)), 'Latin leaked into the English office');
 });

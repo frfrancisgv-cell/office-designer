@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Derive OCO context early so we can override the liturgical name for feasts
-    const ctx = deriveContext(liturgicalName, hour, new Date(dateParam));
+    const ctx = await deriveContext(liturgicalName, hour, new Date(dateParam));
     let displayName = liturgicalName;
     if (ctx.occasionCode && FEAST_CALENDAR[ctx.occasionCode]) {
       displayName = FEAST_CALENDAR[ctx.occasionCode];

@@ -37,47 +37,6 @@ export interface OfficeSpec {
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
-// ── Romcal Integration (with API-version resilience) ──────────────────────────
-
-interface RomcalEvent {
-  name: string;
-  rank: 'SOLEMNITY' | 'FEAST' | 'MEMORIAL' | 'FERIAL';
-  weekOfPsalter?: number;
-}
-
-function getRomcalEvent(date: Date): RomcalEvent | null {
-  try {
-    const romcal = require('romcal');
-    const dateStr = date.toISOString().split('T')[0];
-
-    // Try modern romcal API (v1.3+): romcal.calendarFor returns an array
-    let events: any[] = [];
-
-    if (typeof romcal.calendarFor === 'function') {
-      const cal = romcal.calendarFor({ year: date.getUTCFullYear(), country: 'unitedStates' });
-      if (Array.isArray(cal)) {
-        events = cal.filter((d: any) => {
-          // Support both .moment (old) and .date (new) fields
-          const ds = d.moment || d.date || '';
-          return String(ds).startsWith(dateStr);
-        });
-      }
-    }
-
-    if (events.length > 0) {
-      const top = events[0];
-      return {
-        name: top.name || top.title || '',
-        rank: (top.type || top.rank || 'FERIAL') as RomcalEvent['rank'],
-        weekOfPsalter: top.weekOfPsalter ?? undefined,
-      };
-    }
-  } catch {
-    // romcal unavailable or API changed — fall through to manual calculation
-  }
-  return null;
-}
-
 // ── Liturgical Day Name ───────────────────────────────────────────────────────
 
 const ORDINAL_NAMES = [
@@ -185,69 +144,9 @@ function getLiturgicalDayName(date: Date): string {
 }
 
 
-// ── Psalter Week Calculation ──────────────────────────────────────────────────
-
-/**
- * Compute the 4-week psalter week from a calendar date.
- *
- * The psalter cycle runs from the Sunday after Epiphany in Ordinary Time
- * and from the First Sunday of Advent. Each liturgical "Ordinary Time"
- * week number corresponds to psalter week = ((otWeek - 1) % 4) + 1.
- *
- * For simplicity, we count weeks from the nearest Sunday before
- * the beginning of Ordinary Time (Feb 3 typically for Year A/B/C).
- * romcal provides the week-of-psalter directly; we use it when available.
- */
-function getPsalterWeek(date: Date): 1 | 2 | 3 | 4 {
-  try {
-    const romcalEvent = getRomcalEvent(date);
-    if (romcalEvent?.weekOfPsalter) {
-      return (((romcalEvent.weekOfPsalter - 1) % 4) + 1) as 1 | 2 | 3 | 4;
-    }
-  } catch {
-    // fall through
-  }
-
-  // Fallback: Count from fixed anchor point
-  // Epiphany is Jan 6; Ordinary Time starts the day after the Baptism of the Lord
-  // which is the Sunday after Jan 6 (or Jan 13 at latest).
-  // We approximate: OT Week 1 starts on the Monday of the week containing Jan 7.
-  const y = date.getUTCFullYear();
-
-  // Find the Sunday of Baptism of the Lord (Sunday after Jan 6)
-  const jan6 = new Date(Date.UTC(y, 0, 6));
-  const dayOfWeekJan6 = jan6.getUTCDay(); // 0=Sun
-  const baptismSunday = new Date(Date.UTC(y, 0, 6 + (7 - dayOfWeekJan6) % 7));
-  // OT Week 1 starts the Monday after Baptism Sunday
-  const otStart = new Date(Date.UTC(baptismSunday.getUTCFullYear(), baptismSunday.getUTCMonth(), baptismSunday.getUTCDate() + 1));
-
-  // Lent starts on Ash Wednesday: Easter - 46 days
-  // Easter date (Gregorian algorithm)
-  const easter = getEasterDate(y);
-  const ashWednesday = new Date(easter.getTime() - 46 * 24 * 60 * 60 * 1000);
-
-  // If date is in Lent/Easter/Advent, fall back to week 1
-  const advent1 = getAdvent1(y);
-  if (date >= ashWednesday && date < easter) return 1;
-  if (date >= easter && date < new Date(Date.UTC(y, 5, 15))) {
-    // Easter season: count from Easter Sunday
-    const weeks = Math.floor((date.getTime() - easter.getTime()) / (7 * 24 * 60 * 60 * 1000));
-    return (((weeks) % 4) + 1) as 1 | 2 | 3 | 4;
-  }
-
-  let weekCount = 0;
-  if (date >= otStart && date < ashWednesday) {
-    weekCount = Math.floor((date.getTime() - otStart.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-  } else if (date >= new Date(Date.UTC(y, 5, 15)) && date < advent1) {
-    // Later OT: count from Pentecost + 1 week
-    const pentecost = new Date(easter.getTime() + 49 * 24 * 60 * 60 * 1000);
-    const trinityWeekStart = new Date(pentecost.getTime() + 7 * 24 * 60 * 60 * 1000);
-    weekCount = Math.floor((date.getTime() - trinityWeekStart.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 10;
-  }
-
-  if (weekCount <= 0) return 1;
-  return (((weekCount - 1) % 4) + 1) as 1 | 2 | 3 | 4;
-}
+// ── Moveable Date Helpers ─────────────────────────────────────────────────────
+// Used only by getLiturgicalDayName above. The psalter week itself comes from
+// romcal, via calendar-context.
 
 function getEasterDate(year: number): Date {
   // Computus (Gregorian)
@@ -348,15 +247,16 @@ const SHORT_READINGS: Record<string, { en: string; la: string }> = {
 /**
  * Generate canonical office blocks for the requested hour.
  */
-export function generateCanonicalOffice(spec: OfficeSpec): Block[] {
+export async function generateCanonicalOffice(spec: OfficeSpec): Promise<Block[]> {
   const { hour, lang = 'en', collection = 'grail' } = spec;
 
-  // Resolve one authoritative calendar context. In particular, romcal stores
-  // psalterWeek under data.meta and Saturday Vespers belongs to Sunday.
-  const calendar = getLiturgicalContext(spec.date, hour);
+  // Resolve one authoritative calendar context. Saturday Vespers belongs to
+  // Sunday, which is why the context is asked for the hour and not just the date.
+  const calendar = await getLiturgicalContext(spec.date, hour);
   const proper = lang === 'en' ? getOfflineProper(calendar, hour) : { sourceFiles: [] };
   const rank = spec.rank || calendar.rank;
-  const saintName = spec.saintName || calendar.name;
+  // A Latin office names its day in Latin. An explicit spec.saintName still wins.
+  const saintName = spec.saintName || (lang === 'la' ? calendar.latinName : calendar.name);
   const isSolemnityOrFeast = rank === 'SOLEMNITY' || rank === 'FEAST';
 
   // GILH Rule #136: On Solemnities and Feasts, Lauds & Vespers use Sunday Week 1 psalms
