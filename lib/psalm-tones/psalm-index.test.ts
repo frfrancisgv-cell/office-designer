@@ -26,6 +26,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getPsalmText, getEntryByKey, listAllKeys } from './psalm-index';
+import { describeStructure } from './lypsautierant-engine';
 import type { PsalmEntry } from './psalm-index';
 
 const DIRS: Record<string, string> = {
@@ -49,6 +50,11 @@ function sourceBlocks(entry: PsalmEntry): string[][] {
   return blocks;
 }
 
+/** A strophe that is nothing but the Hallel's "Alleluia!", which is dropped. */
+const isHallelujahBlock = (block: string[]) =>
+  block.length === 1
+  && /^allel[u\u00fa]ia\s*[!.]?$/i.test((block[0].match(VERSE_LABEL)?.[1] ?? block[0]).trim());
+
 test('a rendered psalm is its file again, strophes and all', () => {
   const keys = listAllKeys();
   assert.ok(keys.length > 200, `only ${keys.length} entries indexed`);
@@ -59,11 +65,65 @@ test('a rendered psalm is its file again, strophes and all', () => {
     const blocks = sourceBlocks(entry);
     if (entry.heading) blocks.shift();
     const expected = blocks
+      .filter(block => !isHallelujahBlock(block))
       .map(block => block.map(l => l.match(VERSE_LABEL)?.[1] ?? l).join('\n'))
       .join('\n\n');
     if (expected !== entry.rawText) wrong.push(key);
   }
   assert.deepEqual(wrong, []);
+});
+
+test('the Hallel psalms lose their lone Alleluia, and the canticle keeps its response', () => {
+  // The superscription is not sung in the office — the Latin psalter of the
+  // Liturgy of the Hours has no "alleluia" in any of its 150 psalms — and a
+  // one-line strophe takes a slot in the mediant/termination alternation, so
+  // leaving it in pointed everything after it backwards.
+  const withLoneAlleluia = listAllKeys().filter(key => {
+    const entry = getEntryByKey(key)!;
+    return entry.rawText.split(/\n\s*\n/)
+      .some(strophe => /^allel[u\u00fa]ia\s*[!.]?$/i.test(strophe.trim()));
+  });
+  assert.deepEqual(withLoneAlleluia, []);
+
+  // Fifteen files carry one; eight of them open on it, so those psalms were
+  // mispointed from their first line to their last.
+  const dropped = listAllKeys().filter(key => {
+    const entry = getEntryByKey(key)!;
+    return sourceBlocks(entry).some(isHallelujahBlock);
+  });
+  assert.equal(dropped.length, 15, `expected 15 Hallel files, got ${dropped.join(', ')}`);
+
+  // NT 12's "Allelúia!" is the response of the canticle of Revelation 19, and
+  // stands with the two lines of its verse rather than alone in a strophe.
+  const nt12 = getEntryByKey('nt-12')!;
+  assert.equal(nt12.rawText.match(/^Allel\u00faia!$/gm)?.length, 4);
+});
+
+test('a psalm that opened on Alleluia now alternates mediant and termination', () => {
+  // Psalm 111's "1 Alleluia!" used to take the first slot, so every verse of
+  // the psalm was sung to the wrong half of the tone.
+  const roles = describeStructure(getPsalmText(111, 'grail')!.rawText)
+    .flat()
+    .filter(h => h.role !== 'divider');
+  assert.equal(roles[0].role, 'first');
+  assert.match(roles[0].text, /^I will pr\u00e1ise the L\u00f3rd/);
+
+  // Every verse is a mediant followed by a termination. A flex takes no part
+  // in that alternation: it opens a three-line verse, so a mediant follows it.
+  for (let i = 0; i < roles.length; i++) {
+    if (roles[i].role === 'flex') continue;
+    const expected = roles[i - 1]?.role === 'first' ? 'termination' : 'first';
+    assert.equal(roles[i].role, expected, `line ${i} "${roles[i].text}"`);
+  }
+});
+
+test('Psalm 111 keeps verse 1 on the line the office actually sings', () => {
+  // The dropped strophe carried the verse number; the unlabelled line beneath
+  // it inherits it, so a range that asks for verse 1 still finds the psalm.
+  const entry = getPsalmText(111, 'grail')!;
+  assert.equal(entry.verses[0].num, 1);
+  assert.match(entry.verses[0].text, /^I will pr\u00e1ise the L\u00f3rd/);
+  assert.ok(getPsalmText(111, 'grail', '1-4'));
 });
 
 test('no entry is nothing but its Glory Be', () => {

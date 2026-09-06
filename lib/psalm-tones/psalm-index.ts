@@ -91,6 +91,39 @@ const VERSE_LABEL = /^(?:(?:\d+:)?(\d+)[a-z]?\s+|\[(?:\d+:)?(\d+)[a-z]?\]\s*|(?:
 // opens on "Allelúia!" and NT 7 on a response, and both belong to the canticle.
 const HEADING = /^(?:Psalm|Canticle|OT|NT)\s+[\d.:A-Za-z-]+(?:\s+[A-Z])?$/i;
 
+/**
+ * The Hebrew *Hallelujah* that heads or closes fifteen of the Grail psalms,
+ * standing alone in a strophe of its own.
+ *
+ * It is a superscription, not a verse, and the office does not sing it. The
+ * psalter of the Liturgy of the Hours drops it: `jgabc-psalms/NovaVulgata.txt`
+ * — the office's own Latin psalter, Psalm 111 (110) and the rest of the Hallel
+ * included — has not one "alleluia" in all 150 psalms. The Grail files keep it
+ * because the psautier prints the psalter, not the office, and the two
+ * languages have disagreed here ever since.
+ *
+ * Left in, it is worse than a stray word. A strophe of one line takes a slot
+ * in the mediant/termination alternation that runs the length of the psalm, so
+ * every hemistich after it is pointed backwards: the eight psalms that open on
+ * one were mispointed from their first line to their last, and the ten that
+ * close on one had their Glory Be inverted.
+ *
+ * Only a strophe that is *nothing but* the Alleluia goes. NT 12, the canticle
+ * of Revelation 19, opens each of its strophes with an "Allelúia!" that is the
+ * response and is sung; it stands with the two lines of its verse, never
+ * alone, and is left where it is.
+ */
+const LONE_ALLELUIA = /^allel[uú]ia\s*[!.]?$/i;
+
+/** How many verses share a strophe — one means the verse is the whole of it. */
+function stropheSize(verses: PsalmVerse[], strophe: number): number {
+  return verses.reduce((n, v) => n + (v.strophe === strophe ? 1 : 0), 0);
+}
+
+function isHallelujahOnly(verse: PsalmVerse, verses: PsalmVerse[]): boolean {
+  return LONE_ALLELUIA.test(verse.text.trim()) && stropheSize(verses, verse.strophe) === 1;
+}
+
 function isDoxology(line: string): boolean {
   const plain = stripStressMarks(line).toLowerCase();
   return plain.startsWith('glory to the father') || plain.startsWith('glory be to the father');
@@ -146,16 +179,21 @@ function parsePsalmFile(rawText: string): ParsedFile {
         // A continuation line of the verse in progress.
         current.text += '\n' + line;
       } else {
-        // Unnumbered text opening a strophe — a lone "Alleluia!", a response.
-        // It is sung with the verse it stands next to, so it inherits that
-        // number and a range that reaches the neighbour reaches it too.
+        // Unnumbered text opening a strophe — NT 7's response, the line under
+        // a Hallel psalm's "1 Alleluia!". It is sung with the verse it stands
+        // next to, so it inherits that number and a range that reaches the
+        // neighbour reaches it too.
         current = { num: verses.length ? verses[verses.length - 1].num : 0, text: line, strophe };
         verses.push(current);
       }
     }
   });
 
-  return { heading, verses, doxology };
+  // The lone Alleluia strophes are dropped here rather than before parsing so
+  // that the verse number they carry is still inherited by the line beneath —
+  // Psalm 111 writes "1 Alleluia!" and leaves "I will práise the Lórd" unlabelled,
+  // and that line is verse 1.
+  return { heading, verses: verses.filter(v => !isHallelujahOnly(v, verses)), doxology };
 }
 
 /** Put the verses back as text, one blank line between strophes, none inside. */
