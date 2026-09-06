@@ -27,9 +27,14 @@ import { getInvs } from '@/app/api/ibreviary/gabc-loaders';
 import { generateCanonicalOffice } from './office-engine';
 import { getLatinPsalmText } from './latin-texts';
 import {
-  INVITATORY_LATIN_NOTE, buildInvitatoryBlocks, splitInvitatoryTone,
+  INVITATORY_LATIN_NOTE, buildInvitatoryBlocks, placeGregorianInvitatory,
+  splitInvitatoryTone,
 } from './invitatory';
 import { gabcText } from './gabc-text';
+import { parseBlocks } from '@/app/api/ibreviary/parse-blocks';
+import * as cheerio from 'cheerio';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 /** The eleven modes `IDX_INV.csv` records, and no more. */
 const MODES = ['2', '3', '4', '4*', '4**', '5', '6', '6*', '7', 'D', 'E'];
@@ -174,6 +179,8 @@ test('every mode the index uses has a Venite exsultemus in Gregobase', () => {
     assert.ok(tone, `mode ${mode} has no invitatory psalm`);
     // Not a tone formula: the whole of Psalm 94 written out with its melody.
     assert.ok(tone.gabc.length > 2000, `mode ${mode}: ${tone.gabc.length} characters is too short`);
+    assert.equal(splitInvitatoryTone(tone.gabc).length, 6,
+      `mode ${mode} did not select a complete Venite`);
   }
 });
 
@@ -190,10 +197,23 @@ test('the tone label is built, not guessed', () => {
   // "(mode 7a simplex)", "(mode 4g festivus)" — and an "IV* (ad lib)". The
   // label must match exactly so the two schemes are never mixed.
   assert.equal(invitatoryToneByMode('4*')!.gbId, 7669);
-  // Where a label has more than one entry the lowest id wins: mode 7 is 9834
-  // and 16799, mode 4 is 15508 and 17784.
-  assert.equal(invitatoryToneByMode('7')!.gbId, 9834);
-  assert.equal(invitatoryToneByMode('4')!.gbId, 15508);
+  // Where a label has more than one entry, the newest dated Solesmes edition
+  // wins. Mode 4 must use Gregobase's complete 2019 invitatory rather than the
+  // older record that happened to have the lower database id.
+  assert.equal(invitatoryToneByMode('7')!.gbId, 16799);
+  assert.equal(invitatoryToneByMode('4')!.gbId, 17784);
+});
+
+test('Lauds mode IV uses the complete 2019 Psalm 95 score', () => {
+  const tone = invitatoryToneByMode('4');
+  assert.ok(tone);
+  assert.equal(tone.gbId, 17784);
+
+  const strophes = splitInvitatoryTone(tone.gabc);
+  assert.equal(strophes.length, 6);
+  assert.match(gabcText(strophes[0]), /^Veníte, exsultémus/);
+  assert.match(gabcText(strophes[4]), /Quadragínta annis/);
+  assert.match(gabcText(strophes[5]), /^Glória Patri/);
 });
 
 test('the antiphon ends on the intonation of the tone chosen for it', () => {
@@ -298,6 +318,45 @@ test('an English Lauds gets the same Latin chant, and says so', async () => {
     'no Latin Psalm 94');
 });
 
+test('scraped English Lauds automatically places the OCO antiphon and matching Venite', async () => {
+  const html = fs.readFileSync(path.join(
+    process.cwd(), 'app/api/ibreviary/__fixtures__/lauds-2026-09-05-en.html'), 'utf8');
+  const imported = parseBlocks(cheerio.load(html), '', '', '');
+  const context = await getLiturgicalContext(new Date('2026-09-05T00:00:00Z'), 'lauds');
+  const chant = resolveInvitatory(invitatoryOccasionCodes(context));
+  assert.ok(chant);
+
+  const blocks = placeGregorianInvitatory(imported, chant, 'en');
+  const start = blocks.findIndex(b => b.content === 'INVITATORY');
+  const end = blocks.findIndex((b, i) => i > start && b.content === 'HYMN');
+  const invitatory = blocks.slice(start, end);
+  const psalms = invitatory.filter(b => b.type === 'psalm');
+  const antiphons = invitatory.filter(b => b.type === 'invitatory-antiphon');
+
+  assert.equal(psalms.length, 6);
+  assert.equal(antiphons.length, 2);
+  assert.ok(psalms.every(b => b.psalmNumber === '95' && b.lang === 'la' && b.gabcScore));
+  assert.ok(antiphons.every(b => b.content === chant.antiphon));
+  assert.ok(antiphons.some(b => b.gabcScore || b.gabcCandidates));
+  assert.match(psalms.map(b => b.content).join('\n'), /Quadragínta annis/);
+  assert.match(psalms[5].content, /^Glória Patri/);
+});
+
+test('a remembered general ferial override falls through to the invitatory code', async () => {
+  const context = await getLiturgicalContext(new Date('2026-09-05T00:00:00Z'), 'lauds');
+  assert.equal(context.ferialOccasionCode, '2H7');
+  const calendarCodes = invitatoryOccasionCodes(context);
+  assert.deepEqual(calendarCodes, ['1-4H7']);
+
+  // This is the exact chain the scraped route builds when the editor sends
+  // back the occasionCode returned by its first request.
+  const chant = resolveInvitatory([context.ferialOccasionCode, ...calendarCodes]);
+  assert.ok(chant, 'the remembered 2H7 override hid the 1-4H7 invitatory');
+  assert.match(chant.antiphon, /^Populus Domini et oves pascuæ eius/);
+  assert.equal(chant.mode, 'D');
+  assert.equal(splitInvitatoryTone(chant.toneGabc || '').length, 6);
+});
+
 test('no other hour grew an Invitatory', async () => {
   for (const hour of ['vespers', 'compline', 'terce', 'readings'] as const) {
     const blocks = await generateCanonicalOffice({ date: A_DAY, hour, lang: 'la' });
@@ -329,7 +388,7 @@ test('the psalm is sung from its own score, and its words are the score’s', as
     'the Nova Vulgata has grown the verse this test rests on');
 });
 
-test('the antiphon is sung before every strophe and again at the end', async () => {
+test('the antiphon is sung only before the psalm and after the doxology', async () => {
   const blocks = await lauds('la');
   const invitatory = blocks.slice(blocks.findIndex(b => b.content === 'INVITATORY'),
                                   blocks.findIndex(b => b.content === 'HYMN'));
@@ -337,7 +396,7 @@ test('the antiphon is sung before every strophe and again at the end', async () 
   const kinds = invitatory.filter(b => b.type === 'invitatory-antiphon' || b.type === 'psalm')
     .map(b => b.type === 'psalm' ? 'ps' : 'ant');
   assert.deepEqual(kinds, [
-    'ant', 'ps', 'ant', 'ps', 'ant', 'ps', 'ant', 'ps', 'ant', 'ps', 'ant', 'ps', 'ant',
+    'ant', 'ps', 'ps', 'ps', 'ps', 'ps', 'ps', 'ant',
   ]);
 
   const texts = new Set(invitatory
@@ -356,7 +415,7 @@ test('every day of the year builds a complete Invitatory', async () => {
 
     const psalms = blocks.filter(b => b.type === 'psalm');
     const ants = blocks.filter(b => b.type === 'invitatory-antiphon');
-    if (psalms.length !== 6 || ants.length !== 7 || psalms.some(p => !p.gabcScore)) {
+    if (psalms.length !== 6 || ants.length !== 2 || psalms.some(p => !p.gabcScore)) {
       broken.push(`${date.toISOString().slice(0, 10)}: ${ants.length} antiphons, `
         + `${psalms.length} strophes, mode ${chant?.mode}`);
     }

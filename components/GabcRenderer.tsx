@@ -9,7 +9,7 @@
 
 import React from 'react';
 
-export function GabcRenderer({ gabc }: { gabc: string }) {
+export function GabcRenderer({ gabc, baseFontSize = 12 }: { gabc: string; baseFontSize?: number }) {
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -56,10 +56,20 @@ export function GabcRenderer({ gabc }: { gabc: string }) {
       try {
         const ctxt = new (window as any).exsurge.ChantContext();
         ctxt.lyricTextFont = "'EB Garamond', 'Garamond', 'Cormorant Garamond', serif";
-        ctxt.lyricTextSize = 16;
+        // Match the booklet's font-size selector. Exsurge's default 16-unit
+        // lyric size corresponds visually to the editor's default 12pt text.
+        ctxt.lyricTextSize = 16 * (baseFontSize / 12);
+        // Condense the notation itself without shrinking the lyrics. Scaling
+        // the completed SVG made both too small; these are the geometry values
+        // Exsurge uses for glyph width, staff height, and inter-neume spacing.
+        const chantScale = 0.88;
+        ctxt.glyphScaling *= chantScale;
+        ctxt.staffInterval *= chantScale;
+        ctxt.intraNeumeSpacing *= chantScale;
 
         let width = container.clientWidth || 600;
         if (width < 200) width = 600;
+        const layoutWidth = width;
 
         const mappings = (window as any).exsurge.Gabc.createMappingsFromSource(ctxt, safeGabc);
         const score = new (window as any).exsurge.ChantScore(ctxt, mappings, true);
@@ -71,7 +81,7 @@ export function GabcRenderer({ gabc }: { gabc: string }) {
         }
 
         score.performLayoutAsync(ctxt, function () {
-          score.layoutChantLines(ctxt, width, function () {
+          score.layoutChantLines(ctxt, layoutWidth, function () {
             // Exsurge places the annotation only three staff intervals above
             // the staff, which can make it collide with a tall drop cap.
             // layoutChantLines sets this position, so apply the extra clearance
@@ -80,6 +90,18 @@ export function GabcRenderer({ gabc }: { gabc: string }) {
               score.annotation.bounds.y -= ctxt.staffInterval;
             }
             container.innerHTML = score.createSvg(ctxt);
+            const svg = container.querySelector('svg');
+            if (svg) {
+              // Exsurge emits no viewBox and, worse, uses the final (usually
+              // shortest) staff's width for the SVG viewport. Earlier staffs
+              // can therefore be clipped when we lay out wider than the DOM.
+              // Preserve the full virtual layout width as the scalable view.
+              const height = Number(svg.getAttribute('height')) || score.bounds.height;
+              svg.setAttribute('viewBox', `0 0 ${layoutWidth} ${height}`);
+              svg.style.width = '100%';
+              svg.style.height = 'auto';
+              svg.style.display = 'block';
+            }
           });
         });
       } catch (e) {
@@ -110,7 +132,7 @@ export function GabcRenderer({ gabc }: { gabc: string }) {
       clearTimeout(fallbackTimer);
       resizeObserver.disconnect();
     };
-  }, [gabc]);
+  }, [gabc, baseFontSize]);
 
   return <div ref={containerRef} className="gabc-container w-full" />;
 }

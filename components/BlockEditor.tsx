@@ -28,6 +28,7 @@ interface BlockEditorProps {
   finalePreps: 1 | 2 | 3;
   setFinalePreps: (n: 1 | 2 | 3) => void;
   centerRubric?: boolean;
+  baseFontSize?: number;
   isActive: boolean;
   onClick: () => void;
 }
@@ -45,6 +46,7 @@ export function BlockEditor({
   finalePreps,
   setFinalePreps,
   centerRubric = false,
+  baseFontSize = 12,
   isActive,
   onClick,
 }: BlockEditorProps) {
@@ -212,7 +214,7 @@ export function BlockEditor({
       ) : (
         <>
           {/* Editable Content */}
-          <EditableText
+          {!(block.type === 'psalm' && block.gabcScore) && <EditableText
             value={block.content}
             onChange={(val: string) => {
               // originalContent is the clean baseline both pointing paths
@@ -245,7 +247,7 @@ export function BlockEditor({
               minHeight: block.content ? undefined : '1.25em',
             }}
             placeholder={`Enter ${block.type} text...`}
-          />
+          />}
 
           {/* Psalm Pointing Toolbar */}
           {block.type === 'psalm' && (
@@ -593,7 +595,7 @@ export function BlockEditor({
           {/* GABC SVG render */}
           {(block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon' || block.type === 'psalm' || block.type === 'psalm-prayer') &&
             block.gabcScore && !block.musicDataUri && (
-              <GabcRenderer gabc={block.gabcScore} />
+              <GabcRenderer gabc={block.gabcScore} baseFontSize={baseFontSize} />
             )}
 
           {/* Uploaded image score */}

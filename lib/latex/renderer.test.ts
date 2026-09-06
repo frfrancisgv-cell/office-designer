@@ -15,7 +15,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { escLtx } from './renderer';
+import { buildLatexDocument, escLtx } from './renderer';
+import type { Block, OfficeSettings } from '@/lib/types';
 
 test('escapes every LaTeX special character', () => {
   assert.equal(escLtx('&'), '\\&');
@@ -59,6 +60,28 @@ test('UTF-8 and ordinary text are left alone', () => {
   assert.equal(escLtx('Glória Patri, et Fílio'), 'Glória Patri, et Fílio');
   assert.equal(escLtx('in sǽcula sæculórum'), 'in sǽcula sæculórum');
   assert.equal(escLtx(''), '');
+});
+
+test('Gregorio exports keep red responsory stars and define response signs', () => {
+  const blocks: Block[] = [{
+    id: 'rb',
+    type: 'antiphon',
+    content: 'Responsory',
+    gabcScore: '(c4) Re(f)spon(g)de,(f) <v>\\greheightstar</v>(;) '
+      + '<sp>V/</sp>(::) Verse(f) <sp>R/</sp>(::)',
+  }];
+  const settings: OfficeSettings = {
+    paperSize: 'A4', baseFontSize: 12, fontFamily: 'serif',
+    rubricColor: '#C00000', lineSpacing: 'normal',
+  };
+  const rendered = buildLatexDocument(blocks, settings);
+  const gabc = Object.values(rendered.gabcFiles)[0];
+
+  assert.match(gabc, /<v>\\greheightstar<\/v>/);
+  assert.match(gabc, /<sp>V\/<\/sp>/);
+  assert.match(gabc, /<sp>R\/<\/sp>/);
+  assert.match(rendered.texContent, /\\def\\Vbar\{\{\\color\{rubricred\}\\gothVbar\}\}/);
+  assert.match(rendered.texContent, /\\def\\Rbar\{\{\\color\{rubricred\}\\gothRbar\}\}/);
 });
 
 test('the \\x00 sentinel names contain no escapable character', () => {

@@ -453,6 +453,13 @@ function buildPreamble(settings: OfficeSettings): string {
 \\usepackage{gregoriotex}
 % Scores are pre-compiled to .gtex before lualatex runs; never shell out.
 \\gresetcompilegabc{never}
+% Gregorio compiles <sp>V/</sp> and <sp>R/</sp> to these commands, but does
+% not define their appearance. Keep the liturgical signs—and the responsory
+% star used by OCO—in the document's selected rubric color.
+\\def\\Vbar{{\\color{rubricred}\\gothVbar}}
+\\def\\Rbar{{\\color{rubricred}\\gothRbar}}
+\\let\\officegreheightstar\\greheightstar
+\\def\\greheightstar{{\\color{rubricred}\\officegreheightstar}}
 
 % ── Section headings ─────────────────────────────────────────────────────────
 \\usepackage{titlesec}

@@ -12,7 +12,7 @@ interface SharePayload {
 }
 
 // Minimal GABC renderer for share view (same logic as office-editor.tsx)
-function GabcViewRenderer({ gabc }: { gabc: string }) {
+function GabcViewRenderer({ gabc, baseFontSize = 12 }: { gabc: string; baseFontSize?: number }) {
   const ref = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,31 +45,51 @@ function GabcViewRenderer({ gabc }: { gabc: string }) {
       try {
         const ctxt = new ex.ChantContext();
         ctxt.lyricTextFont = "'EB Garamond', Georgia, serif";
-        ctxt.lyricTextSize = 16;
+        ctxt.lyricTextSize = 16 * (baseFontSize / 12);
+        const chantScale = 0.88;
+        ctxt.glyphScaling *= chantScale;
+        ctxt.staffInterval *= chantScale;
+        ctxt.intraNeumeSpacing *= chantScale;
         const width = container.clientWidth || 600;
+        const layoutWidth = width;
         const mappings = ex.Gabc.createMappingsFromSource(ctxt, safeGabc);
         const score = new ex.ChantScore(ctxt, mappings, true);
         // Set annotation on score (not ctxt) — correct exsurge API
         if (annotation) score.annotation = new ex.Annotation(ctxt, annotation);
         score.performLayoutAsync(ctxt, () => {
-          score.layoutChantLines(ctxt, width, () => {
+          score.layoutChantLines(ctxt, layoutWidth, () => {
             // Keep the annotation clear of the large initial. Exsurge assigns
             // its default position during layoutChantLines, so adjust it here.
             if (score.annotation) {
               score.annotation.bounds.y -= ctxt.staffInterval;
             }
             container.innerHTML = score.createSvg(ctxt);
+            const svg = container.querySelector('svg');
+            if (svg) {
+              const height = Number(svg.getAttribute('height')) || score.bounds.height;
+              svg.setAttribute('viewBox', `0 0 ${layoutWidth} ${height}`);
+              svg.style.width = '100%';
+              svg.style.height = 'auto';
+              svg.style.display = 'block';
+            }
           });
         });
       } catch { container.innerHTML = `<pre class="text-xs text-gray-400">${safeGabc.slice(0, 100)}</pre>`; }
     };
     tryRender();
-  }, [gabc]);
+  }, [gabc, baseFontSize]);
 
   return <div ref={ref} className="w-full my-1" />;
 }
 
-function BlockView({ block, rubricColor, centerRubric = false }: { block: Block; rubricColor: string; centerRubric?: boolean }) {
+function BlockView({
+  block, rubricColor, baseFontSize, centerRubric = false,
+}: {
+  block: Block;
+  rubricColor: string;
+  baseFontSize: number;
+  centerRubric?: boolean;
+}) {
   const isRubric = block.type === 'rubric' || block.type === 'subheading';
   const style = isRubric || block.type === 'heading' ? { color: rubricColor } : {};
 
@@ -86,7 +106,7 @@ function BlockView({ block, rubricColor, centerRubric = false }: { block: Block;
         <div className="mb-2">
           {block.gabcScore
             ? <>
-                <GabcViewRenderer gabc={block.gabcScore} />
+                <GabcViewRenderer gabc={block.gabcScore} baseFontSize={baseFontSize} />
                 {block.content && <p className="text-[0.82em] italic text-center text-gray-600 mt-0.5">{block.content}</p>}
               </>
             : <p className="italic text-justify">{block.content}</p>
@@ -94,10 +114,12 @@ function BlockView({ block, rubricColor, centerRubric = false }: { block: Block;
         </div>
       );
     case 'psalm':
-      return (
-        <div className="mb-2 text-justify whitespace-pre-wrap"
-          dangerouslySetInnerHTML={{ __html: block.content }} />
-      );
+      return block.gabcScore
+        ? <div className="mb-2"><GabcViewRenderer gabc={block.gabcScore} baseFontSize={baseFontSize} /></div>
+        : (
+            <div className="mb-2 text-justify whitespace-pre-wrap"
+              dangerouslySetInnerHTML={{ __html: block.content }} />
+          );
     case 'psalm-prayer':
       return <p className="italic my-2 text-justify">{block.content}</p>;
     case 'text':
@@ -163,7 +185,12 @@ export default function SharePage({ params }: { params: Promise<{ id: string }> 
         >
           {blocks.map((block, idx) => (
             <React.Fragment key={block.id}>
-              <BlockView block={block} rubricColor={rubricColor} centerRubric={isPsalmRubric(blocks, idx)} />
+              <BlockView
+                block={block}
+                rubricColor={rubricColor}
+                baseFontSize={settings.baseFontSize ?? 12}
+                centerRubric={isPsalmRubric(blocks, idx)}
+              />
             </React.Fragment>
           ))}
         </div>

@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 
 import { Block } from '@/lib/types';
-import { populateGabc, responsoryByOccasion, responsoryByText } from './gabc-lookup';
+import { populateGabc, resolveInvitatory, responsoryByOccasion, responsoryByText } from './gabc-lookup';
 import { deriveContext } from './derive-context';
 import { FEAST_CALENDAR } from './constants';
 import { parseBlocks } from './parse-blocks';
 import { getIBreviarySessions } from '@/lib/ibreviary/session';
 import { propagateTones } from '@/lib/psalm-tones/propagate';
+import { getLiturgicalContext, invitatoryOccasionCodes } from '@/lib/liturgy/calendar-context';
+import { placeGregorianInvitatory } from '@/lib/liturgy/invitatory';
 
 // Re-export AvailableOccasion so the editor can import it from a single path.
 export type { AvailableOccasion } from './derive-context';
@@ -210,13 +212,32 @@ export async function GET(request: NextRequest) {
     }
 
     const serviceTitle = $('#contenuto .inner h1').text().trim();
-    const finalBlocks = parseBlocks($, dateText, displayName, serviceTitle);
+    let finalBlocks = parseBlocks($, dateText, displayName, serviceTitle);
     const latinBlocks = latinHtml
       ? parseBlocks(cheerio.load(latinHtml), '', '', '')
       : [];
 
     // Call the populateGabc module to attach GABC notation where possible
     const occasionOverride = searchParams.get('occasionOverride') || null;
+    let invCodes: string[] = [];
+    if (hour.toLowerCase() === 'lauds') {
+      const calendarContext = await getLiturgicalContext(
+        new Date(`${dateParam}T00:00:00.000Z`), 'lauds');
+      const calendarInvCodes = invitatoryOccasionCodes(calendarContext);
+      // The editor remembers the route's general OCO occasion (`2H7` on this
+      // Saturday) and sends it back on a subsequent fetch. IDX_INV uses its
+      // own ferial spelling (`1-4H7`), so an override is a preference, not a
+      // reason to discard the invitatory-specific calendar fallback.
+      invCodes = [...new Set([
+        ...(occasionOverride ? [occasionOverride] : []),
+        ...calendarInvCodes,
+      ])];
+      finalBlocks = placeGregorianInvitatory(
+        finalBlocks,
+        resolveInvitatory(invCodes),
+        lang === 'la' ? 'la' : 'en',
+      );
+    }
     const enrichedBlocks = await populateGabc(
       finalBlocks,
       hour,
@@ -226,7 +247,8 @@ export async function GET(request: NextRequest) {
       ctx.ferialCode,
       occasionOverride,
       new Date(dateParam).getUTCDay() === 6,
-      new Date(dateParam).getUTCDay() === 6 && hour.toLowerCase() === 'vespers'
+      new Date(dateParam).getUTCDay() === 6 && hour.toLowerCase() === 'vespers',
+      invCodes
     );
 
     // Add the OCO short responsory chant after the imported responsory text.

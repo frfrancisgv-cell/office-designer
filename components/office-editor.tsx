@@ -284,6 +284,7 @@ export default function OfficeEditor() {
                       moveBlock={moveBlock} reorderBlock={reorderBlock}
                       finalePreps={finalePreps} setFinalePreps={setFinalePreps}
                       centerRubric={isPsalmRubric(blocks, idx)}
+                      baseFontSize={settings.baseFontSize}
                       isActive={activeBlockId === block.id}
                       onClick={() => { setActiveBlockId(block.id); scrollSidebarToBlock(block.id); setInsertAfterIdx(idx); }}
                     />

@@ -207,10 +207,6 @@ export function resolveGabc(gbId: number, csvGabc: string): string | null {
   }
   if (!gabc) gabc = csvGabc || null;
   
-  if (gabc) {
-    gabc = gabc.replace(/<v>\\greheightstar<\/v>/g, '*')
-               .replace(/\\greheightstar/g, '*');
-  }
   return gabc;
 }
 
@@ -572,8 +568,11 @@ export function invitatoryToneLabel(mode: string | undefined): string | null {
  * "(mode 4g festivus)", "(mode 3f solemnis)" — and a "Venite exsultemus IV*
  * (ad lib)". Those are real alternatives worth offering in the editor one day,
  * but mixing the two schemes silently is how you end up singing a festive tone
- * on a ferial Tuesday. Where a label has more than one entry the lowest id
- * wins, which is the plain Solesmes setting.
+ * on a ferial Tuesday. Where Gregobase has more than one exact match, a full
+ * six-division score (five strophes and the doxology) always outranks an
+ * excerpt, then the newest Solesmes edition wins. In particular, the mode-IV
+ * 2019 entry is the complete invitatory used at Lauds; choosing the lowest
+ * database id selected the older 1983 entry instead.
  */
 export function invitatoryToneByMode(mode: string | undefined): { gabc: string; gbId: number } | null {
   const label = invitatoryToneLabel(mode);
@@ -584,7 +583,20 @@ export function invitatoryToneByMode(mode: string | undefined): { gabc: string; 
   const ids = Object.keys(grego)
     .filter(id => grego[id].officePart === 'ps'
       && (grego[id].incipit || '').trim().toLowerCase() === wanted)
-    .sort((a, b) => Number(a) - Number(b));
+    .sort((a, b) => {
+      const complete = (id: string) => {
+        const gabc = grego[id].gabc || '';
+        return (gabc.match(/::[^)]*\)/g) || []).length >= 6
+          && /Gl[oó]\(/i.test(gabc) ? 1 : 0;
+      };
+      const edition = (id: string) => {
+        const years = [...(grego[id].version || '').matchAll(/\b(\d{4})\b/g)];
+        return years.length ? Number(years[years.length - 1][1]) : 0;
+      };
+      return complete(b) - complete(a)
+        || edition(b) - edition(a)
+        || Number(a) - Number(b);
+    });
 
   if (!ids.length) return null;
   return { gabc: grego[ids[0]].gabc, gbId: Number(ids[0]) };

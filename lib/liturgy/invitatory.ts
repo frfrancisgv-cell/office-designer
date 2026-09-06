@@ -17,9 +17,9 @@
  *     print words the music contradicts, which is the same fault as the
  *     "Christus apparuit" text on the Christmas antiphon.
  *
- * The score is already divided into the five strophes and the doxology that
- * the antiphon is repeated after; this file cuts it at those divisions and
- * lets the office engine interleave the antiphon.
+ * The score is already divided into five strophes and the doxology. This file
+ * cuts it at those divisions while placing the antiphon only at the beginning
+ * and after the doxology.
  */
 
 import type { Block, GabcCandidate } from '@/lib/types';
@@ -84,8 +84,8 @@ export function splitInvitatoryTone(gabc: string): string[] {
 }
 
 /**
- * The Invitatory as blocks, in the order it is sung: the versicle, then the
- * antiphon before each of the psalm's six divisions and again after the last.
+ * The Invitatory as blocks, in the order it is sung: the versicle, the
+ * antiphon, all six divisions of the psalm, and the antiphon after the doxology.
  *
  * Nothing here is invented. When the day resolves no antiphon, or the mode it
  * records has no *Venite exsultemus*, the gap is printed as a rubric — a
@@ -136,8 +136,8 @@ export function buildInvitatoryBlocks(
     return blocks;
   }
 
+  push(antiphon());
   for (const strophe of strophes) {
-    push(antiphon());
     push({
       type: 'psalm',
       content: gabcText(strophe),
@@ -153,4 +153,32 @@ export function buildInvitatoryBlocks(
   push(antiphon());
 
   return blocks;
+}
+
+/**
+ * Replace an imported vernacular Invitatory with the chant OCO prescribes:
+ * its Latin antiphon and the matching complete Gregobase Venite setting.
+ * iBreviary's parser merges Psalm 95 into one block, so decorating that block
+ * cannot produce the six scored strophes between the opening and closing
+ * antiphons.
+ */
+export function placeGregorianInvitatory(
+  blocks: Block[],
+  chant: InvitatoryChant | null,
+  lang: 'en' | 'la',
+  newId: () => string = () => Math.random().toString(36).substring(2, 11),
+): Block[] {
+  const start = blocks.findIndex(block =>
+    block.type === 'heading' && block.content.trim().toUpperCase() === 'INVITATORY');
+  if (start < 0) return blocks;
+
+  const end = blocks.findIndex((block, index) => index > start
+    && block.type === 'heading' && block.content.trim().toUpperCase() === 'HYMN');
+  if (end < 0) return blocks;
+
+  return [
+    ...blocks.slice(0, start),
+    ...buildInvitatoryBlocks(lang, chant, newId),
+    ...blocks.slice(end),
+  ];
 }
