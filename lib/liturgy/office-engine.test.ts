@@ -225,3 +225,34 @@ test('an English office still names its day in English', async () => {
   assert.ok(subheadings.some((s) => /Saints Peter and Paul/.test(s)), JSON.stringify(subheadings));
   assert.ok(!subheadings.some((s) => /apostolorum/.test(s)), 'Latin leaked into the English office');
 });
+
+test('an offline canticle is numbered as the text it prints', async () => {
+  // The schema numbers its Old Testament canticles by their slot in the
+  // four-week Lauds cycle; every text source numbers them the Abbey's way.
+  // Handing the slot number straight to the Abbey index made slot 1 ask for
+  // the Benedicite and print Exodus 15, and stamped the block with a number
+  // that sent the editor's two buttons to a third canticle again.
+  const seen = new Map<string, string>();
+  for (const lang of ['en', 'la'] as const) {
+    for (const block of await everyMajorHourBlock(lang)) {
+      if (!/^OT \d+$/.test(String(block.psalmNumber))) continue;
+      if (block.content.startsWith('[')) continue;   // honestly absent
+      const key = `${lang} ${block.psalmNumber}`;
+      const opening = block.content.split('\n')[0];
+      const first = seen.get(key);
+      if (first === undefined) seen.set(key, opening);
+      else assert.equal(opening, first, `${key} printed two different canticles`);
+    }
+  }
+  assert.ok(seen.size > 0, 'no Old Testament canticle was generated at all');
+
+  // Sunday Lauds asks for the Benedicite, and must get it in both languages.
+  for (const [lang, expected] of [['en', /^Bléss the Lórd, all you wórks/], ['la', /^Benedícite/]] as const) {
+    const sunday = (await generateCanonicalOffice({
+      date: new Date('2026-09-06T12:00:00Z'), hour: 'lauds', lang,
+    })).find((b) => /^OT \d+$/.test(String(b.psalmNumber)));
+    assert.ok(sunday, `${lang}: Sunday Lauds has no canticle`);
+    assert.equal(sunday.psalmNumber, 'OT 54', `${lang}: not the Benedicite's number`);
+    assert.match(sunday.content, expected, `${lang}: not the Benedicite`);
+  }
+});

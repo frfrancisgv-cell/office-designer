@@ -2,6 +2,30 @@ import type { Block } from '@/lib/types';
 import { parseToneFromAnnotation } from './parse-annotation';
 import { resolveToneFromMode } from './mode-map';
 import type { ResolvedTone } from './mode-map';
+import { resolveCanticleKey } from '@/lib/liturgy/canticle-refs';
+
+/**
+ * The psalm's number, out of the rubric that titles it.
+ *
+ * The Latin office prints both numberings — "Psalmus 109 (110), 1-5. 7" — and
+ * the parenthesised one is the Hebrew, which is what both text loaders want:
+ * the Grail psalter is numbered that way, and the Latin loader converts back
+ * to the Vulgate itself. Until the Latin word was matched at all, every psalm
+ * of a Latin import went without a number, and so without either button.
+ */
+const PSALM_NUMBER =
+  /\bPs(?:alm(?:us)?)?\.?\s*\d+[A-Za-z]?\s*\((\d+)\)|\bPs(?:alm(?:us)?)?\.?\s*(\d+[A-Za-z]?(?:\.\d+-\d+)?)\b/i;
+
+/**
+ * The rubric that titles a canticle, and the citation inside it.
+ *
+ * iBreviary writes it "Canticle: Deuteronomy 32:1-12" and "Canticle: See
+ * Revelation 19:1-7", the Latin "Canticum Deut 32, 1-12" and "Canticum Cf. Ap
+ * 19, 1-2. 5-7"; the subtitle that follows is on the next line. Only the
+ * parenthesised form was ever matched, and the office prints none, so no
+ * canticle in an imported hour was ever given a number.
+ */
+const CANTICLE_RUBRIC = /^(?:NT |OT )?Cantic(?:le|um)\s*:?\s*\(?\s*([^)\n]+)/i;
 
 /**
  * Carry the antiphon's tone down onto the psalms it governs.
@@ -18,7 +42,6 @@ import type { ResolvedTone } from './mode-map';
  * with, which is the caller's fallback.
  */
 export function propagateTones(enrichedBlocks: Block[]): Block[] {
-  const psalmNumRx = /\bPs(?:alm)?\s*(\d+[A-Za-z]?(?:\.\d+-\d+)?)\b/i;
   let currentTone: string | undefined;
   let currentVariant: string | undefined;
   let currentLyps: ResolvedTone | undefined;
@@ -54,38 +77,12 @@ export function propagateTones(enrichedBlocks: Block[]): Block[] {
 
     // If this is a rubric, try to extract a psalm number for the next psalm block
     if (b.type === 'rubric') {
-      const m = b.content.match(psalmNumRx);
-      let assignedNumber: string | null = m ? m[1] : null;
+      const m = b.content.match(PSALM_NUMBER);
+      let assignedNumber: string | null = m ? (m[1] ?? m[2]) : null;
 
       if (!assignedNumber) {
-        const cantMatch = b.content.match(/^(?:NT |OT )?Canticle(?: \(([^)]+)\))?/i);
-        if (cantMatch) {
-          const ref = cantMatch[1] || '';
-          if (/Eph/i.test(ref)) assignedNumber = 'NT 4';
-          else if (/Phil/i.test(ref)) assignedNumber = 'NT 5';
-          else if (/Col/i.test(ref)) assignedNumber = 'NT 6';
-          else if (/1\s*Tim/i.test(ref)) assignedNumber = 'NT 7';
-          else if (/1\s*Pet/i.test(ref)) assignedNumber = 'NT 8';
-          else if (/Rev.*4/i.test(ref)) assignedNumber = 'NT 9';
-          else if (/Rev.*11/i.test(ref)) assignedNumber = 'NT 10';
-          else if (/Rev.*15/i.test(ref)) assignedNumber = 'NT 11';
-          else if (/Rev.*19/i.test(ref)) assignedNumber = 'NT 12';
-          else if (/1\s*Chr/i.test(ref)) assignedNumber = 'OT 2';
-          else if (/Tob/i.test(ref)) assignedNumber = 'OT 3';
-          else if (/Jdt/i.test(ref)) assignedNumber = 'OT 4';
-          else if (/Is.*12/i.test(ref)) assignedNumber = 'OT 5';
-          else if (/Hab/i.test(ref)) assignedNumber = 'OT 6';
-          else if (/Deut/i.test(ref)) assignedNumber = 'OT 7';
-          else if (/Dan/i.test(ref)) assignedNumber = 'OT 1';
-          else if (/1\s*Sam/i.test(ref)) assignedNumber = 'OT 11';
-          else if (/Is.*38/i.test(ref)) assignedNumber = 'OT 9';
-          else if (/Is.*40/i.test(ref)) assignedNumber = 'OT 16';
-          else if (/Is.*42/i.test(ref)) assignedNumber = 'OT 17';
-          else if (/Is.*61/i.test(ref)) assignedNumber = 'OT 21';
-          else if (/Is.*66/i.test(ref)) assignedNumber = 'OT 22';
-          else if (/Ez/i.test(ref)) assignedNumber = 'OT 20';
-          else if (/Wis/i.test(ref)) assignedNumber = 'OT 18';
-        }
+        const cantMatch = b.content.match(CANTICLE_RUBRIC);
+        if (cantMatch) assignedNumber = resolveCanticleKey(cantMatch[1]);
       }
 
       if (assignedNumber) {

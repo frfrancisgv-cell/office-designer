@@ -160,38 +160,76 @@ export function getLatinPsalmText(id: number | string, verses?: string): string 
 }
 
 /**
- * OT canticle index (as used by `psalter-schema.ts`) → jgabc filename.
+ * Abbey OT canticle number → jgabc filename.
  *
- * Deliberately partial. A canticle is only listed where the schema's own
- * citation and the file name name the same passage; guessing would put the
- * wrong canticle in the office just as surely as the psalm-number bug did.
- * Anything absent here has no Latin text on file and must say so.
+ * Deliberately partial. A canticle is only listed where the file and the
+ * Abbey's own citation name the same passage; guessing would put the wrong
+ * canticle in the office just as surely as the psalm-number bug did. Anything
+ * absent here has no Latin text on file and must say so.
+ *
+ * Keyed by the Abbey's number because that is what an "OT N" key means
+ * everywhere else — it is the English index `/api/psalm-text` reads, and the
+ * number the editor's two text buttons both send. See `canticle-refs.ts`.
  */
 const OT_CANTICLE_FILES: Record<number, string> = {
-  1: 'Canticum Trium puerorum.txt',      // Dan 3
-  2: 'Canticum David.txt',               // 1 Chr 29
-  3: 'Canticum Tobiae.txt',              // Tob 13
-  4: 'Canticum Judith.txt',              // Jdt 16
-  5: 'Canticum Isaiae 12.txt',           // Is 12:1-6
-  6: 'Canticum Habacuc 3, 1-6.txt',      // Hab 3:2-19
-  7: 'Canticum Moysis.1 (Deut 32, 1-21).txt', // Deut 32:1-12
-  8: 'Canticum Trium puerorum.txt',      // Dan 3
-  9: 'Canticum Ezechiae.txt',            // Is 38
-  11: 'Canticum Annae.txt',              // 1 Sam 2
-  12: 'Canticum Habacuc.txt',            // Hab 3
-  15: 'Canticum Isaiæ 40, 10-17.txt',    // Is 40:10-17
-  16: 'Canticum Isaiæ 40, 10-17.txt',    // Is 40
-  17: 'Canticum Isaiæ 42, 10-16.txt',    // Is 42
-  19: 'Canticum Isaiæ 42, 10-16.txt',    // Is 42
-  20: 'Canticum Ezechielis 36, 24-28.txt', // Ez 36
-  24: 'Canticum Ezechielis 36, 24-28.txt', // Ez 36:26
+  4:  'Canticum Moysis.1 (Deut 32, 1-21).txt', // Deut 32:1-12
+  8:  'Canticum Annae.txt',                    // 1 Sam 2
+  9:  'Canticum David.txt',                    // 1 Chr 29
+  10: 'Canticum Tobiae.txt',                   // Tob 13
+  14: 'Canticum Judith.txt',                   // Jdt 16
+  30: 'Canticum Isaiae 12.txt',                // Is 12:1-6
+  35: 'Canticum Ezechiae.txt',                 // Is 38:10-20
+  37: 'Canticum Isaiæ 40, 10-17.txt',          // Is 40:10-17
+  38: 'Canticum Isaiæ 42, 10-16.txt',          // Is 42:10-16
+  51: 'Canticum Ezechielis 36, 24-28.txt',     // Ez 36:24-28
+  54: 'Canticum Trium puerorum.txt',           // Dan 3:57-88 — the Benedicite
+  57: 'Canticum Habacuc.txt',                  // Hab 3
+};
+
+/**
+ * The four-week psalter's canticle slot → the Abbey canticle it stands for.
+ *
+ * `psalter-schema.ts` numbers the Old Testament canticles by their place in
+ * the Lauds cycle, one to twenty-four; the Abbey files number all fifty-eight
+ * of its canticles straight through. The two have nothing to do with each
+ * other, and an "OT 4" from the offline psalter and an "OT 4" read off an
+ * imported rubric are different canticles — Judith 16 and Deuteronomy 32.
+ *
+ * Every pairing below is the one the slot already had: it is read off the
+ * Latin file each slot was mapped to, not chosen afresh. Slots absent here
+ * had no Latin text before and still have none.
+ *
+ * The slots this leaves out are the ones whose English is wrong today, since
+ * the engine hands its slot number straight to the Abbey index: slot 1 asks
+ * for the Benedicite and is given Exodus 15. Putting that right means saying
+ * which canticle each of the twenty-four slots is, which is a question for
+ * the psalter, not for this table.
+ */
+const SLOT_TO_ABBEY: Record<number, number> = {
+  1: 54, 2: 9, 3: 10, 4: 14, 5: 30, 6: 57, 7: 4, 8: 54, 9: 35,
+  11: 8, 12: 57, 15: 37, 16: 37, 17: 38, 19: 38, 20: 51, 24: 51,
+
+  // These five have no Latin file; the pairing is read off the citation the
+  // slot itself prints as its title, which is the same citation the Abbey
+  // files the canticle under.
+  13: 28,  // Is 2:2-5
+  14: 31,  // Is 26:9  — the Abbey's Is 26:1-4, 7-9, 12
+  18: 19,  // Wis 9:10 — the Abbey's Wis 9:1-6, 9-11
+  21: 42,  // Is 61:10 — the Abbey's Is 61:10-62:5
+  22: 45,  // Is 66    — the Abbey's Is 66:10-14a
+
+  // Slots 10 and 23 are left out on purpose. Slot 10 says "Is 1", and there
+  // is no canticle of Isaiah 1 in the Abbey or in the office; slot 23 says
+  // nothing at all. Both print the Abbey canticle that happens to share their
+  // number, which is the wrong text, and neither can be put right from what
+  // the schema records.
 };
 
 /** The Benedicite carries its own ending and must not take the Gloria Patri. */
 const SELF_CLOSING = new Set(['Canticum Trium puerorum.txt']);
 
 /**
- * Latin text of an Office canticle.
+ * Latin text of an Office canticle, by the Abbey's number.
  *
  * The New Testament canticles are Nova Vulgata and are not part of the jgabc
  * corpus, so `nt` always returns null rather than a plausible-looking wrong
@@ -203,6 +241,14 @@ export function getLatinCanticleText(kind: 'ot' | 'nt', num: number): string | n
   if (!filename) return null;
   const text = readJgabc(filename);
   return SELF_CLOSING.has(filename) ? text : withDoxology(text);
+}
+
+/**
+ * The Abbey canticle a four-week psalter slot stands for, or null when the
+ * pairing is not on record and the slot can only speak for itself.
+ */
+export function abbeyNumberForSlot(slot: number): number | null {
+  return SLOT_TO_ABBEY[slot] ?? null;
 }
 
 const GOSPEL_CANTICLE_FILES: Record<string, string> = {

@@ -18,7 +18,7 @@ import type { Block } from '@/lib/types';
 import { PSALTER_SCHEMA, COMPLINE_PSALMS, MINOR_HOUR_PSALMS } from './data/psalter-schema';
 import { getPsalmText, getCanticleText } from '@/lib/psalm-tones/psalm-index';
 import { getProperHymn } from './data/hymns';
-import { getLatinPsalmText, getLatinCanticleText, getLatinGospelCanticleText } from './latin-texts';
+import { getLatinPsalmText, getLatinCanticleText, getLatinGospelCanticleText, abbeyNumberForSlot } from './latin-texts';
 import { getEnglishGospelCanticleText } from './english-canticles';
 import type { GospelCanticle } from './english-canticles';
 import { getLiturgicalContext } from './calendar-context';
@@ -406,7 +406,16 @@ export async function generateCanonicalOffice(spec: OfficeSpec): Promise<Block[]
       // came back as Psalm 6, silently, in every Latin Lauds and Vespers.
       const isCanticle = unit.type === 'ot-canticle' || unit.type === 'nt-canticle';
       const kind = unit.type === 'ot-canticle' ? 'ot' : 'nt';
-      const num = parseInt(unit.id, 10);
+      const slot = parseInt(unit.id, 10);
+
+      // The schema numbers the Old Testament canticles by their slot in the
+      // four-week Lauds cycle; every text source here — the Abbey index, the
+      // jgabc files, `/api/psalm-text` — numbers them the Abbey's way. Slot 1
+      // asks for the Benedicite and, taken as an Abbey number, fetches Exodus
+      // 15. Translating first is what makes the block's English, its Latin
+      // and the number stamped on it name one canticle. Slots with no pairing
+      // on record keep their own number, and keep whatever they printed.
+      const num = kind === 'ot' ? (abbeyNumberForSlot(slot) ?? slot) : slot;
 
       let textContent = '';
       if (isCanticle && lang === 'la') {
@@ -431,7 +440,7 @@ export async function generateCanonicalOffice(spec: OfficeSpec): Promise<Block[]
         // "OT 4" / "NT 6" is the form /api/psalm-text parses, so the editor's
         // "load Latin" and "load stressed English" buttons address the
         // canticle rather than the psalm that shares its index.
-        psalmNumber: isCanticle ? `${kind.toUpperCase()} ${unit.id}` : unit.id,
+        psalmNumber: isCanticle ? `${kind.toUpperCase()} ${num}` : unit.id,
         ...defaultTonePointing(tone),
         lang,
       });
