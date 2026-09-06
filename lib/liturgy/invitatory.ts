@@ -23,6 +23,7 @@
  */
 
 import type { Block, GabcCandidate } from '@/lib/types';
+import { gabcText } from './gabc-text';
 
 /**
  * The day's invitatory, as OCO and Gregobase answer for it. Resolved by the
@@ -80,34 +81,6 @@ export function splitInvitatoryTone(gabc: string): string[] {
   const tail = gabc.slice(start).trim();
   if (tail) pieces.push(tail);
   return pieces;
-}
-
-/**
- * The words of a piece of GABC, one line per bar.
- *
- * A group holding `;` or `:` is a half or full bar and ends a verse; `(,)` is
- * a quarter bar inside one and is left where it falls. The two-letter capital
- * that opens a score is a drop cap — "VEníte" is one word, not a shout. A
- * whole-line `%` comment is the transcriber talking, not a word of the psalm;
- * mode 4** has one sitting on top of its doxology.
- */
-export function gabcText(gabc: string): string {
-  const lines: string[] = [];
-  let current = '';
-  for (const m of gabc.replace(/^[ \t]*%[^\n]*$/gm, '').matchAll(/([^()]*)\(([^)]*)\)/g)) {
-    current += m[1];
-    if (/[;:]/.test(m[2])) {
-      const line = current.replace(/\s+/g, ' ').trim();
-      if (line) lines.push(line);
-      current = '';
-    }
-  }
-  const last = current.replace(/\s+/g, ' ').trim();
-  if (last) lines.push(last);
-  return lines
-    .join('\n')
-    .replace(/\b([A-ZÆŒ])([A-ZÆŒ]+)(?=[a-zæœàáâäèéêëìíîïòóôöùúûü])/g,
-      (_, first, rest) => first + rest.toLowerCase());
 }
 
 /**

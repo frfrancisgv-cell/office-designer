@@ -27,8 +27,9 @@ import { getInvs } from '@/app/api/ibreviary/gabc-loaders';
 import { generateCanonicalOffice } from './office-engine';
 import { getLatinPsalmText } from './latin-texts';
 import {
-  INVITATORY_LATIN_NOTE, buildInvitatoryBlocks, gabcText, splitInvitatoryTone,
+  INVITATORY_LATIN_NOTE, buildInvitatoryBlocks, splitInvitatoryTone,
 } from './invitatory';
+import { gabcText } from './gabc-text';
 
 /** The eleven modes `IDX_INV.csv` records, and no more. */
 const MODES = ['2', '3', '4', '4*', '4**', '5', '6', '6*', '7', 'D', 'E'];

@@ -4,6 +4,7 @@ import { getCommonOccasionCode, getLiturgicalContext, invitatoryOccasionCodes } 
 import type { OfficeHour } from '@/lib/liturgy/calendar-context';
 import { getAnts, getHyms, getRbs } from '@/app/api/ibreviary/gabc-loaders';
 import { propagateTones } from '@/lib/psalm-tones/propagate';
+import { textFromChant, chantTextCoverage } from '@/lib/liturgy/latin-propers';
 import type { Block } from '@/lib/types';
 
 /**
@@ -91,7 +92,22 @@ export async function GET(request: NextRequest) {
     // default tone wherever OCO records a mode the table can read. The
     // iBreviary route has done this since it was written; the offline one
     // never did, so every psalm of every day was tone 8.G.
-    const blocks = propagateTones(scored);
+    const toned = propagateTones(scored);
+
+    // 4b. A Latin office has no proper book: `vendor/psautier` is English, so
+    // `getOfflineProper` is guarded to `lang === 'en'` and the Latin antiphons
+    // and hymn have always been the generic ones. OCO does name them, and the
+    // score just assigned carries their words, so they are read off it — the
+    // text on a block and the music on it can then never be two different
+    // antiphons.
+    const blocks = lang === 'la' ? textFromChant(toned) : toned;
+    if (lang === 'la') {
+      const coverage = chantTextCoverage(toned, blocks);
+      for (const [kind, [taken, all]] of Object.entries(coverage)) {
+        console.log(`[OCO] ${kind}: ${taken}/${all} took their text from the day's chant`);
+      }
+    }
+
     const psalms = blocks.filter((b: Block) => b.type === 'psalm' && !b.gabcScore);
     const fromOco = psalms.filter((b: Block) => b.toneSource === 'oco').length;
     if (psalms.length) {
