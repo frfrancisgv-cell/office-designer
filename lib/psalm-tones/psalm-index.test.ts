@@ -50,10 +50,20 @@ function sourceBlocks(entry: PsalmEntry): string[][] {
   return blocks;
 }
 
+const blockText = (block: string[]) =>
+  (block[0].match(VERSE_LABEL)?.[1] ?? block[0]).trim();
+
 /** A strophe that is nothing but the Hallel's "Alleluia!", which is dropped. */
 const isHallelujahBlock = (block: string[]) =>
-  block.length === 1
-  && /^allel[u\u00fa]ia\s*[!.]?$/i.test((block[0].match(VERSE_LABEL)?.[1] ?? block[0]).trim());
+  block.length === 1 && /^allel[u\u00fa]ia\s*[!.]?$/i.test(blockText(block));
+
+/** A strophe that is nothing but NT 7's response, which is dropped with it. */
+const isResponseBlock = (block: string[]) =>
+  block.length === 1 && /^R\.\s/.test(blockText(block));
+
+/** Either — the two lone refrains the index drops as it reads. */
+const isRefrainBlock = (block: string[]) =>
+  isHallelujahBlock(block) || isResponseBlock(block);
 
 test('a rendered psalm is its file again, strophes and all', () => {
   const keys = listAllKeys();
@@ -65,7 +75,7 @@ test('a rendered psalm is its file again, strophes and all', () => {
     const blocks = sourceBlocks(entry);
     if (entry.heading) blocks.shift();
     const expected = blocks
-      .filter(block => !isHallelujahBlock(block))
+      .filter(block => !isRefrainBlock(block))
       .map(block => block.map(l => l.match(VERSE_LABEL)?.[1] ?? l).join('\n'))
       .join('\n\n');
     if (expected !== entry.rawText) wrong.push(key);
@@ -73,7 +83,7 @@ test('a rendered psalm is its file again, strophes and all', () => {
   assert.deepEqual(wrong, []);
 });
 
-test('the Hallel psalms lose their lone Alleluia, and the canticle keeps its response', () => {
+test('the lone refrains go: the Hallel\'s Alleluia and NT 7\'s response', () => {
   // The superscription is not sung in the office — the Latin psalter of the
   // Liturgy of the Hours has no "alleluia" in any of its 150 psalms — and a
   // one-line strophe takes a slot in the mediant/termination alternation, so
@@ -97,6 +107,35 @@ test('the Hallel psalms lose their lone Alleluia, and the canticle keeps its res
   // stands with the two lines of its verse rather than alone in a strophe.
   const nt12 = getEntryByKey('nt-12')!;
   assert.equal(nt12.rawText.match(/^Allel\u00faia!$/gm)?.length, 4);
+
+  // "R." is the psautier's own marker for a response and falls in one file:
+  // NT 7, 1 Timothy 3:16, where it stands four times as a strophe of its own.
+  // The user's ruling was to drop it as the Alleluia is dropped.
+  const withResponse = listAllKeys().filter(key => {
+    const entry = getEntryByKey(key)!;
+    return entry.rawText.split(/\n\s*\n/).some(strophe => /^R\.\s/.test(strophe.trim()));
+  });
+  assert.deepEqual(withResponse, []);
+
+  const withResponseInFile = listAllKeys()
+    .filter(key => sourceBlocks(getEntryByKey(key)!).some(isResponseBlock));
+  assert.deepEqual(withResponseInFile, ['nt-7']);
+});
+
+test('NT 7 alternates mediant and termination once its response is gone', () => {
+  // Each response took a slot in the alternation, so the whole canticle came
+  // out inverted — termination where the mediant belongs, first line to last.
+  const roles = describeStructure(getEntryByKey('nt-7')!.rawText)
+    .flat()
+    .filter(h => h.role !== 'divider');
+
+  assert.equal(roles[0].role, 'first');
+  assert.match(roles[0].text, /^He was m\u00e1nifested/);
+  for (let i = 0; i < roles.length; i++) {
+    if (roles[i].role === 'flex') continue;
+    const expected = roles[i - 1]?.role === 'first' ? 'termination' : 'first';
+    assert.equal(roles[i].role, expected, `line ${i} "${roles[i].text}"`);
+  }
 });
 
 test('a psalm that opened on Alleluia now alternates mediant and termination', () => {

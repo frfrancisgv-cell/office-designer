@@ -87,8 +87,9 @@ function normaliseKey(filename: string): string {
 const VERSE_LABEL = /^(?:(?:\d+:)?(\d+)[a-z]?\s+|\[(?:\d+:)?(\d+)[a-z]?\]\s*|(?:\d+:)?(\d+)(?=[A-ZÁÉÍÓÚ]))(\S.*)$/;
 
 // A heading is the file naming itself — "Psalm 116B", "Psalm 119:1-8", "OT 2" —
-// alone on its block's only line. Anything else in first place is text: NT 12
-// opens on "Allelúia!" and NT 7 on a response, and both belong to the canticle.
+// alone on its block's only line. Anything else in first place is text of the
+// canticle, whatever becomes of it later: NT 12 opens on "Allelúia!" and NT 7
+// on a response, and neither names the piece.
 const HEADING = /^(?:Psalm|Canticle|OT|NT)\s+[\d.:A-Za-z-]+(?:\s+[A-Z])?$/i;
 
 /**
@@ -115,13 +116,41 @@ const HEADING = /^(?:Psalm|Canticle|OT|NT)\s+[\d.:A-Za-z-]+(?:\s+[A-Z])?$/i;
  */
 const LONE_ALLELUIA = /^allel[uú]ia\s*[!.]?$/i;
 
+/**
+ * `R.` is the psautier's own marker for a response, and in all of
+ * `vendor/psautier` it falls in one file: `theAbbeyPsalmsAndCanticles/NT 7`,
+ * the canticle of 1 Timothy 3:16 sung at Week 4 Tuesday Vespers, where
+ * "R. O práise the Lórd, all you nátions." stands four times as a strophe of
+ * its own between the verses.
+ *
+ * It is the same defect as the Hallel's Alleluia from a different cause. Each
+ * response takes a slot in the alternation, so the whole canticle comes out
+ * inverted — termination where the mediant belongs, from the first hemistich
+ * to the last.
+ *
+ * The response is real text of the Liturgy of the Hours, where the Alleluia
+ * was not, but it is sung the way an antiphon is sung and not as a hemistich
+ * of the canticle. The user's ruling: "Drop the alleluias like we do in the
+ * LOTH." So it is dropped here, where the text is read, and the pointing
+ * engines are left alone.
+ */
+const LONE_RESPONSE = /^R\.\s/;
+
 /** How many verses share a strophe — one means the verse is the whole of it. */
 function stropheSize(verses: PsalmVerse[], strophe: number): number {
   return verses.reduce((n, v) => n + (v.strophe === strophe ? 1 : 0), 0);
 }
 
-function isHallelujahOnly(verse: PsalmVerse, verses: PsalmVerse[]): boolean {
-  return LONE_ALLELUIA.test(verse.text.trim()) && stropheSize(verses, verse.strophe) === 1;
+/**
+ * A superscription standing alone in its strophe: the Hallel's Alleluia, or
+ * NT 7's response. Standing alone is the whole of the test — a refrain that
+ * comes with the lines it belongs to is sung with them, which is why NT 12's
+ * "Allelúia!" survives it.
+ */
+function isLoneRefrain(verse: PsalmVerse, verses: PsalmVerse[]): boolean {
+  const text = verse.text.trim();
+  return (LONE_ALLELUIA.test(text) || LONE_RESPONSE.test(text))
+    && stropheSize(verses, verse.strophe) === 1;
 }
 
 function isDoxology(line: string): boolean {
@@ -189,11 +218,11 @@ function parsePsalmFile(rawText: string): ParsedFile {
     }
   });
 
-  // The lone Alleluia strophes are dropped here rather than before parsing so
-  // that the verse number they carry is still inherited by the line beneath —
-  // Psalm 111 writes "1 Alleluia!" and leaves "I will práise the Lórd" unlabelled,
-  // and that line is verse 1.
-  return { heading, verses: verses.filter(v => !isHallelujahOnly(v, verses)), doxology };
+  // The lone refrains are dropped here rather than before parsing so that the
+  // verse number they carry is still inherited by the line beneath — Psalm 111
+  // writes "1 Alleluia!" and leaves "I will práise the Lórd" unlabelled, and
+  // that line is verse 1.
+  return { heading, verses: verses.filter(v => !isLoneRefrain(v, verses)), doxology };
 }
 
 /** Put the verses back as text, one blank line between strophes, none inside. */
