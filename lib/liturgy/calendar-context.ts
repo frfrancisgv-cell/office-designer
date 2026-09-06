@@ -309,6 +309,38 @@ function invitatoryCommonCodes(
   }
 }
 
+/**
+ * The Ordinary Time week whose *Sunday* Gospel-canticle antiphons this hour may
+ * take, or null when it may take none.
+ *
+ * OCO indexes those under a code of the day alone — "13D" — with the antiphon
+ * proper to each liturgical year at place `Ma`/`Mb`/`Mc`. They belong to the
+ * Sunday. Asking for them on a Tuesday put them beside the ferial antiphon, so
+ * the lookup had a choice to make rather than an answer and left the block
+ * reading "Ant. Magníficat ánima mea Dóminum."; over 2026 that happened at 264
+ * of the 356 Ordinary Time weekday Lauds and Vespers.
+ *
+ * Two conditions, and the second is the one that is easy to miss:
+ *
+ *  - **the day being celebrated is the Sunday.** Not the calendar date — a
+ *    Saturday evening is the Sunday's First Vespers, and `celebrationDate` has
+ *    already been moved onto the Sunday for it.
+ *  - **it is being kept as that Sunday**, which is what `occasionCode` still
+ *    being the ferial code says. A Sunday under a proper of its own — Trinity,
+ *    Christ the King — sings that proper's antiphon, and the Sunday of the
+ *    psalter it displaced has no claim on it.
+ */
+export function sundayGospelAntiphonWeek(
+  context: Pick<LiturgicalContext, 'season' | 'seasonWeek' | 'celebrationDate'>,
+  occasionCode: string | null,
+  ferialCode: string | null,
+): number | null {
+  if (context.season !== 'ordinary') return null;
+  if (context.celebrationDate.getUTCDay() !== 0) return null;
+  if (!occasionCode || occasionCode !== ferialCode) return null;
+  return context.seasonWeek ?? null;
+}
+
 /** The season's own invitatory codes, most specific first. */
 function invitatorySeasonCodes(context: Pick<LiturgicalContext,
   'season' | 'seasonWeek' | 'key' | 'celebrationDate' | 'ferialOccasionCode'>): string[] {

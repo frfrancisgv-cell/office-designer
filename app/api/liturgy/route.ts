@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateCanonicalOffice } from '@/lib/liturgy/office-engine';
-import { getCommonOccasionCode, getLiturgicalContext, invitatoryOccasionCodes } from '@/lib/liturgy/calendar-context';
+import { getCommonOccasionCode, getLiturgicalContext, invitatoryOccasionCodes, sundayGospelAntiphonWeek } from '@/lib/liturgy/calendar-context';
 import type { OfficeHour } from '@/lib/liturgy/calendar-context';
 import { getAnts, getHyms, getRbs } from '@/app/api/ibreviary/gabc-loaders';
 import { propagateTones } from '@/lib/psalm-tones/propagate';
@@ -71,13 +71,17 @@ export async function GET(request: NextRequest) {
       ? datedCode
       : (getCommonOccasionCode(context) || ferialCode);
     
+    // Sunday's Gospel-canticle antiphons belong to the Sunday; see
+    // `sundayGospelAntiphonWeek` for what asking for them on a Tuesday cost.
+    const sundayOfOrdinaryTime = sundayGospelAntiphonWeek(context, occasionCode, ferialCode);
+
     // 3. Assign GABC scores and candidates
     const { populateGabc, responsoryByOccasion } = require('@/app/api/ibreviary/gabc-lookup');
     const scored = await populateGabc(
       rawBlocks,
       hour,
       occasionCode,
-      context.season === 'ordinary' ? context.seasonWeek : null,
+      sundayOfOrdinaryTime,
       context.liturgicalYear,
       ferialCode,
       null, // occasionOverride
