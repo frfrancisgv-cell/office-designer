@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as cheerio from 'cheerio';
 import { parseBlocks } from './parse-blocks';
+import { propagateTones } from '@/lib/psalm-tones/propagate';
 
 function laudsBlocks(lang: 'en' | 'la' = 'en') {
   const html = fs.readFileSync(
@@ -163,4 +164,78 @@ test('the Latin Gospel canticle is named', () => {
   assert.ok(canticle, 'no block carries a psalmNumber');
   assert.equal(canticle.psalmNumber, 'Benedictus');
   assert.match(canticle.content, /^Benedíctus Dóminus Deus Israel/);
+});
+
+// ─── Vespers: the canticle that could not be pointed ──────────────────────────
+//
+// The Vespers fixtures are the English and Latin Evening Prayer of Saturday
+// 5 September 2026, fetched from ibreviary.com on that day (`s=vespri`).
+//
+// The editor offers its two text buttons — "Lypsautierant (EN)" and "Latin
+// (jgabc)" — only for a block that carries a `psalmNumber`, and the psalmody's
+// canticle never carried one: the rubric that names it is written "Canticle:
+// See Revelation 19:1-7", and the only shape the number-assigning pass matched
+// was a parenthesised "Canticle (Rev 19)" that iBreviary does not print. So the
+// one part of the office with a pointed English translation waiting for it was
+// the one part that could not ask for it.
+
+function vespersBlocks(lang: 'en' | 'la' = 'en') {
+  const html = fs.readFileSync(
+    path.join(process.cwd(), 'app', 'api', 'ibreviary', '__fixtures__',
+      `vespers-2026-09-05-${lang}.html`),
+    'utf8',
+  );
+  return propagateTones(parseBlocks(cheerio.load(html), '', '', ''));
+}
+
+test('the Vespers canticle is numbered, so its pointed text can be loaded', () => {
+  for (const lang of ['en', 'la'] as const) {
+    const canticle = vespersBlocks(lang).find((b) => b.psalmNumber === 'NT 12');
+    assert.ok(canticle, `${lang}: no block carries the canticle's number`);
+    assert.equal(canticle.type, 'psalm');
+  }
+});
+
+test('the Vespers canticle does not open on the rubric about the Alleluia', () => {
+  for (const lang of ['en', 'la'] as const) {
+    const blocks = vespersBlocks(lang);
+    const canticle = blocks.find((b) => b.psalmNumber === 'NT 12')!;
+    assert.doesNotMatch(canticle.content, /^(The following canticle|Sequens canticum)/);
+
+    const instruction = blocks.find((b) =>
+      /^(The following canticle|Sequens canticum)/.test(b.content));
+    assert.ok(instruction, `${lang}: the instruction went missing entirely`);
+    assert.equal(instruction.type, 'rubric', `${lang}: the instruction is not a rubric`);
+  }
+});
+
+test('the psalms of a Latin import are numbered as the Grail numbers them', () => {
+  // "Psalmus 109 (110), 1-5. 7" — the Hebrew number is the parenthesised one,
+  // and it is the one both text loaders want. Before it was read, no psalm of
+  // any Latin import had a number, and neither button appeared anywhere.
+  const numbers = vespersBlocks('la')
+    .filter((b) => b.type === 'psalm')
+    .map((b) => b.psalmNumber);
+  assert.ok(numbers.includes('110'), `expected Psalm 110, got ${numbers.join(', ')}`);
+  assert.ok(numbers.includes('111'), `expected Psalm 111, got ${numbers.join(', ')}`);
+});
+
+test('the Lauds canticle is numbered too, in both languages', () => {
+  for (const lang of ['en', 'la'] as const) {
+    const html = fs.readFileSync(
+      path.join(process.cwd(), 'app', 'api', 'ibreviary', '__fixtures__',
+        `lauds-2026-09-05-${lang}.html`),
+      'utf8',
+    );
+    const blocks = propagateTones(parseBlocks(cheerio.load(html), '', '', ''));
+    // "Canticle: Deuteronomy 32:1-12" / "Canticum Deut 32, 1-12" — the Abbey
+    // files Deuteronomy 32 four times over, and only the verses say which.
+    const canticle = blocks.find((b) => b.psalmNumber === 'OT 4');
+    assert.ok(canticle, `${lang}: the Lauds canticle carries no number`);
+    assert.match(
+      canticle.content,
+      lang === 'en' ? /^Give ear, O heavens/ : /^Audíte, cæli/,
+      `${lang}: OT 4 is not the canticle that was printed`,
+    );
+  }
 });

@@ -87,6 +87,29 @@ const SECTION_HEADING = /class="(?:capolettera_piccolo|titoletto)"/;
  */
 const VERSICLE = /^\s*(?:[—–]\s|℟)/m;
 
+/**
+ * Is this part a rubric wearing a word of the office inside it?
+ *
+ * Requiring the rubrica spans to be the *whole* of the part missed the one
+ * that introduces the New Testament canticle of Vespers — "The following
+ * canticle is said with the Alleluia when Evening Prayer is sung…", the Latin
+ * "Sequens canticum dicitur cum Allelúia…" — because the Alleluia it speaks
+ * of is set outside the span, in the type of the text it is quoting. So the
+ * instruction came through as a verse and, being a verse next to a verse, the
+ * whole canticle was merged into it: every English Vespers whose canticle
+ * takes the Alleluia opened on a sentence of rubric.
+ *
+ * Measured across Lauds and Vespers in both languages, the instruction
+ * rubrics are 88% and 90% rubrica, and nothing that is genuinely psalmody
+ * reaches 71% — a verse carries a rubrica span only for its `*` and `†`.
+ */
+function isMostlyRubrica(part$: cheerio.CheerioAPI): boolean {
+  const all = part$.text().replace(/\s+/g, '').length;
+  if (!all) return false;
+  const rubrica = part$('.rubrica').text().replace(/\s+/g, '').length;
+  return rubrica / all >= 0.75;
+}
+
 export function parseBlocks(
   $: cheerio.CheerioAPI,
   dateText: string,
@@ -257,16 +280,16 @@ export function parseBlocks(
                 // Psalm/canticle intro lines → rubric (not psalm text)
                  const isPsalmIntro = PSALM_TITLE.test(finalText)
                   || SCRIPTURE_CITATION.test(finalText)
-                  // A part that is nothing but a rubrica span is a rubric,
-                  // never a verse. The English rubrics of these sections
-                  // happen to be caught by the names above — "Psalm 95",
-                  // "Psalm Prayer", "Canticle of Zechariah" — so the class
-                  // itself was never consulted; Latin has none of those
-                  // names, so once the Latin headings started opening their
-                  // sections its titles came through as psalm text and were
-                  // merged into the psalm they title. Tested only here,
-                  // where the alternative is to typeset a rubric as a verse.
-                  || part$('.rubrica').text().trim() === rawText
+                  // A part that is mostly rubrica span is a rubric, never a
+                  // verse. The English rubrics of these sections happen to be
+                  // caught by the names above — "Psalm 95", "Psalm Prayer",
+                  // "Canticle of Zechariah" — so the class itself was never
+                  // consulted; Latin has none of those names, so once the
+                  // Latin headings started opening their sections its titles
+                  // came through as psalm text and were merged into the psalm
+                  // they title. Tested only here, where the alternative is to
+                  // typeset a rubric as a verse.
+                  || isMostlyRubrica(part$)
                   || (finalText.length < 80 && /^[A-Z][a-z]+ \d|^\d+[,.]\d/.test(finalText))
                   || /^(The Invitatory is said|The antiphon is repeated|If the Invitatory is not said)/i.test(finalText);
                if (isPsalmIntro) {
