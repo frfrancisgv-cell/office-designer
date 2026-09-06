@@ -434,3 +434,508 @@ export function invitatoryOccasionCodes(context: Pick<LiturgicalContext,
     ...step.codes,
   ]);
 }
+
+/**
+ * `getCommonOccasionCode`'s answer → the hymn index's own codes, most specific
+ * first.
+ *
+ * `INDEX_HYM2.json` splits four of the commons by how many saints are kept —
+ * "Past" against "PastPl", "Mul" against "MulPl" — and spells the virgins'
+ * three ways ("Virg", "Vir", "VirPl", "VirgPl"), so every spelling the index
+ * actually contains is offered and the lookup takes whichever answers. A
+ * virgin martyr has a hymn of her own ("Virg Una mart", "Vir Una mart") which
+ * comes before the plain common.
+ */
+function hymnCommonCodes(
+  context: Pick<LiturgicalContext, 'commons' | 'titles' | 'saintCount' | 'rank' | 'season'>,
+): string[] {
+  const common = getCommonOccasionCode(context);
+  const many = context.saintCount === 'many' || context.saintCount > 1;
+  const martyr = context.titles.includes('MARTYR') || context.commons.includes('Martyrs')
+    || context.commons.includes('VirginMartyrs') || context.commons.includes('WomanMartyrs');
+  const rankCode = context.rank === 'SOLEMNITY' ? 'soll.'
+    : context.rank === 'FEAST' ? 'fest.' : 'mem.';
+
+  switch (common) {
+    // The apostles' Easter hymns are a separate row, not a suffix on "Ap".
+    case 'Ap':   return context.season === 'easter' ? ['Ap TP', 'Ap'] : ['Ap'];
+    case 'Doct': return ['Doct'];
+    // "BMV Sab" is Saturday's memorial of Our Lady, which the ranked rows
+    // ("BMV fest.", "BMV mem.") do not cover.
+    case 'BMV':  return [`BMV ${rankCode}`, 'BMV Sab', 'BMV'];
+    case 'Virg': return martyr
+      ? ['Virg Una mart', 'Vir Una mart', 'Virg', 'Vir']
+      : (many ? ['VirgPl', 'VirPl', 'Virg', 'Vir'] : ['Virg', 'Vir']);
+    case 'PlM':  return ['PlM', 'Mart'];
+    case 'UnM':  return ['UnM', 'Mart'];
+    case 'Past': return many ? ['PastPl', 'Past'] : ['Past'];
+    case 'Mul':  return many ? ['MulPl', 'Mul'] : ['Mul'];
+    case 'Rel':  return ['Rel'];
+    // "Mis" and "Educ" have no hymn of their own; they fall through to the
+    // season, exactly as they do for the invitatory.
+    default:     return [];
+  }
+}
+
+/**
+ * The `INDEX_HYM2.json` season codes to try for an hour, most specific first.
+ *
+ * The hymn index is the one OCO file organised the way the book is: a hymn
+ * belongs to a *section* — this feast, else this common, else this season,
+ * else this day of the psalter's two-week hymn cycle — and only the innermost
+ * section that has one answers. `hymnByOccasion` used to be handed the single
+ * code `app/api/liturgy/route.ts` had settled on and matched it exactly, so a
+ * memorial with no dated hymn of its own found nothing rather than falling
+ * back to its common, and **989 of 2555 hymn blocks over 2026 came up empty
+ * against an index that has a hymn for every one of them**. This is the same
+ * fix `invitatoryOccasionCodes` already is, for the same reason.
+ *
+ * Two things about the index decide the shape of the codes:
+ *
+ *  - **The little hours and Compline are keyed by rank and by nothing else**
+ *    inside a week — "1.3H soll.", "1.3H mem.", "1.3H2-7" — because *Nunc
+ *    Sancte* does not change with the day the way Lauds' hymn does. Asking
+ *    them for "1H5" could never match; there is no such row and never was.
+ *  - **"1.3" and "2.4" are the psalter's two-week hymn cycle**, but Lent's
+ *    Compline pair ("1.3.5Q", "2.4Q") counts *weeks of Lent*, which run to
+ *    five and so cannot be the same number.
+ */
+export function hymnOccasionCodes(
+  context: Pick<LiturgicalContext, 'season' | 'seasonWeek' | 'psalterWeek' | 'key' | 'rank'
+    | 'celebrationDate' | 'commons' | 'titles' | 'saintCount' | 'properOccasionCode'>,
+  hour: OfficeHour,
+): string[] {
+  const date = context.celebrationDate;
+  const day = date.getUTCDate();
+  const month = date.getUTCMonth() + 1;
+  const feria = date.getUTCDay() + 1;
+  const isSunday = feria === 1;
+  const little = hour === 'terce' || hour === 'sext' || hour === 'none';
+  const short = little || hour === 'compline';
+  // Compline on a Saturday follows the Sunday's First Vespers — the book files
+  // it under "Post I Vesperas dominicæ et sollemnitatum" — so it belongs to the
+  // week that has just begun, not the one ending. `getLiturgicalContext` makes
+  // that shift for Vespers and not for Compline, so it is made here.
+  const week = hour === 'compline' && feria === 7 ? context.psalterWeek + 1 : context.psalterWeek;
+  const pair = week % 2 === 1 ? '1.3' : '2.4';
+  const rankCode = context.rank === 'SOLEMNITY' ? 'soll.'
+    : context.rank === 'FEAST' ? 'fest.' : context.rank === 'MEMORIAL' ? 'mem.' : null;
+
+  // The day of the psalter's hymn cycle, at the granularity the hour uses.
+  // Lauds, Vespers and the Office of Readings have a hymn for each of the
+  // seven days; the little hours and Compline have one for Sunday and one for
+  // the rest of the week — and Compline's "rest of the week" stops at Friday,
+  // Saturday night being the Sunday's First Vespers.
+  const ferialCodes = short
+    ? (isSunday || (hour === 'compline' && feria === 7) ? [`${pair}H1`]
+      : little ? [`${pair}H2-7`]
+      : [`${pair}H2-6`])
+    : [`${pair}H${feria}`];
+
+  const season = (): string[] => {
+    switch (context.season) {
+      case 'advent':
+        return [`Adv ${month === 12 && day >= 17 ? 'post' : 'ante'} 17/12`];
+      case 'christmas': {
+        const afterEpiphany = (context.seasonWeek ?? 1) >= 3;
+        return [
+          ...(context.key === 'epiphany_of_the_lord' ? ['Ep N post Ep', 'Ep 1V N post Ep'] : []),
+          ...(context.key === 'baptism_of_the_lord' ? ['Bapt'] : []),
+          ...(month === 12 && day === 25 ? ['N'] : []),
+          ...(month === 1 && day === 1 ? ['N-1/1'] : []),
+          afterEpiphany ? 'N post Ep' : 'N ante Ep',
+        ];
+      }
+      case 'lent': {
+        const holyWeek = context.seasonWeek === 6;
+        // Good Friday and Holy Saturday are the only days in the year whose
+        // little hours have hymns of their own.
+        const triduum = holyWeek && feria === 6 ? ['6Q6'] : holyWeek && feria === 7 ? ['6Q7'] : [];
+        if (little) return [...triduum, 'Q'];
+        // Compline counts weeks of Lent, not psalter weeks.
+        if (hour === 'compline') return [(context.seasonWeek ?? 1) % 2 === 1 ? '1.3.5Q' : '2.4Q'];
+        return [
+          ...triduum,
+          ...(holyWeek ? ['6Q 14/9', '6Q1-5', '6Q1 Hm', '6Q'] : []),
+          ...(isSunday ? ['1-5Q1', 'Q1'] : ['0-5Q2-7', '0-5Q2-6']),
+        ];
+      }
+      case 'easter': {
+        if (context.key === 'pentecost_sunday') return hour === 'compline' ? ['Pent C', 'PC'] : ['Pent'];
+        if (context.key === 'ascension_of_the_lord') return ['Asc'];
+        const afterAscension = (context.seasonWeek ?? 1) >= 7;
+        if (hour === 'compline') return ['PC'];
+        if (little) return ['P', 'TP'];
+        return [
+          ...(afterAscension ? ['Pent P post Asc'] : []),
+          'P ante Asc', 'P2-7 ante Asc', 'P2-6 ante Asc',
+        ];
+      }
+      default:
+        // Ordinary Time's own "season" is the psalter's hymn cycle, and for
+        // the hours keyed by rank the rank row comes before the ferial one.
+        return short && rankCode && !isSunday ? [`${pair}H ${rankCode}`] : [];
+    }
+  };
+
+  // The last two weeks of Ordinary Time have proper Office-of-Readings and
+  // Vespers hymns; the index writes them "34H2-6" and "34H2-7".
+  const lastWeeks = context.season === 'ordinary' && (context.seasonWeek ?? 0) >= 33 && !isSunday
+    ? ['34H2-6', '34H2-7'] : [];
+
+  return [
+    ...(context.properOccasionCode ? [context.properOccasionCode] : []),
+    ...(HYMN_BY_KEY[context.key] ? [HYMN_BY_KEY[context.key]] : []),
+    ...hymnCommonCodes(context),
+    ...season(),
+    ...lastWeeks,
+    ...ferialCodes,
+  ];
+}
+
+/**
+ * A movable celebration the hymn index names by a code of its own rather than
+ * by date — the same list `INVITATORY_BY_KEY` keeps, keyed on romcal's id.
+ */
+const HYMN_BY_KEY: Record<string, string> = {
+  most_holy_trinity: 'Trn',
+  most_holy_body_and_blood_of_christ: 'Corp',
+  most_sacred_heart_of_jesus: 'Cord',
+  our_lord_jesus_christ_king_of_the_universe: 'Reg',
+  holy_family_of_jesus_mary_and_joseph: 'Fam',
+  baptism_of_the_lord: 'Bapt',
+  commemoration_of_all_the_faithful_departed: 'Def',
+  dedication_of_the_lateran_basilica: 'Ded',
+};
+
+/**
+ * `getCommonOccasionCode`'s answer → the antiphon index's own codes.
+ *
+ * `IDX_ANT.csv` writes the commons much as the hymn index does, with two
+ * differences: it has `Viro`, a holy man who is neither pastor nor martyr nor
+ * religious, and it keeps no plural forms — one common serves however many
+ * saints are kept, the place column marking the "pro plur." antiphons within
+ * it. Easter has its own row only for Our Lady (`BMVexTP`).
+ */
+function antiphonCommonCodes(
+  context: Pick<LiturgicalContext, 'commons' | 'titles' | 'saintCount' | 'season'>,
+): string[] {
+  const common = getCommonOccasionCode(context);
+  if (!common) return [];
+  if (common === 'BMV') return context.season === 'easter' ? ['BMVexTP', 'BMV'] : ['BMV'];
+  // A saint under no common of his own — a confessor, a founder — is filed
+  // under `Viro`, which `getCommonOccasionCode` cannot name because romcal has
+  // no commons entry for it. Offering it after the named common is harmless:
+  // the named one wins whenever it answers.
+  return [common, 'Viro'];
+}
+
+/**
+ * The `IDX_ANT.csv` occasion codes to try for an hour, most specific first.
+ *
+ * The counterpart of `hymnOccasionCodes`, and it exists for the same reason:
+ * `antsByOccasion` was handed one code and matched it exactly, so a memorial
+ * with no antiphons of its own found nothing rather than falling back to its
+ * common, and 766 of 2555 antiphon blocks over 2026 came up empty.
+ *
+ * Where this index differs from the hymn one, and each difference costs a
+ * branch:
+ *
+ *  - **The seasons name their weekdays twice.** Late Advent is both
+ *    `A-17/12`…`A-24/12` and `5A2`…`5A7`; Easter after the octave is both
+ *    `2P4` and `2-7P4`. The dated or numbered form is the day's own and comes
+ *    first, the shared form is the fallback.
+ *  - **The little hours have three sources**, in order: the day's own hora
+ *    media (`1H2` under office `Hm`), the season's (`Q`, `A`, `2-7P`), and the
+ *    complementary psalmody's fixed set (`H` under `T`/`S`/`N`), which is what
+ *    is said when a second or third midday hour is added. `officeTiers`
+ *    handles the last of those; the first two are codes.
+ *  - **Compline is a week of its own** — `H0`…`H6`, where `H0` is *post I
+ *    Vesperas dominicæ*, which is Saturday night. `antsByOccasion` already
+ *    makes that translation and it is left there.
+ */
+export function antiphonOccasionCodes(
+  context: Pick<LiturgicalContext, 'season' | 'seasonWeek' | 'psalterWeek' | 'key' | 'rank'
+    | 'celebrationDate' | 'commons' | 'titles' | 'saintCount' | 'properOccasionCode'
+    | 'ferialOccasionCode'>,
+  hour: OfficeHour,
+): string[] {
+  const date = context.celebrationDate;
+  const day = date.getUTCDate();
+  const month = date.getUTCMonth() + 1;
+  const feria = date.getUTCDay() + 1;
+  const isSunday = feria === 1;
+  const week = context.seasonWeek ?? 1;
+  const little = hour === 'terce' || hour === 'sext' || hour === 'none';
+
+  // Compline keeps its own week and takes nothing from the season or the
+  // sanctoral: the book gives one Compline per weekday and the Sunday's after
+  // First and Second Vespers. `antsByOccasion` maps the ferial code onto it.
+  if (hour === 'compline') {
+    // `antsByOccasion` translates a psalter code — "1H4" — into Compline's own
+    // week, where "H0" is *post I Vesperas dominicæ*, which is Saturday night.
+    // Only the weekday digit is read, so the week in front of it is a carrier;
+    // a season's `ferialOccasionCode` ("1Q4") is not that shape and reached
+    // nothing at all, which left Compline blank for the whole of Lent, Advent
+    // and Easter.
+    return [
+      `${context.psalterWeek}H${feria}`,
+      ...(context.season === 'easter' ? ['2-7P', 'Dom&TP', 'fer TpA'] : []),
+    ];
+  }
+
+  const season = (): string[] => {
+    switch (context.season) {
+      case 'advent': {
+        // 17–24 December is a week of its own that the index numbers "5" and
+        // also dates; both name the same day and the dated row is the finer.
+        const late = month === 12 && day >= 17;
+        if (little) return late && day === 24 ? ['A-24/12', 'A'] : ['A'];
+        return late
+          ? [`A-${day}/12`, `5A${feria}`, context.ferialOccasionCode]
+          : [context.ferialOccasionCode];
+      }
+      case 'christmas': {
+        const dated = month === 12 ? `N-${day}/12` : `N-${day}/1`;
+        const afterEpiphany = week >= 3;
+        return [
+          ...(context.key === 'epiphany_of_the_lord' ? ['Ep'] : []),
+          ...(context.key === 'baptism_of_the_lord' ? ['Bapt'] : []),
+          ...(context.key === 'holy_family_of_jesus_mary_and_joseph' ? ['Fam'] : []),
+          // After Epiphany the weekdays are dated from it, not from Christmas.
+          ...(afterEpiphany && month === 1 ? [`Ep-${day}/1`] : []),
+          dated,
+          ...(little ? [afterEpiphany ? 'N post Ep' : 'N ante Ep'] : []),
+        ];
+      }
+      case 'lent': {
+        const holyWeek = week === 6;
+        if (little) return holyWeek
+          ? [feria === 6 ? '6Q6' : feria === 7 ? '6Q7' : '6Q', '6Q', 'Q']
+          : ['Q'];
+        return [context.ferialOccasionCode];
+      }
+      case 'easter': {
+        if (context.key === 'pentecost_sunday') return ['Pent'];
+        if (context.key === 'ascension_of_the_lord') return ['Asc'];
+        // The octave is one celebration, not seven ferias, and is the only
+        // part of Easter with antiphons at the little hours of its own.
+        const octave = week === 1;
+        return [
+          context.ferialOccasionCode,
+          ...(octave ? ['1P'] : []),
+          ...(little ? ['2-7P'] : [`2-7P${feria}`, '2-7P2-7', ...(isSunday ? [] : ['2-6P2-6'])]),
+        ];
+      }
+      default: {
+        // Ordinary Time's Sundays are numbered "02D".."33D" and its weekdays
+        // are the psalter's own "1H2"; `ferialOccasionCode` is already the
+        // second of those, and never the first.
+        const sunday = isSunday && week ? [String(week).padStart(2, '0') + 'D'] : [];
+        return [...sunday, context.ferialOccasionCode];
+      }
+    }
+  };
+
+  return dedupe([
+    ...(context.properOccasionCode ? [context.properOccasionCode] : []),
+    ...(ANTIPHON_BY_KEY[context.key] ? [ANTIPHON_BY_KEY[context.key]] : []),
+    ...antiphonCommonCodes(context),
+    ...season(),
+    // **Advent and Lent say the Office of Readings from the running week of
+    // the psalter**, not from the season: the seasonal codes there ("07Q1-5",
+    // "01Av") hold only the Gospel-canticle antiphon. So every season ends by
+    // falling back on the psalter's own code, which `ferialOccasionCode` is
+    // only in Ordinary Time. This is the last resort for the other hours too,
+    // and costs them nothing: a season that named the day has already won.
+    `${context.psalterWeek}H${feria}`,
+    // The complementary psalmody, said at whichever midday hours are added to
+    // the day's own.
+    ...(little ? ['H'] : []),
+  ]);
+}
+
+/** The chain with its repeats removed, first occurrence kept. */
+function dedupe(codes: string[]): string[] {
+  return [...new Set(codes)];
+}
+
+/**
+ * A movable celebration `IDX_ANT.csv` names by a code of its own rather than
+ * by date, keyed on romcal's id — the same list the invitatory and the hymn
+ * keep, less the Lateran, which this index dates.
+ */
+const ANTIPHON_BY_KEY: Record<string, string> = {
+  most_holy_trinity: 'Trn',
+  most_holy_body_and_blood_of_christ: 'Corp',
+  most_sacred_heart_of_jesus: 'Cord',
+  our_lord_jesus_christ_king_of_the_universe: 'Reg',
+  holy_family_of_jesus_mary_and_joseph: 'Fam',
+  baptism_of_the_lord: 'Bapt',
+  epiphany_of_the_lord: 'Ep',
+  ascension_of_the_lord: 'Asc',
+  pentecost_sunday: 'Pent',
+  commemoration_of_all_the_faithful_departed: 'Def',
+  dedication_of_the_lateran_basilica: 'Ded',
+};
+
+/**
+ * `getCommonOccasionCode`'s answer → the responsory index's own codes.
+ *
+ * `IDX_RB.csv` spells the commons a third way again: it writes the plural with
+ * a space ("Past Pl", "Vir Pl", not "PastPl"), keeps both `Vir` and `Virg`,
+ * and marks Eastertide with a trailing "TP" on the code rather than in a row
+ * of its own — sometimes on the plain code, sometimes only on the plural, and
+ * once on a code that names two commons at once ("PlM TP UnM TP"). Every
+ * spelling the index holds is offered and the lookup takes whichever answers.
+ */
+function responsoryCommonCodes(
+  context: Pick<LiturgicalContext, 'commons' | 'titles' | 'saintCount' | 'season'>,
+): string[] {
+  const common = getCommonOccasionCode(context);
+  if (!common) return [];
+  const many = context.saintCount === 'many' || context.saintCount > 1;
+  const stems = ((): string[] => {
+    switch (common) {
+      case 'Doct': return ['Doct'];
+      case 'Ap':   return ['Ap'];
+      case 'BMV':  return ['BMV'];
+      case 'Virg': return many ? ['Virg Pl', 'Vir Pl', 'Virg', 'Vir'] : ['Virg', 'Vir'];
+      case 'PlM':  return ['PlM'];
+      case 'UnM':  return ['UnM'];
+      case 'Past': return many ? ['Past Pl', 'Past'] : ['Past'];
+      case 'Mul':  return many ? ['Mul Pl', 'Mul'] : ['Mul'];
+      case 'Rel':  return ['Vir', 'Mul'];
+      default:     return [];
+    }
+  })();
+  // The alleluia form is preferred within its own step, never hoisted ahead of
+  // a more specific one — the rule `invitatoryOccasionCodes` had to learn.
+  return context.season === 'easter'
+    ? stems.flatMap(stem => [`${stem} TP`, stem])
+    : stems;
+}
+
+/**
+ * The `IDX_RB.csv` occasion codes to try for an hour, most specific first.
+ *
+ * The third of the three chains, and the index it reads is the smallest: 210
+ * responsories over 105 occasions, at Lauds, at First and Second Vespers, and
+ * — this is the part nothing reached — **at Compline**, which has eight of its
+ * own and which `app/api/liturgy/route.ts` excluded outright.
+ *
+ * The little hours and the Office of Readings are absent from the index on
+ * purpose: a midday hour has a versicle rather than a short responsory, and
+ * the Office of Readings has the long ones, which OCO does not index. An empty
+ * list for those hours is the right answer, not a gap.
+ */
+export function responsoryOccasionCodes(
+  context: Pick<LiturgicalContext, 'season' | 'seasonWeek' | 'psalterWeek' | 'key' | 'rank'
+    | 'celebrationDate' | 'commons' | 'titles' | 'saintCount' | 'properOccasionCode'>,
+  hour: OfficeHour,
+): string[] {
+  if (hour !== 'lauds' && hour !== 'vespers' && hour !== 'compline') return [];
+
+  const date = context.celebrationDate;
+  const day = date.getUTCDate();
+  const month = date.getUTCMonth() + 1;
+  const feria = date.getUTCDay() + 1;
+  const isSunday = feria === 1;
+  const week = context.seasonWeek ?? 1;
+  const pair = context.psalterWeek % 2 === 1 ? '1.3' : '2.4';
+  // Lauds runs the week to Saturday; Vespers stops at Friday, Saturday evening
+  // being the Sunday's First Vespers. The index writes that as the difference
+  // between "H2-7" and "H2-6".
+  const throughSaturday = hour === 'lauds';
+
+  // Compline's responsory is *In manus tuas*, and the eight rows are that one
+  // responsory in its seasonal forms — "In manus tuas 1" through 3 and the
+  // alleluia one — plus the Triduum's *Christus factus est*. It does not
+  // change with the weekday, only with the season.
+  if (hour === 'compline') {
+    if (context.season === 'easter') return ['P', 'H1'];
+    if (context.season === 'advent') return ['Adv', 'H1'];
+    if (context.season === 'lent') {
+      const triduum = week === 6 && feria >= 5 ? [`6Q${feria}`] : [];
+      return [...triduum, 'Q', 'H1'];
+    }
+    return ['H1'];
+  }
+
+  const season = (): string[] => {
+    switch (context.season) {
+      case 'advent':
+        return month === 12 && day === 24 ? ['Adv 24/12', 'Adv']
+          : isSunday ? ['Adv H1', 'Adv']
+          : [throughSaturday ? 'Adv H2-7' : 'Adv H2-6', 'Adv'];
+      case 'christmas':
+        return [
+          ...(context.key === 'epiphany_of_the_lord' ? ['Ep'] : []),
+          ...(context.key === 'baptism_of_the_lord' ? ['Bapt'] : []),
+          ...(context.key === 'holy_family_of_jesus_mary_and_joseph' ? ['Fam'] : []),
+          ...(month === 12 && day === 25 ? ['N-25/12'] : []),
+          ...(isSunday ? ['N2H1'] : []),
+          'N',
+        ];
+      case 'lent': {
+        // Holy Week's codes are ranges of days, and the two hours cut them in
+        // different places: *Redemisti nos* runs at Lauds to the Thursday,
+        // *Adoramus te* at Vespers only to the Wednesday, and from the
+        // Thursday evening each day has its own *Christus factus est*.
+        if (week === 6) return [
+          ...(feria >= 6 ? [`6Q${feria}`]
+            : throughSaturday ? ['6Q1-5']
+            : feria === 5 ? ['6Q5'] : ['6Q1-4']),
+          'Q',
+        ];
+        return isSunday ? ['1-5Q1', 'Q'] : [throughSaturday ? '0-5Q2-7' : '0-5Q2-6', 'Q'];
+      }
+      case 'easter': {
+        if (context.key === 'pentecost_sunday') return ['Pent', 'P'];
+        if (context.key === 'ascension_of_the_lord') return ['Asc', 'P'];
+        const afterAscension = week >= 7;
+        // The octave is one celebration; the index writes it "1P1-8", with
+        // "1P1-8a" the form that carries the alleluia.
+        return [
+          ...(week === 1 ? ['1P1-8a', '1P1-8'] : []),
+          ...(afterAscension ? ['P post Asc'] : []),
+          // "P1" is the Sunday of Easter at Lauds — the fourth of the four
+          // *Christe Fili Dei* rows, beside Advent's, Christmas's and Lent's,
+          // which is what identifies it. Vespers has "P1 usque Asc".
+          ...(isSunday ? ['P1', 'P1 usque Asc'] : [throughSaturday ? 'P2-7' : 'P2-6 usque Asc']),
+          'P',
+        ];
+      }
+      default:
+        return [`${pair}H${feria}`];
+    }
+  };
+
+  return dedupe([
+    ...(context.properOccasionCode ? [context.properOccasionCode] : []),
+    ...(RESPONSORY_BY_KEY[context.key] ? [RESPONSORY_BY_KEY[context.key]] : []),
+    ...responsoryCommonCodes(context),
+    ...season(),
+    // A season that named no responsory for the day still has the psalter's.
+    `${pair}H${feria}`,
+  ]);
+}
+
+/**
+ * A movable celebration `IDX_RB.csv` names by a code of its own. The Lateran
+ * is here where the antiphon index dated it — each index made its own choice
+ * and none of the three agree, which is why there are three of these tables.
+ */
+const RESPONSORY_BY_KEY: Record<string, string> = {
+  most_holy_trinity: 'Trn',
+  most_holy_body_and_blood_of_christ: 'Corp',
+  most_sacred_heart_of_jesus: 'Cord',
+  our_lord_jesus_christ_king_of_the_universe: 'Reg',
+  holy_family_of_jesus_mary_and_joseph: 'Fam',
+  baptism_of_the_lord: 'Bapt',
+  epiphany_of_the_lord: 'Ep',
+  ascension_of_the_lord: 'Asc',
+  pentecost_sunday: 'Pent',
+  commemoration_of_all_the_faithful_departed: 'Def',
+  dedication_of_the_lateran_basilica: 'Ded',
+};

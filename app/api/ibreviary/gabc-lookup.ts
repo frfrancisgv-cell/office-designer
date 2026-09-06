@@ -36,7 +36,19 @@ export type { InvEntry };
  * return the antiphons directly from IDX_ANT.csv ordered by place (1, 2, 3, M/B).
  * This is authoritative — no fuzzy matching needed.
  */
-function antsByOccasion(occasionCode: string, hour: string, isFirstVespers: boolean = false): GabcCandidate[] {
+function antsByOccasion(
+  occasionCode: string,
+  hour: string,
+  isFirstVespers: boolean = false,
+  /**
+   * Which `Place` values to accept. The psalm antiphons and the Gospel
+   * canticle's live in the same rows and are told apart only here, so a code
+   * that holds one and not the other — Ss. Timothy and Titus have a Benedictus
+   * antiphon of their own and take their psalm antiphons from the Pastors —
+   * must not look answered to a search for the other.
+   */
+  places: 'psalms' | 'all' = 'all',
+): GabcCandidate[] {
   const isCompline = hour.toLowerCase().includes('compline');
   let mappedOccasion = occasionCode;
   
@@ -46,7 +58,6 @@ function antsByOccasion(occasionCode: string, hour: string, isFirstVespers: bool
     else mappedOccasion = `H${feria}`;
   }
 
-  const filters = officeFilters(hour, isFirstVespers);
   const placeOrder = (p: string) => {
     const n = parseInt(p, 10);
     if (!isNaN(n)) return n;                         // numeric: 1,2,3
@@ -54,12 +65,18 @@ function antsByOccasion(occasionCode: string, hour: string, isFirstVespers: bool
     return 50;                                        // other (e.g. Hm variants)
   };
 
-  return getAnts()
+  // The tiers are tried in order and the first that answers wins: at a midday
+  // hour the day's own hora media antiphons come before the complementary
+  // psalmody's, and offering both would make a choice out of an answer.
+  const tiers = officeTiers(hour, isFirstVespers);
+  const rows = (tiers.length ? tiers : [[]]).map(filters => getAnts()
     .filter(e =>
       (e.occasion === mappedOccasion || (isCompline && e.occasion === 'H0-7')) &&
       (filters.length === 0 || officeMatches(e.office, filters)) &&
-      /^([123MB]|Nunc)/.test(e.place.trim())
-    )
+      (places === 'psalms' ? /^[123]/ : /^([123MB]|Nunc)/).test(e.place.trim())
+    )).find(found => found.length) ?? [];
+
+  return rows
     .sort((a, b) => placeOrder(a.place.trim()) - placeOrder(b.place.trim()))
     .flatMap(e => {
       const gabc = resolveGabc(e.gbId, e.gabc) || '';
@@ -67,6 +84,68 @@ function antsByOccasion(occasionCode: string, hour: string, isFirstVespers: bool
                 occasion: e.occasion, source: e.gbId > 0 ? 'gregobase' : 'OCO',
                 gbId: e.gbId || undefined, place: e.place.trim() } satisfies GabcCandidate];
     });
+}
+
+/**
+ * The day's psalm antiphons, **each place filled from the innermost section
+ * that has it**.
+ *
+ * `codes` is `antiphonOccasionCodes(context, hour)`. Filling place by place
+ * rather than taking the first code that answers anything is not a hedge; it
+ * is how the book is written, and Eastertide is the proof. On a weekday of the
+ * second to seventh week `2-7P4` holds one antiphon — Lauds' second — and the
+ * other two are the *Alleluia* filed under `2-7P2-7`. Whole-answer matching
+ * gave those days a single antiphon and left two psalms bare; taking all three
+ * from `2-7P2-7` would have thrown the day's own away. 61 hours of 2026 are in
+ * that shape.
+ *
+ * Within one place the innermost section still wins outright — a memorial with
+ * antiphons of its own is never offered its common's beside them — and the
+ * rows that section holds for the place are all returned, because more than
+ * one there is the book offering a choice.
+ */
+export function antsByCodes(codes: string[], hour: string, isFirstVespers: boolean = false): GabcCandidate[] {
+  const found: GabcCandidate[] = [];
+  for (const place of ['1', '2', '3']) {
+    for (const code of codes) {
+      const rows = antsByOccasion(code, hour, isFirstVespers, 'psalms')
+        .filter(c => (c.place ?? '').trim().startsWith(place));
+      if (rows.length) { found.push(...rows); break; }
+    }
+  }
+  return found;
+}
+
+/**
+ * The Gospel-canticle antiphon — the Magnificat's, the Benedictus's, or the
+ * Nunc dimittis's — for one occasion code.
+ *
+ * Filed in the same rows as the psalm antiphons and told apart only by the
+ * `Place` column, so it is a separate query rather than a separate index. The
+ * Sunday's, which vary by liturgical year, are `sundayMagBenCandidates`.
+ */
+function magBenByOccasion(occasionCode: string, hour: string, isFirstVespers: boolean = false): GabcCandidate[] {
+  const isCompline = hour.toLowerCase().includes('compline');
+  return getAnts()
+    .filter(e => (e.occasion === occasionCode || (isCompline && e.occasion === 'H0-7')) &&
+                 /^[MB]|Nunc/.test(e.place.trim()) &&
+                 officeMatches(e.office, officeFilters(hour, isFirstVespers)))
+    .flatMap(e => {
+      const g = resolveGabc(e.gbId, e.gabc) || '';
+      return [{ incipit: e.incipit, gabc: g ? withAnnotation(g, e.incipit, e.mode) : '', mode: e.mode,
+                office: e.office, occasion: e.occasion,
+                source: (e.gbId > 0 ? 'gregobase' : 'OCO') as 'gregobase' | 'OCO',
+                gbId: e.gbId || undefined } satisfies GabcCandidate];
+    });
+}
+
+/** The Gospel-canticle antiphon, from the innermost section that has one. */
+export function magBenByCodes(codes: string[], hour: string, isFirstVespers: boolean = false): GabcCandidate[] {
+  for (const code of codes) {
+    const found = magBenByOccasion(code, hour, isFirstVespers);
+    if (found.length) return found;
+  }
+  return [];
 }
 
 // ── Proper Sunday Magnificat/Benedictus lookup ───────────────────────────────
@@ -148,6 +227,61 @@ export function withAnnotation(gabc: string, incipit: string, mode: string): str
   return `name: ${name};\n${ann}%%\n${gabc}`;
 }
 
+
+/**
+ * The responsories one `IDX_RB.csv` occasion code holds for one hour.
+ *
+ * The index writes its office as "L", "V", "1V", "2V", "C" — and "LV", one
+ * token standing for both Lauds and Vespers, which `officeMatches` splits into
+ * nothing either of them recognises. It is expanded here rather than in
+ * `officeMatches`, which the other two indexes share and which has no such
+ * spelling in it.
+ */
+function responsoriesUnder(occasionCode: string, hour: string, isFirstVespers: boolean = false): RbEntry[] {
+  const filters = officeFilters(hour, isFirstVespers);
+  return getRbs().filter(e => {
+    const separator = e.seasonCode.lastIndexOf('|');
+    const occasion = e.seasonCode.slice(0, separator).trim();
+    const office = e.seasonCode.slice(separator + 1).trim();
+    // A code may name several occasions at once — "25/4 11/6 18/10", "PlM TP
+    // UnM TP" — and one whole token must match, never a substring: "1/5" is
+    // not in "11/5", and "P" is not in "Pent".
+    const tokens: string[] = occasion.match(/\d{1,2}\/\d{1,2}|[^\s]+/g) ?? [];
+    const matches = occasionCode.includes(' ')
+      ? occasion === occasionCode || occasion.includes(occasionCode)
+      : tokens.includes(occasionCode);
+    return matches && officeMatches(office === 'LV' ? 'L V' : office, filters);
+  });
+}
+
+/**
+ * The day's short responsory, from the innermost section that has one.
+ *
+ * `codes` is `responsoryOccasionCodes(context, hour)`. `hasAlleluia` picks
+ * between the two forms a code may hold — Eastertide adds an alleluia to the
+ * response — and where it is not given the first row wins.
+ *
+ * Returns null for the midday hours and the Office of Readings, and that is
+ * correct rather than missing: a midday hour has a versicle instead of a short
+ * responsory, and the Office of Readings has the long ones, which OCO does not
+ * index.
+ */
+export function responsoryByCodes(
+  codes: string[],
+  hour: string,
+  isFirstVespers: boolean = false,
+  hasAlleluia?: boolean,
+): { gabc: string; incipit: string } | null {
+  for (const code of codes) {
+    const found = responsoriesUnder(code, hour, isFirstVespers);
+    if (!found.length) continue;
+    const hit = (hasAlleluia === undefined
+      ? null
+      : found.find(e => /\.\.\.\s*all\./i.test(e.incipit) === hasAlleluia)) ?? found[0];
+    return { incipit: hit.incipit, gabc: withAnnotation(hit.gabc, hit.incipit, hit.mode) };
+  }
+  return null;
+}
 
 /** Find the short responsory for a given occasion code (e.g. "1H4") and hour. */
 export function responsoryByOccasion(
@@ -293,15 +427,42 @@ export function responsoryByText(latinText: string, hour: string): { gabc: strin
 
 // ── Office filter ─────────────────────────────────────────────────────────────
 
-function officeFilters(hour: string, isFirstVespers: boolean = false): string[] {
+/**
+ * The `Office` column values an hour may take, in every OCO index.
+ *
+ * **"N" is Nona, not Nocturns.** The rows under it are *Rerum Deus tenax* and
+ * *Ternis horarum*, which are None's hymns; the Office of Readings is "Ol",
+ * officium lectionis. Reading "N" as Matins gave the Office of Readings None's
+ * hymn and left None itself asking for Terce's and Sext's, so between them the
+ * two hours could not find a single one of the 36 hymns OCO holds for them.
+ *
+ * The three little hours are also separate sections and were being conflated:
+ * each has its own hymn on every day of the year, and asking for all three at
+ * once offered *Nunc Sancte* at None.
+ *
+ * "readings" — the hour name `app/api/liturgy/route.ts` actually passes — was
+ * in no case at all, so it fell to the empty default, which `officeMatches`
+ * reads as *every* office matching.
+ */
+function officeTiers(hour: string, isFirstVespers: boolean = false): string[][] {
   switch (hour.toLowerCase()) {
-    case 'vespers':  return isFirstVespers ? ['1V', 'V', 'v'] : ['2V', 'V', 'v'];
-    case 'lauds':    return ['L', 'l'];
-    case 'matins': case 'office-of-readings': case 'office_of_readings': return ['N', 'Ol'];
-    case 'terce': case 'sext': case 'none': return ['T', 'S', 'Hm'];
-    case 'compline': return ['C', 'c'];
+    case 'vespers':  return [isFirstVespers ? ['1V', 'V', 'v'] : ['2V', 'V', 'v']];
+    case 'lauds':    return [['L', 'l']];
+    case 'readings': case 'matins': case 'office-of-readings': case 'office_of_readings': return [['Ol']];
+    // "Hm" is the hora media — the day's own three antiphons, which
+    // `IDX_ANT.csv` files per day of the psalter week. "T", "S" and "N" are the
+    // complementary psalmody's, one fixed set per hour, said when a second or
+    // third midday hour is added. The day's own come first.
+    case 'terce':    return [['Hm'], ['T']];
+    case 'sext':     return [['Hm'], ['S']];
+    case 'none':     return [['Hm'], ['N']];
+    case 'compline': return [['C', 'c']];
     default: return [];
   }
+}
+
+function officeFilters(hour: string, isFirstVespers: boolean = false): string[] {
+  return officeTiers(hour, isFirstVespers).flat();
 }
 
 function officeMatches(officeStr: string, filters: string[]): boolean {
@@ -464,11 +625,65 @@ export function resolveInvitatory(occasionCodes: string[]): InvitatoryChant | nu
 
 
 /**
- * Direct hymn lookup from INDEX_HYM2.json using the OCO occasion code.
- * Maps ferial occasion codes (e.g. "1H4") to hymn season_code (e.g. "1.3H4").
- * Weeks 1 & 3 share hymns ("1.3"), weeks 2 & 4 share hymns ("2.4").
+ * The hymns filed under one `INDEX_HYM2.json` season code for one hour.
+ *
+ * Nothing here decides *which* section a day belongs to; that is
+ * `hymnOccasionCodes` in `lib/liturgy/calendar-context.ts`, which knows the
+ * calendar. This only reads the index.
  */
-function hymnByOccasion(occasionCode: string, hour: string, isFirstVespers: boolean = false): GabcCandidate[] {
+function hymnsUnder(seasonCode: string, hour: string, isFirstVespers: boolean = false): GabcCandidate[] {
+  const validFilters = officeFilters(hour, isFirstVespers);
+  const grego = getGrego();
+
+  return getHyms()
+    .filter(e =>
+      hymnSeasonMatches(e.seasonCode, seasonCode) &&
+      officeMatches(e.officePart, validFilters)
+    )
+    .flatMap(e => {
+      const g = grego[e.gregobaseId];
+      if (!g?.gabc) return [];
+      // Use 'Hymn.' as the annotation label for hymns since gregobase cache
+      // does not store mode; the annotation still appears in the rendered SVG.
+      return [{
+        incipit: e.incipit,
+        gabc: withAnnotation(g.gabc, e.incipit, 'Hymn.'),
+        office: e.page ? `${e.officePart} (Liber Hymnarius p. ${e.page})` : e.officePart,
+        occasion: e.seasonCode,
+        source: 'gregobase',
+        gbId: e.gregobaseId
+      } satisfies GabcCandidate];
+    });
+}
+
+/**
+ * The day's hymn, taken from the innermost section of the book that has one.
+ *
+ * `codes` is `hymnOccasionCodes(context, hour)` — this feast, else its common,
+ * else the season, else the day of the psalter's hymn cycle — and the **first
+ * code that answers wins outright**. Falling on through a section that already
+ * has a hymn would put the ferial hymn beside the feast's and turn an answer
+ * into a choice, which is the defect `sundayGospelAntiphonWeek` was written to
+ * undo on the antiphon side.
+ */
+export function hymnByCodes(codes: string[], hour: string, isFirstVespers: boolean = false): GabcCandidate[] {
+  for (const code of codes) {
+    const found = hymnsUnder(code, hour, isFirstVespers);
+    if (found.length) return found;
+  }
+  return [];
+}
+
+/**
+ * Direct hymn lookup from INDEX_HYM2.json using a single OCO occasion code.
+ *
+ * This is what callers without a romcal context — the iBreviary route, which
+ * builds its own from the scraped page — still get. It reaches the ferial
+ * cycle and the dated feasts and nothing else: no common, no rank, and none of
+ * the little hours, whose rows are keyed by rank rather than by weekday. The
+ * offline route passes `hymnOccasionCodes` instead.
+ */
+export function hymnByOccasion(occasionCode: string, hour: string, isFirstVespers: boolean = false): GabcCandidate[] {
   let seasonCode = '';
 
   // 1. Ordinary Time: e.g. "1H4" -> "1.3H4"
@@ -481,7 +696,10 @@ function hymnByOccasion(occasionCode: string, hour: string, isFirstVespers: bool
   }
 
   // 2. Advent: e.g. "1A2" or "A-17/12"
-  else if (occasionCode.startsWith('A-') || occasionCode.includes('12')) {
+  // `includes('12')` used to stand for "17–24 December", and caught every
+  // dated feast whose code contains those two digits — Christmas itself
+  // ("25/12"), and 12 January, and 12 July — sending each of them to Advent.
+  else if (occasionCode.startsWith('A-') || /^(1[789]|2[01234])\/12$/.test(occasionCode)) {
     seasonCode = 'Adv post 17/12';
   } else if (occasionCode.match(/^\dA\d$/)) {
     seasonCode = 'Adv ante 17/12';
@@ -547,29 +765,7 @@ function hymnByOccasion(occasionCode: string, hour: string, isFirstVespers: bool
   }
 
   if (!seasonCode) return [];
-
-  const validFilters = officeFilters(hour, isFirstVespers);
-  const grego = getGrego();
-
-  return getHyms()
-    .filter(e =>
-      hymnSeasonMatches(e.seasonCode, seasonCode) &&
-      officeMatches(e.officePart, validFilters)
-    )
-    .flatMap(e => {
-      const g = grego[e.gregobaseId];
-      if (!g?.gabc) return [];
-      // Use 'Hymn.' as the annotation label for hymns since gregobase cache
-      // does not store mode; the annotation still appears in the rendered SVG.
-      return [{
-        incipit: e.incipit,
-        gabc: withAnnotation(g.gabc, e.incipit, 'Hymn.'),
-        office: e.page ? `${e.officePart} (Liber Hymnarius p. ${e.page})` : e.officePart,
-        occasion: e.seasonCode,
-        source: 'gregobase',
-        gbId: e.gregobaseId
-      } satisfies GabcCandidate];
-    });
+  return hymnsUnder(seasonCode, hour, isFirstVespers);
 }
 
 
@@ -592,14 +788,34 @@ export async function populateGabc(
    * own, so `occasionCode` reaches it on almost no day of the year; callers
    * that do not pass this get the old behaviour, which is that one code.
    */
-  invitatoryCodes?: string[] | null
+  invitatoryCodes?: string[] | null,
+  /**
+   * The `INDEX_HYM2.json` codes to try for the hymn, most specific first —
+   * `hymnOccasionCodes(context, hour)`. Callers that do not pass it get the
+   * old behaviour, which is the single `occasionCode` and so no common, no
+   * rank, and no little hour at all.
+   */
+  hymnCodes?: string[] | null,
+  /**
+   * The `IDX_ANT.csv` codes to try for the antiphons, most specific first —
+   * `antiphonOccasionCodes(context, hour)`. Callers that do not pass it get
+   * the single `occasionCode`, and so no common and no season.
+   */
+  antiphonCodes?: string[] | null
 ): Promise<Block[]> {
 
   let finalOccasion = occasionOverride || occasionCode;
-  let ocoAntiphons = finalOccasion ? antsByOccasion(finalOccasion, hour, isFirstVespers) : null;
+  // An explicit override is the editor naming the occasion, and it names one:
+  // the chain is the calendar's answer and is set aside for it.
+  const antCodes = occasionOverride ? [occasionOverride]
+    : antiphonCodes?.length ? antiphonCodes
+    : finalOccasion ? [finalOccasion] : [];
+  let ocoAntiphons = antCodes.length ? antsByCodes(antCodes, hour, isFirstVespers) : null;
 
   if (ocoAntiphons && ocoAntiphons.length > 0) {
-    console.log(`[OCO] Direct occasion lookup "${finalOccasion}" → ${ocoAntiphons.length} antiphons`);
+    console.log(`[OCO] ${ocoAntiphons.length} antiphons for ${ocoAntiphons[0].occasion} (of ${antCodes.join(' → ')})`);
+  } else if (antCodes.length) {
+    console.log(`[OCO] ANT ✗ nothing under ${antCodes.join(' → ')}`);
   }
 
   // Update occasionCode to be the final resolved one so downstream functions (like hymnByOccasion) use it too
@@ -642,13 +858,7 @@ export async function populateGabc(
   // ocoAntiphons already contains only the place-indexed antiphons via antsByOccasion();
   // the Mag/Ben fallback is handled separately via ocoMagBen.
   // Re-fetch OCO entries specifically for Mag/Ben/Nunc if available
-  const ocoMagBen = occasionCode
-    ? getAnts()
-        .filter(e => (e.occasion === occasionCode || (hour.toLowerCase().includes('compline') && e.occasion === 'H0-7')) && 
-                     /^[MB]|Nunc/.test(e.place.trim()) &&
-                     officeMatches(e.office, officeFilters(hour, isFirstVespers)))
-        .flatMap(e => { const g = resolveGabc(e.gbId, e.gabc) || ''; const annotated = g ? withAnnotation(g, e.incipit, e.mode) : ''; return [{ incipit: e.incipit, gabc: annotated, mode: e.mode, office: e.office, occasion: e.occasion, source: (e.gbId > 0 ? 'gregobase' : 'OCO') as 'gregobase'|'OCO', gbId: e.gbId || undefined } satisfies GabcCandidate]; })
-    : null;
+  const ocoMagBen = antCodes.length ? magBenByCodes(antCodes, hour, isFirstVespers) : null;
 
   let antIdx = 0, hymIdx = 0;
   let ocoIdx = 0;
@@ -767,8 +977,10 @@ export async function populateGabc(
     if (block.type === 'hymn') {
       // ── Path 1: direct OCO lookup by occasion code (authoritative) ───────────
       // The OCO directly prescribes the hymn — do not fall back to fuzzy matching.
-      if (occasionCode) {
-        const ocoHymns = hymnByOccasion(occasionCode, hour, isFirstVespers);
+      if (hymnCodes?.length || occasionCode) {
+        const ocoHymns = hymnCodes?.length
+          ? hymnByCodes(hymnCodes, hour, isFirstVespers)
+          : hymnByOccasion(occasionCode!, hour, isFirstVespers);
         if (ocoHymns.length === 1) {
           console.log(`[OCO] HYM direct "${ocoHymns[0].incipit.slice(0,40)}"`);
           return { ...block, gabcScore: ocoHymns[0].gabc, gabcCandidates: undefined };
@@ -778,7 +990,7 @@ export async function populateGabc(
           return { ...block, gabcCandidates: ocoHymns };
         }
         // OCO prescribed a specific hymn but GABC not in cache — return text-only, no guessing
-        console.log(`[OCO] HYM ✗ no GABC cached for occasion "${occasionCode}" — text only`);
+        console.log(`[OCO] HYM ✗ nothing under ${(hymnCodes ?? [occasionCode]).join(' → ')} — text only`);
         return block;
       }
 

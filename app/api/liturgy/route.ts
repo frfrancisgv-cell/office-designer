@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateCanonicalOffice } from '@/lib/liturgy/office-engine';
-import { getCommonOccasionCode, getLiturgicalContext, invitatoryOccasionCodes, sundayGospelAntiphonWeek } from '@/lib/liturgy/calendar-context';
+import { antiphonOccasionCodes, getCommonOccasionCode, getLiturgicalContext, hymnOccasionCodes, invitatoryOccasionCodes, responsoryOccasionCodes, sundayGospelAntiphonWeek } from '@/lib/liturgy/calendar-context';
 import type { OfficeHour } from '@/lib/liturgy/calendar-context';
 import { getAnts, getHyms, getRbs } from '@/app/api/ibreviary/gabc-loaders';
 import { propagateTones } from '@/lib/psalm-tones/propagate';
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
     const sundayOfOrdinaryTime = sundayGospelAntiphonWeek(context, occasionCode, ferialCode);
 
     // 3. Assign GABC scores and candidates
-    const { populateGabc, responsoryByOccasion } = require('@/app/api/ibreviary/gabc-lookup');
+    const { populateGabc, responsoryByCodes } = require('@/app/api/ibreviary/gabc-lookup');
     const scored = await populateGabc(
       rawBlocks,
       hour,
@@ -87,7 +87,9 @@ export async function GET(request: NextRequest) {
       null, // occasionOverride
       date.getUTCDay() === 6,
       context.isFirstVespers,
-      invitatoryCodes
+      invitatoryCodes,
+      hymnOccasionCodes(context, hour),
+      antiphonOccasionCodes(context, hour)
     );
 
     // 4. Carry each antiphon's mode down onto the psalms it governs. This runs
@@ -119,33 +121,46 @@ export async function GET(request: NextRequest) {
         + `${psalms.length - fromOco} on the psalter's default`);
     }
 
-    // Inject the OCO short responsory block (Rb.) directly before the GOSPEL CANTICLE heading
-    if (occasionCode && hour !== 'compline') {
-      const rb = responsoryByOccasion(occasionCode, hour);
-      if (rb) {
-        // Remove the offline generator's RESPONSORY heading and text placeholders
-        const respIdx = blocks.findIndex((b: any) => b.type === 'heading' && b.content === 'RESPONSORY');
-        if (respIdx !== -1) {
-          blocks.splice(respIdx, 2); // Remove heading and the text placeholder
-        }
+    // 5. The short responsory, from the innermost section of OCO that has one.
+    //
+    // It used to be looked up by the single `occasionCode`, which reached it on
+    // 216 of the 365 Lauds of 2026 and 227 of the Vespers, and **Compline was
+    // excluded outright** although `IDX_RB.csv` holds its *In manus tuas* in
+    // four seasonal forms and the Triduum's *Christus factus est* besides. The
+    // chain reaches all 1095.
+    const responsoryCodes = responsoryOccasionCodes(context, hour);
+    const rb = responsoryCodes.length
+      ? responsoryByCodes(responsoryCodes, hour, context.isFirstVespers)
+      : null;
+    if (rb) {
+      const chant = {
+        id: require('crypto').randomBytes(4).toString('hex'),
+        type: 'antiphon' as const,
+        content: rb.incipit,
+        gabcScore: rb.gabc,
+      };
+      // Compline's responsory is already written into the office as plain
+      // text under the reading, so the chant replaces it rather than joining
+      // it — otherwise the hour says *In manus tuas* twice.
+      const written = blocks.findIndex((b: Block) => b.type === 'text' && /^\s*℟\.\s*br\./.test(b.content));
+      if (written !== -1) {
+        blocks.splice(written, 1, chant);
+        console.log(`[OCO] responsory "${rb.incipit.slice(0, 40)}" replaced the written one`);
+      } else {
+        // Elsewhere the engine leaves a RESPONSORY heading and a placeholder.
+        const respIdx = blocks.findIndex((b: Block) => b.type === 'heading' && b.content === 'RESPONSORY');
+        if (respIdx !== -1) blocks.splice(respIdx, 2);
 
-        const gcIdx = blocks.findIndex(
-          (b: any) =>
-            b.type === 'heading' &&
-            (b.content.toUpperCase().includes('GOSPEL CANTICLE') ||
-              b.content.toUpperCase().includes('BENEDICTUS') ||
-              b.content.toUpperCase().includes('MAGNIFICAT'))
-        );
+        const gcIdx = blocks.findIndex((b: Block) =>
+          b.type === 'heading' && ['GOSPEL CANTICLE', 'BENEDICTUS', 'MAGNIFICAT', 'NUNC DIMITTIS']
+            .some(name => b.content.toUpperCase().includes(name)));
         if (gcIdx > 0) {
-          blocks.splice(gcIdx, 0, {
-            id: require('crypto').randomBytes(4).toString('hex'), // or any random generator
-            type: 'antiphon',
-            content: rb.incipit,
-            gabcScore: rb.gabc,
-          });
-          console.log(`[OCO] Offline injected responsory "${rb.incipit.slice(0, 40)}"`);
+          blocks.splice(gcIdx, 0, chant);
+          console.log(`[OCO] responsory "${rb.incipit.slice(0, 40)}" from ${responsoryCodes.join(' → ')}`);
         }
       }
+    } else if (responsoryCodes.length) {
+      console.log(`[OCO] RB ✗ nothing under ${responsoryCodes.join(' → ')}`);
     }
 
     return NextResponse.json({
