@@ -18,3 +18,9 @@ tsconfig.tsbuildinfo
 /test-*.ts
 /test-*.js
 /*.html
+
+# The Liturgia Horarum typical edition: 97 MB, and Libreria Editrice
+# Vaticana's, not ours to redistribute. Kept locally, read by the
+# extraction scripts, never committed.
+# The brackets are escaped: unescaped, git reads them as a character class.
+/\[Novus Ordo\] Liturgia Horarum - Paul VI.pdf
