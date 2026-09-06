@@ -1,8 +1,11 @@
 /**
- * Pure English phonetic syllabifier and stress inference.
- * Used for both Gregorian pointing (server-side) and auto-pointing (client-side).
- * Contains no Node.js dependencies (unlike hypher).
+ * English syllable division and word stress — the one source both the
+ * Gregorian tone engine (server) and the 1/2/3 pointer (client) read from.
+ *
+ * No Node dependencies, so it runs in the browser, and it is also what
+ * psalmtone.js is given to divide English with (see psalmtone-wrapper.ts).
  */
+import { ENGLISH_STRESS, ENGLISH_RARELY_ACCENTED } from './english-stress';
 
 export const ENGLISH_PSALM_DICT: Record<string, string[]> = {
   'remembering': ['re', 'mem', 'bering'], 'remémbering': ['re', 'mém', 'bering'],
@@ -59,6 +62,15 @@ export const ENGLISH_PSALM_DICT: Record<string, string[]> = {
   'streams': ['streams'], 'water': ['wa', 'ter'], 'yields': ['yields'], 'fruit': ['fruit'],
   'season': ['sea', 'son'], 'leaves': ['leaves'], 'wither': ['with', 'er'], 'prospers': ['pros', 'pers']
 };
+
+/**
+ * The form a word is looked up under in ENGLISH_STRESS and ENGLISH_UNSTRESSED.
+ * scripts/build-english-stress.mjs keys the dictionary exactly this way; the
+ * two must not drift apart.
+ */
+export function stressKey(word: string): string {
+  return word.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\u2019/g, "'");
+}
 
 /** Split English word into phonetic singing syllables. */
 export function englishPhoneticSyllabify(word: string): string[] {
@@ -127,46 +139,49 @@ export function englishPhoneticSyllabify(word: string): string[] {
   return sylls;
 }
 
-export const ENGLISH_STRESS_DICT: Record<string, boolean[]> = {
-  'zion': [true, false], 'sions': [true, false], 'zíon': [true, false],
-  'jerusalem': [false, false, true, false], 'jerúsalem': [false, false, true, false],
-  'babylon': [true, false, false], 'bábylon': [true, false, false],
-  'remembering': [false, true, false], 'remémbering': [false, true, false], 'remember': [false, true, false],
-
-  'natural': [true, false], 'nátural': [true, false],
-  'several': [true, false], 'séveral': [true, false],
-  'general': [true, false], 'géneral': [true, false],
-  'forget': [false, true], 'wither': [true, false], 'rivers': [true, false],
-
-  'tongue': [true], 'tongues': [true], 'tóngue': [true], 'tóngues': [true],
-  'cleave': [true], 'roof': [true], 'heavens': [true, false], 'heaven': [true, false],
-  'blessed': [true, false], 'counsel': [true, false], 'wicked': [true, false],
-  'sinners': [true, false], 'scorners': [true, false], 'company': [true, false, false],
-  'delight': [false, true], 'ponders': [true, false], 'salvation': [false, true, false],
-  'righteous': [true, false], 'righteousness': [true, false, false],
-  'lovingkindness': [true, false, true, false], 'faithfulness': [true, false, false],
-  'steadfast': [true, false], 'deliver': [false, true, false],
-  'deliverer': [false, true, false, false], 'deliverance': [false, true, false],
-  'majestic': [false, true, false], 'majesty': [true, false, false],
-  'children': [true, false], 'peoples': [true, false], 'nations': [true, false],
-  'glory': [true, false], 'holy': [true, false], 'mercy': [true, false],
-  'father': [true, false], 'spirit': [true, false]
-};
-
-export const FUNCTIONAL_WORDS = new Set([
-  'the', 'a', 'an', 'of', 'and', 'in', 'on', 'at', 'to', 'for', 'with', 'from',
-  'by', 'or', 'nor', 'but', 'if', 'then', 'so', 'as', 'my', 'your', 'his', 'her',
-  'its', 'our', 'their', 'this', 'that', 'these', 'those', 'it', 'he', 'she', 'we',
-  'they', 'you', 'me', 'him', 'us', 'them'
-]);
-
-/** Infer primary word stress for unaccented English words. */
+/**
+ * Where the stress falls in an English word.
+ *
+ * The answer comes from ENGLISH_STRESS: 1,900 word forms read off the acutes
+ * that the editors of the Revised Grail psalter and The Abbey Psalms and
+ * Canticles put on their own text. Two hand-written lists used to stand here
+ * instead — about fifty words with their stress patterns, and forty-five
+ * "functional words" — and between them they covered a fraction of a psalm.
+ *
+ * `sylls` must be this file's own division of the word: the dictionary stores
+ * a syllable number, and the number only means anything against
+ * englishPhoneticSyllabify.
+ *
+ * Words the dictionary has never seen fall back to the old rule — the penult,
+ * or the first of two. On the Abbey psalter that rule alone was right 83.4%
+ * of the time and the dictionary 99.5% of the time on the 89.2% it covered.
+ *
+ * A word the psalters seldom point at all gets no stress: the cadence has to
+ * pass over it. That is a claim about which WORD carries the accent, and it
+ * is only consulted when the text marks none of its own — where the acutes
+ * are there, in Latin or in lypsautierant's English psalms, they decide.
+ */
 export function inferEnglishWordStress(word: string, sylls: string[]): boolean[] {
-  const clean = word.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]/g, '');
-  if (ENGLISH_STRESS_DICT[clean]) return ENGLISH_STRESS_DICT[clean];
-  if (sylls.length === 1) return [!FUNCTIONAL_WORDS.has(clean)];
+  const key = stressKey(word);
   const res = new Array(sylls.length).fill(false);
-  if (sylls.length === 2) res[0] = true;
-  else res[Math.max(0, sylls.length - 2)] = true;
+
+  const known = ENGLISH_STRESS.get(key);
+  if (known !== undefined && known < sylls.length) {
+    res[known] = true;
+    return res;
+  }
+
+  if (ENGLISH_RARELY_ACCENTED.has(key)) return res;
+  if (sylls.length === 1) return [true];
+
+  res[sylls.length === 2 ? 0 : Math.max(0, sylls.length - 2)] = true;
   return res;
+}
+
+/**
+ * True when the psalters seldom point this word — under 30% of the time — so
+ * a cadence should pass over it and land on the word before.
+ */
+export function isUnstressedWord(word: string): boolean {
+  return ENGLISH_RARELY_ACCENTED.has(stressKey(word));
 }

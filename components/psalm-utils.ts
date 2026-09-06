@@ -6,36 +6,36 @@
  * be used in both client and server contexts.
  */
 
-import { englishPhoneticSyllabify } from '../lib/psalm-tones/english-phonetic';
+import {
+  englishPhoneticSyllabify,
+  inferEnglishWordStress,
+  isUnstressedWord,
+} from '../lib/psalm-tones/english-phonetic';
 
-// ── Stress dictionaries ───────────────────────────────────────────────────────
+// ── Syllabification and stress ────────────────────────────────────────────────
+//
+// Both come from lib/psalm-tones/english-phonetic, the one English source all
+// three pointing engines read. Two hand-written lists used to sit here — 56
+// "unstressed words" and 13 "unstressed first syllables" — beside two more of
+// the same kind in english-phonetic.ts. They disagreed with each other and
+// with the psalters: this file called "he", "she", "we", "his", "her", "all"
+// unstressed, and the Revised Grail accents every one of them.
 
-export const UNSTRESSED_WORDS = new Set([
-  'a','an','the','of','in','to','for','and','or','but','nor',
-  'at','by','on','as','it','is','was','are','be','he','she','we',
-  'his','her','our','its','my','your','their','that','this','these',
-  'those','with','from','not','no','am','has','had','have','do',
-  'did','does','if','up','than','when','will','who','what','all','some','any',
-]);
-
-export const UNSTRESSED_FIRST_SYLLS = new Set([
-  'a','be','de','di','en','em','ex','e','pre','pro','re','un','for',
-]);
-
-// ── Syllabification ───────────────────────────────────────────────────────────
-
-/**
- * Uses the improved englishPhoneticSyllabify from psalm-tone-engine.
- */
+/** Split an English word into singing syllables. */
 export function syllabify(word: string): string[] {
   return englishPhoneticSyllabify(word);
 }
 
-/** Return the stressed syllable index within a syllable array. */
+/** Which syllable of `syllables` carries the stress. */
 export function wordStressIdx(syllables: string[]): number {
   if (syllables.length === 1) return 0;
-  const first = syllables[0].toLowerCase().replace(/[^a-z]/g, '');
-  return UNSTRESSED_FIRST_SYLLS.has(first) ? 1 : 0;
+  const idx = inferEnglishWordStress(syllables.join(''), syllables).indexOf(true);
+  return idx < 0 ? 0 : idx;
+}
+
+/** True when the psalters never accent this word, so a cadence passes over it. */
+export function isUnstressed(word: string): boolean {
+  return isUnstressedWord(word);
 }
 
 // ── Auto-pointing ─────────────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ export function pointSegment(segText: string, numItalics: number): string {
   let accentIdx = syllPos[syllPos.length - 1];
   for (let wi = words.length - 1; wi >= 0; wi--) {
     const wText = words[wi].syllIndices.map(i => tokens[i].text).join('').toLowerCase().replace(/[^a-z]/g, '');
-    if (!UNSTRESSED_WORDS.has(wText) || wi === words.length - 1) {
+    if (!isUnstressed(wText) || wi === words.length - 1) {
       const sylls = words[wi].syllIndices.map(i => tokens[i].text);
       const si = Math.min(wordStressIdx(sylls), words[wi].syllIndices.length - 1);
       accentIdx = words[wi].syllIndices[si];

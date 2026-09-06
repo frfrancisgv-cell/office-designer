@@ -1,8 +1,12 @@
 /**
  * psalm-tone-engine.ts
  *
- * Server-side Gregorian psalm tone pointing engine.
- * Ports the essential logic of bbloomf/jgabc without DOM/localStorage deps.
+ * Server-side Gregorian psalm tone pointing.
+ *
+ * This is not a second implementation of jgabc. psalmtone.js — bbloomf's
+ * file, vendored at the repo root — reads the formulas and points the Latin;
+ * what lives here is the structure around it: which cadence each colon of
+ * each line gets, and an English path for text jgabc cannot syllabify.
  *
  * HEMISTICH & COLON STRUCTURE FOR ENGLISH PSALMS (Revised Grail / Abbey):
  *   In English psalmody, EACH LINE in a verse block is a single colon (half-line of chant).
@@ -17,19 +21,23 @@
  *     6-line stanza  → line1 * \n line2 \n line3 * \n line4 \n line5 * \n line6 (2+2+2)
  *
  * POINTING ALGORITHM:
- *   1. Parse GABC tone string → { accents, preparatory } counts
- *      - Accents = note groups with '
- *      - Preparatory = note groups BETWEEN reciting tenor and first accent
- *      - Post-accentual notes (after last accent) do NOT count as preparatory
+ *   1. Read the formula with psalmtone.js's getGabcTones → how many accents,
+ *      how many preparatory syllables lead into them, how many syllables
+ *      follow the last one, how long the intonation is.
  *   2. If text has no markers (* / †), inferMediants() inserts them per line structure.
- *   3. Process line-by-line: each colon is pointed independently with its assigned cadence.
- *   4. Syllabification (syllabifyWord) preserves acute-accent stress marks:
- *      Latin uses regexLatin, scraped from psalmtone.js; English uses
- *      englishPhoneticSyllabify from ./english-phonetic.
+ *   3. Process line-by-line: each colon is pointed independently with its
+ *      assigned cadence — flex before †, mediant before *, termination after.
+ *   4. Latin colons go to psalmtone.js's addBoldItalic, over the same
+ *      regexLatin syllables the engraved score is laid out on. English goes
+ *      to pickAccents, which applies the identical placement rule to
+ *      syllables from ./english-phonetic; jgabc cannot do that job, because
+ *      it syllabifies English with Hypher and wants the accents marked with
+ *      `*` inside the words.
  */
 
 import { PSALM_TONES } from './tone-data';
 import type { ToneSpec } from './tone-data';
+import { getGabcTones, addBoldItalic } from './psalmtone-wrapper';
 
 import { englishPhoneticSyllabify, inferEnglishWordStress } from './english-phonetic';
 // stripPointing lives in ./strip so client code can use it without pulling
@@ -41,12 +49,20 @@ export { stripPointing };
 export interface GabcToneCounts {
   accents: number;
   preparatory: number;
+  /**
+   * Syllables the formula spends after its last accent. On a formula that
+   * ends on an unaccented note the final accent is not the final syllable,
+   * and the cadence has to be counted in from the end by this much before
+   * the accents are placed at all.
+   */
+  afterLastAccent: number;
   tenor: string;
   /**
    * Syllables the formula spends before it reaches the reciting tenor — the
-   * intonation. The cadence maths ignores it (it is scanned right-to-left
-   * from the end), but the Gospel canticles take the intonation on the
-   * mediant of *every* strophe, so the pointing has to be able to show it.
+   * intonation. The cadence maths ignores it — the cadence is scanned
+   * right-to-left from the end — but the score needs it, and callers ask
+   * for it when they need to know how much of a colon the formula spends
+   * before it reaches the tenor.
    */
   intonation: number;
 }
@@ -60,119 +76,48 @@ interface Syll {
 // ─── GABC Tone String Parser ─────────────────────────────────────────────────
 
 /**
- * Parse accents and preparatory count from a jgabc GABC tone sub-string.
+ * How many accents a formula has, how many preparatory syllables lead into
+ * the first of them, how many syllables trail the last one, and how long the
+ * intonation is.
  *
- * In Gregorian chant GABC specs:
- *   - Note groups containing ' are ACCENTS.
- *   - PREPARATORY notes are note groups BETWEEN the reciting tenor and the accent.
- *   - Post-accentual note groups (notes following the final accent) are for syllables
- *     following the main accent; they are NOT preparatory syllables before the accent.
+ * This used to be scanned here, group by group, and it disagreed with jgabc
+ * on 38 of the 108 formulas in tone-data — including the mediant of tones 1,
+ * 6 and 7, where it counted the reciting note that sits *between* the two
+ * accents as a preparatory syllable and italicised the syllable before the
+ * first accent. jgabc resets the preparatory count at every accent, so a
+ * two-accent mediant has none. There is no reason to have a second reader:
+ * getGabcTones is the same call applyPsalmTone makes to lay the notes out.
  */
-export function parseGabcToneCounts(gabc: string): GabcToneCounts {
-  if (!gabc) return { accents: 0, preparatory: 0, tenor: 'h', intonation: 0 };
-
-  const clean = gabc.replace(/\.+$/, '').trim();
-  const groups = clean.split(/\s+/).filter(Boolean);
-
-  let accents = 0;
-  let preparatory = 0;
-  let tenor = 'h';
-
-  // Find reciting tenor group (first group with 'r', e.g. hr, jr, ir, er, dr)
-  let tenorIdx = -1;
-  for (let i = 0; i < groups.length; i++) {
-    const g = groups[i];
-    if (/^[a-m]r/i.test(g) || (g.includes('r') && !g.includes("'"))) {
-      tenorIdx = i;
-      const m = g.match(/^[a-m]/i);
-      if (m) tenor = m[0];
-      break;
-    }
+export function parseGabcToneCounts(gabc: string, clef = 'c4'): GabcToneCounts {
+  if (!gabc || !gabc.trim()) {
+    return { accents: 0, preparatory: 0, afterLastAccent: 0, tenor: 'h', intonation: 0 };
   }
-
-  // Scan right-to-left
-  let state: 'after_accent' | 'preparatory' | 'done' = 'after_accent';
-
-  for (let i = groups.length - 1; i >= 0; i--) {
-    const g = groups[i];
-
-    if (g.includes("'")) {
-      accents++;
-      state = 'preparatory';
-      continue;
-    }
-
-    if (state === 'preparatory') {
-      if (i === tenorIdx || (tenorIdx >= 0 && i < tenorIdx)) {
-        state = 'done';
-        break;
-      }
-      if (/[a-m]/i.test(g)) {
-        preparatory++;
-      }
-    }
-  }
-
-  // Everything before the reciting group is intonation. A formula with no
-  // reciting group at all (tenorIdx < 0) has none to speak of.
-  return { accents, preparatory, tenor, intonation: tenorIdx > 0 ? tenorIdx : 0 };
+  // The clef has to be passed: with none, getGabcTones falls back to the
+  // `_clef` global that psalmtone.html declares and this app does not, and
+  // reading it throws. It only decides where the flex note sits, which the
+  // pointing does not use, but the counts are unreachable without it.
+  const t = getGabcTones(gabc, undefined, false, clef);
+  return {
+    accents: t.accents,
+    preparatory: t.preparatory,
+    afterLastAccent: t.afterLastAccent,
+    tenor: t.toneTenor || 'h',
+    intonation: t.intonation,
+  };
 }
 
 // ─── Syllabification ─────────────────────────────────────────────────────────
 
 const ACUTE_VOWEL_RE = /[áéíóúÁÉÍÓÚ]/;
 
-// Load regexLatin directly from psalmtone.js at runtime.
-// This avoids any risk of escaping corruption when copying the complex regex
-// as a string literal, and guarantees we always use the exact same regex as jgabc.
-// regexLatin is the gold-standard phonological syllabifier for liturgical Latin;
-// each exec() call yields exactly one syllable with m[3]=syllText+space, m[4]=leadingSpace.
-function makeLatinRegex(): RegExp {
-  try {
-    const path = require('path');
-    const fs = require('fs');
-    const src = fs.readFileSync(path.join(process.cwd(), 'psalmtone.js'), 'utf8');
-    // The regex is defined on line 4 as: var regexLatin = /...../gi  (no trailing semicolon)
-    const m = src.match(/var regexLatin = (\/.+\/gi)/);
-    if (m) {
-      // Eval only this single regex literal — safe since we control the file
-      // eslint-disable-next-line no-eval
-      return eval(m[1]);
-    }
-  } catch { /* fall through */ }
-  // Fallback: simple vowel-based splitter (better than nothing)
-  return /([bcdfghjklmnprstvwxz]*[aeiouyáéíóúýæœ][bcdfghjklmnprstvwxz]*)/gi;
-}
+// There is no Latin syllabifier here any more. This module used to carry one
+// — jgabc's regexLatin, scraped out of psalmtone.js at import time and run a
+// word at a time — plus its own reading of Latin word stress. Both are
+// psalmtone.js's job, and it does them over the whole colon at once, which is
+// where the implicit accents come from. Latin now goes through addBoldItalic
+// (see pointHemistich); what follows is the English path only.
 
-const _latinRegexSrc = (() => { try { return makeLatinRegex().source; } catch { return ''; } })();
-const _latinRegexFlags = 'gi';
-
-/**
- * Syllabify a single Latin word using jgabc's regexLatin.
- * Returns array of syllable strings (preserving original casing and diacritics).
- */
-export function syllabifyLatinWord(word: string): string[] {
-  if (!_latinRegexSrc) return [word];
-  const re = new RegExp(_latinRegexSrc, _latinRegexFlags);
-  const result: string[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(word)) !== null) {
-    const leadSpace = m[4] || '';
-    const syl = m[3] ? m[3].slice(leadSpace.length) : '';
-    if (syl) result.push(syl);
-    if (!m[0]) break;
-  }
-  return result.length ? result : [word];
-}
-
-export function syllabifyWord(word: string, lang: 'en' | 'la'): string[] {
-  if (!word) return [];
-  if (lang === 'en') return englishPhoneticSyllabify(word);
-  return syllabifyLatinWord(word);
-}
-
-
-function tokeniseSylls(text: string, lang: 'en' | 'la'): Syll[] {
+function tokeniseSylls(text: string): Syll[] {
   // Match word characters (letters including acute accents, plus internal apostrophe/hyphen)
   const wordRe = /([a-zA-ZÀ-ÖØ-öø-ÿáéíóúÁÉÍÓÚæœæǽ]+(?:['′-][a-zA-ZÀ-ÖØ-öø-ÿáéíóúÁÉÍÓÚ]+)?)/g;
   const result: Syll[] = [];
@@ -184,30 +129,10 @@ function tokeniseSylls(text: string, lang: 'en' | 'la'): Syll[] {
       result.push({ text: text.slice(last, m.index), isStressed: false, isGap: true });
     }
     const rawWord = m[0];
-    const wordSylls = syllabifyWord(rawWord, lang);
+    const wordSylls = englishPhoneticSyllabify(rawWord);
 
-    if (lang === 'la') {
-      // Build syllable objects for this word
-      const wordSyllObjs: Syll[] = wordSylls.map(p => ({
-        text: p,
-        isStressed: ACUTE_VOWEL_RE.test(p),
-        isGap: false,
-      }));
-      // If no syllable has an explicit accent, assign one via Latin stress rules:
-      //   1 syl → mark it; 2 syls → penult (index 0); 3+ syls → penult (index n-2)
-      if (!wordSyllObjs.some(s => s.isStressed)) {
-        if (wordSyllObjs.length === 1) {
-          wordSyllObjs[0].isStressed = true;
-        } else if (wordSyllObjs.length === 2) {
-          wordSyllObjs[0].isStressed = true;
-        } else {
-          // 3+ syllables: penult (classical default for unaccented text)
-          wordSyllObjs[wordSyllObjs.length - 2].isStressed = true;
-        }
-      }
-      for (const syll of wordSyllObjs) result.push(syll);
-    } else if (ACUTE_VOWEL_RE.test(text)) {
-      // English with explicit accents (lpsautierant)
+    if (ACUTE_VOWEL_RE.test(text)) {
+      // English with explicit accents (lypsautierant)
       for (const p of wordSylls) {
         result.push({ text: p, isStressed: ACUTE_VOWEL_RE.test(p), isGap: false });
       }
@@ -228,6 +153,23 @@ function tokeniseSylls(text: string, lang: 'en' | 'la'): Syll[] {
 
 // ─── Accent Placement ─────────────────────────────────────────────────────────
 
+/**
+ * Where the cadence falls, by jgabc's rule (psalmtone.js `addBoldItalic`).
+ *
+ * Read the colon from the end:
+ *   - first skip `afterLastAccent` syllables, the ones the formula spends
+ *     after its last accent; the syllable the count lands on is sung on the
+ *     accent note even when the word is not accented there, so it is bold;
+ *   - then take `accents` accented syllables. Once none are left to the
+ *     left, a syllable two back from the one just taken counts as accented
+ *     even without a mark, unless the syllable before it is accented — that
+ *     is what keeps a dactyl from collapsing onto its neighbour;
+ *   - then italicise the `preparatory` syllables immediately to the left of
+ *     the leftmost accent, and nothing else.
+ *
+ * `sylls` carries gaps (spaces, punctuation, verse numbers); the count runs
+ * over the real syllables only.
+ */
 function pickAccents(
   sylls: Syll[],
   counts: GabcToneCounts,
@@ -240,44 +182,51 @@ function pickAccents(
     .filter(({ s }) => !s.isGap)
     .map(({ i }) => i);
 
-  if (!realIdx.length || counts.accents === 0) return { boldSet, italicSet };
+  const n = realIdx.length;
+  if (!n) return { boldSet, italicSet };
 
-  const hasAcute = realIdx.some(i => sylls[i].isStressed);
+  const accented = (k: number) => sylls[realIdx[k]].isStressed;
 
-  if (hasAcute) {
-    // ── Lypsautierant / Latin mode: use acute-accent marks ───────────────────────────
-    const stressed = realIdx.filter(i => sylls[i].isStressed);
-    const accentTargets = stressed.slice(-counts.accents);
-    // Bold: the `counts.accents` rightmost stressed syllables
-    for (const i of accentTargets) {
-      boldSet.add(i);
+  // Is there an accent at k or anywhere left of it? jgabc's rule that a
+  // syllable two back from the last accent counts as accented is a stand-in
+  // for text that marks no accents at all — in Latin it realises the
+  // alternation that psalmtone.js's own syllabifier leaves implicit. English
+  // here always carries its stresses, from the acutes in lypsautierant's
+  // psalms or from the psalter stress dictionary, so the stand-in must not
+  // outrank them: ungated it put the second accent of "the gréatness of the
+  // Lórd" on "of", two syllables back, instead of on "gréat".
+  const accentAtOrLeft: boolean[] = new Array(n).fill(false);
+  for (let k = 0, seen = false; k < n; k++) {
+    seen = seen || accented(k);
+    accentAtOrLeft[k] = seen;
+  }
+
+  let doneAccents = 0;
+  let donePrep = 0;
+  let skipped = 0;
+  let bold = false;
+  let lastAccentI = n;
+
+  for (let k = n - 1; k >= 0; k--) {
+    if (skipped < counts.afterLastAccent) {
+      skipped++;
+      if (skipped === counts.afterLastAccent) bold = true;
+      continue;
     }
 
-    // Preparatory italic: syllables immediately before the first bold position
-    if (accentTargets.length > 0 && counts.preparatory > 0) {
-      const firstBoldPos = realIdx.indexOf(accentTargets[0]);
-      for (let p = 1; p <= counts.preparatory; p++) {
-        const pos = firstBoldPos - p;
-        if (pos >= 0 && !boldSet.has(realIdx[pos])) {
-          italicSet.add(realIdx[pos]);
-        }
-      }
-    }
-  } else {
-    // ── Positional fallback (count from right) ───────────────────────────────
-    const n = realIdx.length;
-    const total = counts.accents + counts.preparatory;
-    if (n < total) {
-      for (let i = Math.max(0, n - counts.accents); i < n; i++) boldSet.add(realIdx[i]);
-      return { boldSet, italicSet };
-    }
-    const boldStart = n - counts.accents;
-    for (let i = boldStart; i < n; i++) boldSet.add(realIdx[i]);
-    for (let p = 1; p <= counts.preparatory; p++) {
-      const pos = boldStart - p;
-      if (pos >= 0 && !boldSet.has(realIdx[pos])) {
-        italicSet.add(realIdx[pos]);
-      }
+    const twoBack = !accentAtOrLeft[k] && k === lastAccentI - 2 && (k === 0 || !accented(k - 1));
+    if (doneAccents < counts.accents && (accented(k) || twoBack)) {
+      lastAccentI = k;
+      boldSet.add(realIdx[k]);
+      doneAccents++;
+      bold = false;
+    } else if (bold) {
+      // The formula's accent note has already been reached counting in from
+      // the end, so it carries these syllables too until the accent turns up.
+      boldSet.add(realIdx[k]);
+    } else if (doneAccents === counts.accents && donePrep < counts.preparatory) {
+      italicSet.add(realIdx[k]);
+      donePrep++;
     }
   }
 
@@ -287,32 +236,48 @@ function pickAccents(
 
 // ─── Single Line / Hemistich Pointing ─────────────────────────────────────────
 
+/** jgabc writes <b>/<i>; the rest of this app reads <strong>/<em>. */
+function toStrongEm(html: string): string {
+  return html
+    .replace(/<b>/g, '<strong>').replace(/<\/b>/g, '</strong>')
+    .replace(/<i>/g, '<em>').replace(/<\/i>/g, '</em>');
+}
+
 /**
  * Point a single line/colon of psalm text.
- * Syllabifies the line, places accent and preparatory tags, and assembles HTML.
+ *
+ * Latin is handed straight to psalmtone.js: same syllabifier (regexLatin),
+ * same cadence placement, same output as the verse list of jgabc's psalm
+ * tone tool — and the same syllabification the engraved score above it uses.
+ * English cannot go that way, because jgabc syllabifies English with Hypher
+ * and expects accents marked with `*` inside the words; it gets the identical
+ * placement rule (pickAccents) over this app's own English syllables instead.
  */
 export function pointHemistich(
   text: string,
   counts: GabcToneCounts,
   lang: 'en' | 'la',
-  markIntonation = false,
 ): string {
   if (!text.trim()) return text;
 
-  const sylls = tokeniseSylls(text, lang);
-  const { boldSet, italicSet } = pickAccents(sylls, counts);
-
-  // The intonation is italicised from the front, and never over a syllable
-  // the cadence has already claimed — on a hemistich short enough for the two
-  // to meet, the cadence is what is actually sung there.
-  if (markIntonation) {
-    let marked = 0;
-    for (let i = 0; i < sylls.length && marked < counts.intonation; i++) {
-      if (sylls[i].isGap) continue; // whitespace and punctuation carry no note
-      if (!boldSet.has(i) && !italicSet.has(i)) italicSet.add(i);
-      marked++;
-    }
+  if (lang === 'la') {
+    return toStrongEm(addBoldItalic(
+      text,
+      counts.accents,
+      counts.preparatory,
+      counts.afterLastAccent,
+      'html',
+      false,          // onlyVowel
+      undefined,      // verseNumber
+      undefined,      // prefix
+      undefined,      // suffix
+      undefined,      // verseIndex
+      'la',
+    ));
   }
+
+  const sylls = tokeniseSylls(text);
+  const { boldSet, italicSet } = pickAccents(sylls, counts);
 
   const out: string[] = [];
   for (let i = 0; i < sylls.length; i++) {
@@ -400,12 +365,6 @@ export interface PointingParams {
   customTermination?: string;
   lang: 'en' | 'la';
   solemn?: boolean;
-  /**
-   * Mark the intonation at the head of every strophe, not just the first.
-   * This is how the Gospel canticles are sung: the intonation returns on the
-   * mediant of each verse, so those syllables are italicised throughout.
-   */
-  intonationEveryVerse?: boolean;
 }
 
 
@@ -424,7 +383,7 @@ export interface PointingParams {
 export function pointPsalm(params: PointingParams): string {
   const {
     text, tone, variant = '', customMediant, customTermination, lang,
-    solemn = false, intonationEveryVerse = false,
+    solemn = false,
   } = params;
   const spec: ToneSpec | undefined = tone ? PSALM_TONES[tone] : undefined;
 
@@ -446,10 +405,12 @@ export function pointPsalm(params: PointingParams): string {
     );
   }
 
-  const mediCounts = parseGabcToneCounts(mediStr);
-  const termCounts = parseGabcToneCounts(termStr);
+  const clef = spec?.clef || 'c4';
+  const mediCounts = parseGabcToneCounts(mediStr, clef);
+  const termCounts = parseGabcToneCounts(termStr, clef);
   const flexCounts: GabcToneCounts = {
-    accents: 1, preparatory: 0, tenor: mediCounts.tenor, intonation: mediCounts.intonation,
+    accents: 1, preparatory: 0, afterLastAccent: 0,
+    tenor: mediCounts.tenor, intonation: mediCounts.intonation,
   };
 
   // Strip existing HTML markup cleanly
@@ -479,12 +440,16 @@ export function pointPsalm(params: PointingParams): string {
       continue;
     }
 
+    // The marker is put back with one space either side. The halves are
+    // trimmed at the seam first: psalmtone.js drops the space it was handed
+    // at the end of a colon but keeps the one at the head of the next, so
+    // splitting on the marker and rejoining used to leave "meus  *  in Deo".
     if (line.includes('†')) {
       const parts = line.split('†');
-      const before = pointHemistich(parts[0], flexCounts, lang, intonationEveryVerse);
+      const before = pointHemistich(parts[0].trimEnd(), flexCounts, lang);
       const after = parts.slice(1).join('†');
       if (after.trim()) {
-        result.push(before + ' † ' + pointHemistich(after, mediCounts, lang));
+        result.push(before + ' † ' + pointHemistich(after.trimStart(), mediCounts, lang));
       } else {
         result.push(before + ' †');
       }
@@ -493,10 +458,10 @@ export function pointPsalm(params: PointingParams): string {
 
     if (line.includes('*')) {
       const parts = line.split('*');
-      const before = pointHemistich(parts[0], mediCounts, lang, intonationEveryVerse);
+      const before = pointHemistich(parts[0].trimEnd(), mediCounts, lang);
       const after = parts.slice(1).join('*');
       if (after.trim()) {
-        result.push(before + ' * ' + pointHemistich(after, termCounts, lang));
+        result.push(before + ' * ' + pointHemistich(after.trimStart(), termCounts, lang));
       } else {
         result.push(before + ' *');
       }

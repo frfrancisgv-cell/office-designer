@@ -25,10 +25,6 @@ export function useBlockPointing(
   const solemnAvailable = useMemo(() => hasSolemnForm(selectedTone), [selectedTone]);
   const solemn = solemnAvailable && useSolemn;
 
-  // The Gospel canticles take the intonation on the mediant of every strophe,
-  // not only the first, so those syllables stay marked throughout.
-  const intonationEveryVerse = SOLEMN_BY_DEFAULT.includes(String(block.psalmNumber));
-
   const initialPresets = useMemo(
     () => getPresetGabc(block.psalmTone ?? '8.', block.psalmVariant ?? ''),
     [block.psalmTone, block.psalmVariant]
@@ -146,7 +142,6 @@ export function useBlockPointing(
           customTermination: (isCustomMode || customTermination) ? customTermination : undefined,
           lang: block.lang || 'en',
           solemn,
-          intonationEveryVerse,
         }),
       });
       if (!res.ok) {

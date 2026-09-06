@@ -340,11 +340,21 @@ var d_tones = {'1.':{clef:"c4",
                      termination:"gr d 'f fr ed"
                     }
             };
+// Syllable division comes from the host app, injected with setSyllabifier.
+//
+// jgabc.org divides English with TeX hyphenation patterns (the Hypher
+// library) and ships the words those cannot divide to a remote service at
+// sourceandsummit.com. Hyphenation patterns mark where a LINE may break,
+// not where a syllable ends: they refuse to strand fewer than two letters
+// and skip short words outright, so "mercy", "glory", "holy", "heaven",
+// "dwelling" and "blessed" all came back undivided — every two-syllable
+// word a psalm tone has to divide. The remote call papered over that, and
+// it also sent the text being pointed to a third party. Both are gone; see
+// lib/psalm-tones/english-phonetic.ts for what is injected instead.
+var _hostSyllabify = null;
+function setSyllabifier(fn) { _hostSyllabify = fn; }
 var Syl = (function(){
-  var intUpdate=setTimeout(function(){Syl.updateWords();},8000);
   return {
-    words:((typeof window !== 'undefined' ? window.localStorage : null)&&(typeof window !== 'undefined' ? window.localStorage : null).words&&JSON.parse((typeof window !== 'undefined' ? window.localStorage : null).words))||{},
-    queue:[],
     syllabify:function(text,lang){
       if(typeof(text)!="string") {
         return text;
@@ -357,11 +367,9 @@ var Syl = (function(){
           accentsMarked=text.match(/[a-z]\*/i),
           prefix = null,
           sylWords = [],
-          preword, opi, cpi, wordSyls, temp;
+          opi, cpi, wordSyls, temp;
       lang = lang || 'en';
       regexWords.exec("");
-      // in Polish, sometimes a word does not contain a vowel, and therefore has to be part of first syllable of the following word.
-      preword = '';
       while((m=regexWords.exec(text)) && m[0]){
         var raw=(m[5]?(m[4]+m[5]+m[6]):m[3]),
             w=raw.toLowerCase(),
@@ -388,55 +396,10 @@ var Syl = (function(){
           d=[];
         } else if (lang === 'zh') {
           d = w.split('').slice(0,-1).map(syl => syl.length);
-        } else if(lang != 'en') {
-          if(typeof(Hypher)!='undefined' && Hypher.languages[lang]) {
-            d=Hypher.languages[lang].hyphenate(w).slice(0,-1).map(function(syl){return syl.length;})
-            if(!d.length && !w.match(/[aeiouyæœáéíóúýǽäëïöüÿąęįǫų]/i)) {
-              // no vowels in this syllable, so use this as a "pre-word", as long as there are still more words to come.
-              var lastIndex = regexWords.lastIndex;
-              var stillMoreWords = text.slice(lastIndex).match(regexWords);
-              regexWords.lastIndex = lastIndex;
-              if(stillMoreWords) {
-                preword = raw;
-                continue;
-              }
-            } else if(d.length) {
-              // check to make sure each syllable has a vowel:
-              for(var si=0, startIndex = 0; si<=d.length; ++si) {
-                var syl = w.substr(startIndex, d[si] || w.length);
-                var vowelCount = syl.match(/[aeiouyæœáéíóúýǽäëïöüÿąęįǫų]/gi);
-                vowelCount = vowelCount? vowelCount.length : 0;
-                if(vowelCount == 0) {
-                  // merge into the next syllable if there is one:
-                  if(si < d.length - 1) {
-                    d[si] += d[si + 1] || (w.length - d.reduce(function(a,b){return a+b;}));
-                    d.splice(si + 1, 1);
-                    --si;
-                    continue;
-                  } else {
-                    // otherwise, merge into the previus syllable:
-                    d.splice(si - 1, 1);
-                  }
-                }
-                startIndex += d[si];
-              }
-            }
-          }
-        } else if(w in words){
-          d=words[w];
         } else {
-          if(typeof(Hypher)!='undefined' && Hypher.languages[lang]) {
-            d=Hypher.languages[lang].hyphenate(w).slice(0,-1).map(function(syl){return syl.length;})
-          } else {
-            d=[];
-          }
-          if(this.queue.indexOf(w)<0)this.queue.push(w);
-        }
-        if(preword) {
-          w = preword + ' ' + w;
-          m[3] = preword + ' ' + m[3];
-          if(d[0]) d[0] += preword.length + 1;
-          preword = '';
+          d = _hostSyllabify
+            ? _hostSyllabify(w, lang).slice(0,-1).map(function(syl){return syl.length;})
+            : [];
         }
         var tmp=["",m[1],"",m[2]||"",m[2]||""],
             index=m.index+m[1].length+m[2].length,
@@ -528,32 +491,6 @@ var Syl = (function(){
         }
       }
       return result;
-    },
-    updateWords:function(){
-      if(this.queue.length>0){
-        $.getScript("//www.sourceandsummit.com/editor/legacy/syl.php?txt="+this.queue.join('+'));
-        this.queue=[];
-      } else {
-        intUpdate=setTimeout(function(){Syl.updateWords();},5000);
-      }
-    },
-    addResult:function(list){
-      intUpdate=setTimeout(function(){Syl.updateWords();},5000);
-      var array=list.split(" ");
-      for(var i=0; i < array.length; ++i){
-        var w=array[i],
-            data=[],
-            idx=w.indexOf('-'),
-            lastIdx=0;
-        while(idx>=0){
-          data.push(idx-lastIdx);
-          lastIdx=++idx;
-          idx=w.indexOf('-',idx);
-        }
-        this.words[w.replace(/-/g,'')]=data;
-      }
-      if(typeof(updateText)=="function")updateText();
-      if((typeof window !== 'undefined' ? window.localStorage : null))(typeof window !== 'undefined' ? window.localStorage : null).words=JSON.stringify(this.words);
     }
   }
 })();
@@ -1208,8 +1145,7 @@ var _getSyllables = function(text,bi) {
   return syl;
 }
 var _getEnSyllables = function(text){return Syl.syllabify(text);};
-var _getLaSyllables = function(text){return Syl.syllabify(text,'la');};
-var getSyllables = _getLaSyllables;
+var getSyllables = _getSyllables;
 
 function getWords(syls) {
   var len = syls.length;
@@ -1248,7 +1184,15 @@ function getWords(syls) {
 }
 
 function addBoldItalic(text,accents,preparatory,sylsAfterBold,format,onlyVowel,verseNumber,prefix,suffix,verseIndex,lang) {
-  var getSyllables = lang == "en" ? _getEnSyllables : _getLaSyllables;
+  // Latin goes through _getSyllables (regexLatin), not _getLaSyllables (Hypher).
+  // applyPsalmTone already picks _getSyllables for every language but English,
+  // so that is what the engraved score is syllabified with; using Hypher here
+  // made the printed pointing disagree with the notes over it. Hypher's Latin
+  // patterns do not break hiatus — "meus", "suae", "eum" and "generationes"
+  // come back whole or as "ge-ne-ra-tio-nes", so the final accent landed a
+  // syllable early; jgabc.org only hides that by shipping the words it cannot
+  // syllabify off to a remote service that we deliberately do not call.
+  var getSyllables = lang == "en" ? _getEnSyllables : _getSyllables;
   if(!sylsAfterBold) sylsAfterBold = 0;
   var f = bi_formats[format];
   if(!f) f = bi_formats.html;
@@ -1666,10 +1610,11 @@ window['shiftGabc'] = shiftGabc;}
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    setSyllabifier,
     addBoldItalic,
     applyPsalmTone,
+    getGabcTones,
     getPsalmTones,
-    getEndings,
-    _getLaSyllables
+    getEndings
   };
 }

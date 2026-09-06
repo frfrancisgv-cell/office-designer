@@ -12,15 +12,13 @@
     "check:hymns": "node scripts/audit-hymn-index.mjs",
     "start": "next start",
     "lint": "eslint .",
-    "clean": "next clean"
+    "clean": "next clean",
+    "build:english-stress": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-register.mjs scripts/build-english-stress.mjs"
   },
   "dependencies": {
     "@romcal/calendar.united-states": "3.0.0-dev.140",
     "autoprefixer": "^10.4.21",
     "cheerio": "^1.2.0",
-    "hyphenation.en-us": "^0.2.1",
-    "hyphenation.la": "^0.2.1",
-    "hypher": "^0.2.5",
     "lucide-react": "^0.553.0",
     "next": "^15.4.9",
     "postcss": "^8.5.6",
