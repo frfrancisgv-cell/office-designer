@@ -24,3 +24,9 @@ tsconfig.tsbuildinfo
 # extraction scripts, never committed.
 # The brackets are escaped: unescaped, git reads them as a character class.
 /\[Novus Ordo\] Liturgia Horarum - Paul VI.pdf
+
+# The extraction of that PDF, one JSON object per page. Same text, same
+# copyright, 38 MB: scripts/extract-liturgia-horarum.py regenerates it from
+# the local PDF in a minute. A chapel booklet is one thing; a
+# machine-readable corpus is another, and this is the second.
+/liturgia-horarum/

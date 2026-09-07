@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Block, OfficeSettings } from '@/lib/types';
 import { isPsalmRubric } from '@/lib/blocks';
+import { positionGabcAnnotation } from '@/lib/gabc-layout';
 
 interface SharePayload {
   blocks: Block[];
@@ -31,6 +32,7 @@ function GabcViewRenderer({ gabc, baseFontSize = 12 }: { gabc: string; baseFontS
 
     let safeGabc = gabc
       .replace(/<v>\\greheightstar<\/v>/g, ' *')
+      .replace(/\\greheightstar/g, '*')
       .replace(/<v>\\GreDagger<\/v>/g, ' †')
       .replace(/<v>[^<]*<\/v>/g, '')
       .replace(/<sp>V\/<\/sp>/g, '℣')
@@ -58,11 +60,7 @@ function GabcViewRenderer({ gabc, baseFontSize = 12 }: { gabc: string; baseFontS
         if (annotation) score.annotation = new ex.Annotation(ctxt, annotation);
         score.performLayoutAsync(ctxt, () => {
           score.layoutChantLines(ctxt, layoutWidth, () => {
-            // Keep the annotation clear of the large initial. Exsurge assigns
-            // its default position during layoutChantLines, so adjust it here.
-            if (score.annotation) {
-              score.annotation.bounds.y -= ctxt.staffInterval;
-            }
+            positionGabcAnnotation(score, ctxt);
             container.innerHTML = score.createSvg(ctxt);
             const svg = container.querySelector('svg');
             if (svg) {
@@ -101,13 +99,14 @@ function BlockView({
     case 'rubric':
       return <p className={`text-[0.9em] italic mb-1 ${centerRubric ? 'text-center' : ''}`} style={style}>{block.content}</p>;
     case 'antiphon':
+    case 'invitatory-antiphon':
     case 'hymn':
       return (
         <div className="mb-2">
           {block.gabcScore
             ? <>
                 <GabcViewRenderer gabc={block.gabcScore} baseFontSize={baseFontSize} />
-                {block.content && <p className="text-[0.82em] italic text-center text-gray-600 mt-0.5">{block.content}</p>}
+                {block.content && block.printTranslation !== false && <p className="text-[0.82em] italic text-center text-gray-600 mt-0.5">{block.content}</p>}
               </>
             : <p className="italic text-justify">{block.content}</p>
           }

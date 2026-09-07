@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Block, GabcCandidate } from '@/lib/types';
-import { ChevronUp, ChevronDown, Trash2, GripVertical } from 'lucide-react';
 import { PsalmSyllableEditor } from './PsalmSyllableEditor';
 import { GabcRenderer } from './GabcRenderer';
 import { GabcSearchPanel } from './GabcSearchPanel';
@@ -10,7 +10,12 @@ import { EditableText } from './EditableText';
 import { InsertPageBreak } from './InsertPageBreak';
 import { useBlockPointing } from '@/hooks/useBlockPointing';
 import { stripLypsautierantHtml } from '@/lib/psalm-tones/lypsautierant-strip';
-import { hasPointingMarkup } from '@/lib/psalm-tones/strip';
+import { accentuateEnglish } from '@/lib/psalm-tones/english-phonetic';
+import { findSavedAccents } from '@/lib/psalm-tones/accent-corrections';
+import { useAccentCorrections } from '@/hooks/useAccentCorrections';
+import { LypsautierantAccentEditor } from './LypsautierantAccentEditor';
+import { hasPointingMarkup, stripPointing } from '@/lib/psalm-tones/strip';
+import type { CreatedTone } from '@/lib/psalm-tones/creator';
 
 // Re-export for convenience since other files import it from here
 export { InsertPageBreak };
@@ -18,42 +23,41 @@ export { InsertPageBreak };
 interface BlockEditorProps {
   block: Block;
   index: number;
-  total: number;
   rubricColor: string;
   updateBlock: (id: string, updates: Partial<Block>) => void;
   insertBlock?: (index: number, newBlockData: Omit<Block, 'id'>) => void;
-  removeBlock: (id: string) => void;
-  moveBlock: (index: number, direction: 'up' | 'down') => void;
   reorderBlock: (sourceIndex: number, destIndex: number) => void;
   finalePreps: 1 | 2 | 3;
   setFinalePreps: (n: 1 | 2 | 3) => void;
   centerRubric?: boolean;
   baseFontSize?: number;
   isActive: boolean;
+  toolsTarget: HTMLDivElement | null;
   onClick: () => void;
 }
 
 export function BlockEditor({
   block,
   index,
-  total,
   rubricColor,
   updateBlock,
   insertBlock,
-  removeBlock,
-  moveBlock,
   reorderBlock,
   finalePreps,
   setFinalePreps,
   centerRubric = false,
   baseFontSize = 12,
   isActive,
+  toolsTarget,
   onClick,
 }: BlockEditorProps) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const hasTranslation = !!(block.gabcScore || block.musicDataUri) && ['antiphon', 'invitatory-antiphon', 'hymn'].includes(block.type);
 
   // ── Lypsautierant panel state ──
-  const [showLypsPanel, setShowLypsPanel] = useState(false);
+  const [pointingMethod, setPointingMethod] = useState<'gregorian' | 'stress' | 'simple' | 'created'>(block.createdTone ? 'created' : block.lypsautierantFamily ? 'stress' : 'gregorian');
+  const [textChoice, setTextChoice] = useState<'current' | 'english' | 'latin' | 'imported'>('current');
+  const [showLypsPanel, setShowLypsPanel] = useState(!!block.lypsautierantFamily);
   const [lypsFamily, setLypsFamily] = useState<string>(block.lypsautierantFamily ?? 'english');
   const [lypsMode, setLypsMode] = useState<string>(block.lypsautierantMode ?? 'eight');
   const [lypsVariation, setLypsVariation] = useState<string>(block.lypsautierantVariation ?? 'a');
@@ -61,6 +65,76 @@ export function BlockEditor({
   const [isApplyingLyps, setIsApplyingLyps] = useState(false);
   const [lypsWarnings, setLypsWarnings] = useState<string[]>([]);
   const [lypsError, setLypsError] = useState<string | null>(null);
+  /** Guards against an earlier re-point landing after a later one. */
+  const lypsSeqRef = React.useRef(0);
+
+  // ── Saved accent corrections ──
+  // Shared across every block: one fetch, and a save made here is seen by the
+  // other psalms in the office immediately.
+  const {
+    corrections,
+    words: savedWords,
+    save: saveAccentCorrections,
+    forget: forgetAccentCorrections,
+  } = useAccentCorrections();
+  const [isSavingAccents, setIsSavingAccents] = useState(false);
+  const [accentSaveNote, setAccentSaveNote] = useState<string | null>(null);
+  const [accentSaveError, setAccentSaveError] = useState<string | null>(null);
+
+  // ── Tones designed in the Psalm Tone Creator ──
+  // The creator itself is a page of its own (the button beside Print); what
+  // the block needs is only the library it saves and a way to apply one.
+  const [createdTones, setCreatedTones] = useState<CreatedTone[]>([]);
+  const [createdToneId, setCreatedToneId] = useState<string>(block.createdTone?.id ?? '');
+  const [isApplyingCreated, setIsApplyingCreated] = useState(false);
+  const [createdToneError, setCreatedToneError] = useState<string | null>(null);
+
+  // Fetch the saved library the first time the method is chosen, and again on
+  // every visit, so a tone just saved in the other tab shows up here.
+  useEffect(() => {
+    if (pointingMethod !== 'created') return;
+    const controller = new AbortController();
+    fetch('/api/tone-creator', { signal: controller.signal })
+      .then(r => r.json())
+      .then(data => {
+        const tones: CreatedTone[] = data.tones ?? [];
+        setCreatedTones(tones);
+        // A shared document can carry a tone the library does not have;
+        // leaving that id selected would show a select with no match.
+        setCreatedToneId(id => tones.some(t => t.id === id) ? id : tones[0]?.id ?? '');
+      })
+      .catch(() => { if (!controller.signal.aborted) setCreatedToneError('Could not read the saved tone library.'); });
+    return () => controller.abort();
+  }, [pointingMethod]);
+
+  const handleApplyCreatedTone = async () => {
+    const tone = createdTones.find(t => t.id === createdToneId);
+    if (!tone) return;
+    setIsApplyingCreated(true);
+    setCreatedToneError(null);
+    // The accent-corrected text comes first: the lyps tones read those acutes
+    // to find each cadence, exactly as the creator's own preview does.
+    const text = stripPointing(block.lypsautierantAccents || block.originalContent || block.content);
+    try {
+      const res = await fetch('/api/tone-creator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'preview', tone, text, lang: block.lang || 'en' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not apply this tone.');
+      updateBlock(block.id, {
+        createdTone: tone,
+        originalContent: text,
+        content: data.html || text,
+        gabcScore: data.gabc || undefined,
+      });
+    } catch (e) {
+      setCreatedToneError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsApplyingCreated(false);
+    }
+  };
 
   // Fetch available variations when family/mode changes
   useEffect(() => {
@@ -80,26 +154,144 @@ export function BlockEditor({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lypsFamily, lypsMode, showLypsPanel]);
 
+  /** The english and gregorian tones read accents; the others count syllables. */
+  const lypsReadsAccents = lypsFamily === 'english' || lypsFamily === 'gregorian';
+
+  /**
+   * The block's own text, unpointed.
+   *
+   * The mark glyphs are real text nodes, so stripLypsautierantHtml is what
+   * takes them off — plain tag stripping would feed "of+" back in and
+   * compound the damage on every re-point. `originalContent` is preferred
+   * because it may only ever hold unpointed text.
+   */
+  const lypsPlainText = stripLypsautierantHtml(block.originalContent ?? block.content);
+
+  /**
+   * The accents the accent-aware tones will be pointed from, and whether they
+   * were supplied rather than found in the text.
+   *
+   * A correction made in this session is the only copy of itself in the
+   * document — `content` is pointed HTML and `originalContent` may only hold
+   * unpointed text — so it is kept on the block and comes first here.
+   *
+   * Failing that, a correction saved to disk for this very text is used: that
+   * is what brings the accents back when the same psalm comes round again on
+   * the four-week cycle. Then text that carries its own acutes (psautier's
+   * psalter, loaded with "Lypsautierant (EN)") as it stands, and text with
+   * none (an iBreviary psalm) accented from the stress dictionary — with the
+   * saved word corrections read ahead of it, so a psalm nobody has opened
+   * gets the benefit of the ones that have been — so the editor can show what
+   * the tones would do before anything is applied.
+   */
+  const savedAccents = React.useMemo(
+    () => findSavedAccents(corrections, lypsPlainText),
+    [corrections, lypsPlainText],
+  );
+
+  const lypsAccents = React.useMemo(() => {
+    if (block.lypsautierantAccents) {
+      return {
+        text: block.lypsautierantAccents,
+        derived: block.lypsautierantAccentsDerived ?? false,
+      };
+    }
+    if (savedAccents) return { text: savedAccents.accents, derived: false };
+    if (/[áéíóúýÁÉÍÓÚÝ]/.test(lypsPlainText)) return { text: lypsPlainText, derived: false };
+    return { text: accentuateEnglish(lypsPlainText, savedWords), derived: true };
+  }, [
+    block.lypsautierantAccents,
+    block.lypsautierantAccentsDerived,
+    lypsPlainText,
+    savedAccents,
+    savedWords,
+  ]);
+
+  /** True while what the editor shows is exactly what is on disk for it. */
+  const accentsAreSaved = savedAccents?.accents === lypsAccents.text;
+
+  /**
+   * Keep these accents: the text whole, so this psalm comes back corrected,
+   * and the words whose accent was moved, so every other psalm containing them
+   * is accented right the first time.
+   */
+  async function handleSaveAccents() {
+    setIsSavingAccents(true);
+    setAccentSaveError(null);
+    setAccentSaveNote(null);
+    try {
+      const learned = await saveAccentCorrections(
+        lypsAccents.text,
+        block.psalmNumber ? `Psalm ${block.psalmNumber}` : undefined,
+      );
+      const shown = learned.slice(0, 6).join(', ') + (learned.length > 6 ? '…' : '');
+      setAccentSaveNote(
+        learned.length
+          ? `Saved. This text will come back accented as it is now, and ${learned.length} word ${learned.length === 1 ? 'stress' : 'stresses'} will be used in every psalm: ${shown}`
+          : 'Saved. This text will come back accented as it is now.',
+      );
+    } catch (err) {
+      setAccentSaveError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSavingAccents(false);
+    }
+  }
+
+  /** Drop the saved copy of this text. The learned word stresses stay. */
+  async function handleForgetAccents() {
+    setIsSavingAccents(true);
+    setAccentSaveError(null);
+    setAccentSaveNote(null);
+    try {
+      await forgetAccentCorrections(lypsPlainText);
+      setAccentSaveNote('Forgotten. This text will be accented from the dictionary again.');
+    } catch (err) {
+      setAccentSaveError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSavingAccents(false);
+    }
+  }
+
+  /** Re-point with the accents just edited, so the marks follow the click. */
+  async function handleAccentsChange(accented: string) {
+    // Edited by hand, so no longer the dictionary's guess.
+    await applyLypsautierant(accented, false);
+  }
+
   async function handleApplyLypsautierant() {
+    // The positional families never look at accents, so they get the text as
+    // it stands rather than one with acutes added for a tone that ignores them.
+    if (!lypsReadsAccents) return applyLypsautierant(lypsPlainText, null);
+    return applyLypsautierant(lypsAccents.text, lypsAccents.derived);
+  }
+
+  /**
+   * Point `text` and take the result.
+   *
+   * `derived` says what to record about the accents in it: true while they are
+   * the stress dictionary's guess, false once they have been read off the text
+   * or corrected by hand, and null for the positional families, which do not
+   * read accents and must not touch what is held for the others.
+   *
+   * The server reports whether it had to supply the accents itself, but that
+   * is not the answer here: the accent editor needs them before anything is
+   * pointed, so they are supplied on this side and the server only ever sees
+   * text that already has them.
+   */
+  async function applyLypsautierant(text: string, derived: boolean | null) {
+    // Every click in the accent editor points again, so a slow response must
+    // not be allowed to land on top of a later one.
+    const seq = ++lypsSeqRef.current;
     setIsApplyingLyps(true);
     setLypsError(null);
     setLypsWarnings([]);
     try {
-      // Point the text the block started with, not the pointed HTML: the
-      // mark glyphs are real text nodes, so plain tag-stripping would feed
-      // "of+" back in and compound the damage on every re-point.
-      // stripLypsautierantHtml keeps the verse numbers and the '*' and
-      // dagger markers, so re-pointing preserves the verse structure —
-      // including any of it the user fixed by hand.
-      const source = block.originalContent ?? block.content;
-      const plainText = stripLypsautierantHtml(source);
-
       const res = await fetch('/api/lypsautierant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'point',
-          text: plainText,
+          text,
           family: lypsFamily,
           mode: lypsMode,
           variation: lypsVariation,
@@ -108,6 +300,7 @@ export function BlockEditor({
         }),
       });
       const data = await res.json();
+      if (seq !== lypsSeqRef.current) return;
 
       if (!res.ok || !data.html) {
         setLypsError(data.error ?? 'Pointing failed');
@@ -118,17 +311,24 @@ export function BlockEditor({
       setLypsWarnings(data.warnings ?? []);
       updateBlock(block.id, {
         content: data.html,
+        gabcScore: undefined,
         // Keep the unpointed text so a later change of mode starts clean.
         originalContent: block.originalContent ?? block.content,
+        // And keep the accents the marks were read off, so the next re-point
+        // uses them instead of starting over from a guess.
+        ...(derived === null ? {} : {
+          lypsautierantAccents: text,
+          lypsautierantAccentsDerived: derived,
+        }),
         lypsautierantFamily: lypsFamily,
         lypsautierantMode: lypsMode,
         lypsautierantVariation: lypsVariation,
       });
     } catch (err) {
       console.error('Lypsautierant apply error:', err);
-      setLypsError(err instanceof Error ? err.message : String(err));
+      if (seq === lypsSeqRef.current) setLypsError(err instanceof Error ? err.message : String(err));
     } finally {
-      setIsApplyingLyps(false);
+      if (seq === lypsSeqRef.current) setIsApplyingLyps(false);
     }
   }
 
@@ -165,7 +365,7 @@ export function BlockEditor({
   return (
     <div
       data-block-id={block.id}
-      className={`group relative w-full ${isActive ? 'mb-1 p-2' : 'mb-0 px-1 py-0'} print:p-0 print:mb-0 rounded transition-[padding,margin,background-color,border-color] border-2 hover:border-gray-200 ${
+      className={`group relative w-full mb-0 px-1 py-0 print:p-0 print:mb-0 rounded transition-colors border-2 hover:border-gray-200 ${
         block.gabcCandidates && block.gabcCandidates.length > 0 && !block.gabcScore
           ? 'border-indigo-400 bg-indigo-50/30'
           : 'border-transparent hover:bg-gray-50'
@@ -191,22 +391,6 @@ export function BlockEditor({
       }}
       onClick={() => { if (onClick) onClick(); }}
     >
-      {/* Floating toolbar */}
-      <div className={`${isActive ? 'flex' : 'hidden'} absolute right-2 -top-4 flex-row gap-1 items-center bg-white shadow border border-gray-200 rounded p-1 no-print z-10`}>
-        <div
-          draggable
-          className="cursor-move p-1 text-gray-400 hover:text-gray-900"
-          onDragStart={e => { e.dataTransfer.setData('text/plain', index.toString()); }}
-          title="Drag to Move"
-        >
-          <GripVertical size={14} />
-        </div>
-        <div className="w-px h-4 bg-gray-200 mx-0.5" />
-        <button onClick={e => { e.stopPropagation(); moveBlock(index, 'up'); }} disabled={index === 0} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30 disabled:hover:bg-transparent" title="Move Up"><ChevronUp size={14} /></button>
-        <button onClick={e => { e.stopPropagation(); moveBlock(index, 'down'); }} disabled={index === total - 1} className="p-1 hover:bg-gray-100 rounded disabled:opacity-30 disabled:hover:bg-transparent" title="Move Down"><ChevronDown size={14} /></button>
-        <button onClick={e => { e.stopPropagation(); removeBlock(block.id); }} className="p-1 hover:bg-red-50 text-red-600 rounded" title="Delete Block"><Trash2 size={14} /></button>
-      </div>
-
       {block.type === 'page-break' ? (
         <div className="text-center w-full border-t border-dashed border-[#ccc] pt-2 relative print:block print:break-after-page print:border-none print:pt-0 print:h-0 print:overflow-hidden">
           <span className="no-print text-[10px] text-[#999] uppercase tracking-widest bg-[#dcdcdc] px-2 absolute -top-2.5 left-1/2 -translate-x-1/2">Page Break</span>
@@ -214,7 +398,7 @@ export function BlockEditor({
       ) : (
         <>
           {/* Editable Content */}
-          {!(block.type === 'psalm' && block.gabcScore) && <EditableText
+          {!hasTranslation && !(block.type === 'psalm' && block.gabcScore) && <EditableText
             value={block.content}
             onChange={(val: string) => {
               // originalContent is the clean baseline both pointing paths
@@ -249,283 +433,142 @@ export function BlockEditor({
             placeholder={`Enter ${block.type} text...`}
           />}
 
-          {/* Psalm Pointing Toolbar */}
-          {block.type === 'psalm' && (
-            <div className={`${isActive ? 'flex' : 'hidden'} no-print mt-1 items-center gap-2 flex-wrap`}>
-
-              {/* ── Tone selector row ── */}
-              <div className="flex items-center gap-1 flex-wrap">
-                {block.psalmTone && (
-                  <span
-                    className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded font-semibold"
-                    title="Tone detected from preceding antiphon"
-                  >
-                    ♪ {block.psalmTone}{block.psalmVariant ? ` ${block.psalmVariant}` : ''}
-                  </span>
-                )}
-                <select
-                  value={selectedTone}
-                  onChange={e => handleToneChange(e.target.value)}
-                  className="text-[10px] border border-gray-300 rounded px-1 py-0.5 bg-white max-w-[90px]"
-                  title="Gregorian psalm tone"
-                >
-                  {toneNames.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
+          {isActive && toolsTarget && createPortal(<div className="block-tools" onClick={e => e.stopPropagation()} onDragOver={e => e.stopPropagation()} onDrop={e => e.stopPropagation()}>
+          {hasTranslation && block.content && <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" checked={block.printTranslation !== false} onChange={e => updateBlock(block.id, { printTranslation: e.target.checked })} />
+            Print translation below chant
+          </label>}
+          {block.type === 'psalm' && <div className="pointing-workflow">
+            <section>
+              <label className="pointing-row">Text:
+                <select value={textChoice} disabled={isLoadingStress || isLoadingLatin} onChange={e => setTextChoice(e.target.value as typeof textChoice)}>
+                  <option value="current">Keep current text</option>
+                  <option value="english" disabled={!block.psalmNumber}>New English translation</option>
+                  <option value="latin" disabled={!block.psalmNumber}>Latin</option>
+                  {block.ibreviaryContent && <option value="imported">Original iBreviary text</option>}
                 </select>
-                {variantOptions.length > 1 && (
-                  <select
-                    value={selectedVariant}
-                    onChange={e => handleVariantChange(e.target.value)}
-                    className="text-[10px] border border-gray-300 rounded px-1 py-0.5 bg-white max-w-[60px]"
-                    title="Termination variant"
-                  >
-                    {variantOptions.map(v => (
-                      <option key={v} value={v}>{v || '—'}</option>
-                    ))}
-                  </select>
-                )}
-                {solemnAvailable && (
-                  <label
-                    className="flex items-center gap-1 text-[10px] text-gray-600 select-none cursor-pointer"
-                    title="Sing the solemn mediant instead of the simple one. Traditional for the Gospel canticles."
-                  >
-                    <input
-                      type="checkbox"
-                      checked={useSolemn}
-                      onChange={e => setUseSolemn(e.target.checked)}
-                      className="w-3 h-3 accent-indigo-600"
-                    />
-                    solemn
-                  </label>
-                )}
-                <button
-                  onClick={() => setShowCustomTonePanel(v => !v)}
-                  className={`text-[10px] px-1.5 py-0.5 border rounded transition-colors ${
-                    showCustomTonePanel ? 'bg-purple-600 text-white border-purple-600 font-semibold' : 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
-                  }`}
-                  title="Toggle custom GABC tone formula editor"
-                >
-                  {showCustomTonePanel ? 'Hide Tone GABC' : '⚙ Custom GABC'}
-                </button>
-                <button
-                  onClick={handleApplyTone}
-                  disabled={isApplyingTone}
-                  className="text-[10px] px-2 py-0.5 bg-indigo-600 border border-indigo-600 text-white font-semibold rounded hover:bg-indigo-700 disabled:opacity-50"
-                  title={`Point psalm to tone ${selectedTone}${selectedVariant ? ' ' + selectedVariant : ''}${solemnAvailable && useSolemn ? ' (solemn)' : ''}`}
-                >
-                  {isApplyingTone ? '…' : 'Apply Tone'}
-                </button>
-                {block.psalmNumber && (
-                  <>
-                    <button
-                      onClick={handleLoadStressedText}
-                      disabled={isLoadingStress}
-                      className="text-[10px] px-2 py-0.5 bg-amber-50 border border-amber-300 text-amber-700 rounded hover:bg-amber-100 disabled:opacity-50"
-                      title={`Load stressed English text for ${typeof block.psalmNumber === 'number' ? 'Psalm ' : ''}${block.psalmNumber}`}
-                    >
-                      {isLoadingStress ? '…' : `Lypsautierant (EN)`}
-                    </button>
-                    <button
-                      onClick={handleLoadLatinText}
-                      disabled={isLoadingLatin}
-                      className="text-[10px] px-2 py-0.5 bg-emerald-50 border border-emerald-300 text-emerald-700 font-medium rounded hover:bg-emerald-100 disabled:opacity-50"
-                      title={`Load Latin text for ${typeof block.psalmNumber === 'number' ? 'Psalm ' : ''}${block.psalmNumber} (jgabc)`}
-                    >
-                      {isLoadingLatin ? '…' : `✝ Latin (jgabc)`}
-                    </button>
-                  </>
-                )}
-                {block.ibreviaryContent && (
-                  <button
-                    onClick={handleRestoreIbreviaryText}
-                    className="text-[10px] px-2 py-0.5 bg-blue-50 border border-blue-300 text-blue-700 rounded hover:bg-blue-100"
-                    title="Switch back to original iBreviary psalm text"
-                  >
-                    ↺ iBreviary
-                  </button>
-                )}
+              </label>
+              {textChoice !== 'current' && <button disabled={isLoadingStress || isLoadingLatin} onClick={async () => {
+                if (textChoice === 'english') await handleLoadStressedText();
+                else if (textChoice === 'latin') await handleLoadLatinText();
+                else handleRestoreIbreviaryText();
+                setShowPointEditor(false);
+              }}>{isLoadingStress || isLoadingLatin ? 'Loading text…' : 'Use this text'}</button>}
+              {!block.psalmNumber && <p>Text alternatives require an identified psalm or canticle.</p>}
+            </section>
 
+            <section>
+              <label className="pointing-row">Method:
+                <select value={pointingMethod} onChange={e => {
+                  const method = e.target.value as typeof pointingMethod;
+                  setPointingMethod(method);
+                  setShowLypsPanel(method === 'stress');
+                  setShowPointEditor(false);
+                }}>
+                  <option value="gregorian">Gregorian</option>
+                  <option value="stress">+/− stress aware</option>
+                  <option value="simple">Simple — bold / italics</option>
+                  <option value="created">Custom Tone</option>
+                </select>
+              </label>
+
+              {pointingMethod === 'gregorian' && <>
+                <div className="pointing-fields">
+                  <label>Tone:<select value={selectedTone} onChange={e => handleToneChange(e.target.value)}>
+                    {toneNames.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select></label>
+                  <label>Ending:<select value={selectedVariant} onChange={e => handleVariantChange(e.target.value)}>
+                    {variantOptions.map(v => <option key={v} value={v}>{v || 'Default'}</option>)}
+                  </select></label>
+                </div>
+                {solemnAvailable && <label className="pointing-check"><input type="checkbox" checked={useSolemn} onChange={e => setUseSolemn(e.target.checked)} />Solemn form</label>}
+                <button aria-expanded={showCustomTonePanel} onClick={() => setShowCustomTonePanel(v => !v)}>{showCustomTonePanel ? 'Hide tone formula' : 'Edit tone formula'}</button>
+                {showCustomTonePanel && <div className="space-y-3">
+                  <label>Mediant formula (GABC)<input value={customMediant} onChange={e => { setCustomMediant(e.target.value); updateBlock(block.id, { customMediant: e.target.value }); }} /></label>
+                  <label>Ending formula (GABC)<input value={customTermination} onChange={e => { setCustomTermination(e.target.value); updateBlock(block.id, { customTermination: e.target.value }); }} /></label>
+                </div>}
+              </>}
+
+              {pointingMethod === 'stress' && <>
+                <label className="pointing-row">Family:<select value={lypsFamily} onChange={e => setLypsFamily(e.target.value)}>
+                  <option value="english">English — stress aware</option>
+                  <option value="gregorian">Gregorian — stress aware</option>
+                  <option value="modes">Modal — syllable count</option>
+                  <option value="french">French — syllable count</option>
+                </select></label>
+                <div className="pointing-fields">
+                  <label>Mode:<select value={lypsMode} onChange={e => setLypsMode(e.target.value)}>
+                    {['one','two','three','four','five','six','seven','eight','peregrinus'].map(m => <option key={m} value={m}>{m}</option>)}
+                  </select></label>
+                  <label>Ending:<select value={lypsVariation} onChange={e => setLypsVariation(e.target.value)} disabled={!lypsVariations.length}>
+                    {lypsVariations.map(v => <option key={v} value={v}>{v}</option>)}
+                  </select></label>
+                </div>
+                <p>{lypsReadsAccents ? 'Marks follow word stress. Review or correct the stresses below.' : 'This family places marks by syllable count.'}</p>
+                {lypsReadsAccents && block.lang !== 'la' && <details>
+                  <summary>Review word stresses</summary>
+                  <LypsautierantAccentEditor
+                    text={lypsAccents.text}
+                    onChange={handleAccentsChange}
+                    derived={lypsAccents.derived}
+                    save={{
+                      exists: !!savedAccents,
+                      current: accentsAreSaved,
+                      busy: isSavingAccents,
+                      note: accentSaveNote,
+                      error: accentSaveError,
+                      onSave: () => void handleSaveAccents(),
+                      onForget: () => void handleForgetAccents(),
+                    }}
+                  />
+                </details>}
+                {lypsError && <p role="alert">{lypsError}</p>}
+                {lypsWarnings.map((warning, i) => <p key={i}>{warning}</p>)}
+              </>}
+
+              {pointingMethod === 'created' && <>
+                <label className="pointing-row">Tone:<select value={createdToneId} onChange={e => setCreatedToneId(e.target.value)} disabled={!createdTones.length}>
+                  {createdTones.length ? createdTones.map(t => <option key={t.id} value={t.id}>{t.name} ({t.backend === 'lyps' ? '+ − =' : 'GABC'})</option>) : <option value="">No tones saved yet</option>}
+                </select></label>
+                <p>Tones are designed in the Psalm Tone Creator — the button beside Print, which opens in its own tab. Reopen this menu after saving there to pick up a new tone.</p>
+                {createdToneError && <p role="alert">{createdToneError}</p>}
+              </>}
+
+              {pointingMethod === 'simple' && <>
+                <label className="pointing-row">Preparation:<select value={finalePreps} onChange={e => setFinalePreps(Number(e.target.value) as 1 | 2 | 3)}>
+                  {[1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
+                </select></label>
+                <p>Bold marks the accent; italics mark the preparatory syllables.</p>
+              </>}
+
+              <button className="pointing-apply" disabled={isApplyingTone || isApplyingLyps || isApplyingCreated || isLoadingStress || isLoadingLatin || (pointingMethod === 'stress' && !lypsVariation) || (pointingMethod === 'created' && !createdToneId)} onClick={() => {
+                if (pointingMethod === 'gregorian') void handleApplyTone();
+                else if (pointingMethod === 'stress') void handleApplyLypsautierant();
+                else if (pointingMethod === 'created') void handleApplyCreatedTone();
+                else handleAutoPoint(finalePreps);
+              }}>{isApplyingTone || isApplyingLyps || isApplyingCreated ? 'Applying…' : 'Apply pointing'}</button>
+              <div className="flex flex-wrap gap-2">
+                {pointingMethod === 'simple' && block.lang !== 'la' && <button onClick={() => setShowPointEditor(v => !v)}>{showPointEditor ? 'Close syllable editor' : 'Edit syllables'}</button>}
+                <button onClick={() => {
+                  updateBlock(block.id, { content: block.originalContent || block.content, gabcScore: undefined, createdTone: undefined });
+                  setShowPointEditor(false);
+                }}>Remove pointing</button>
               </div>
-
-              {pointingError && (
-                <div className="w-full flex items-start gap-2 px-2 py-1 bg-red-50 border border-red-200 rounded text-[10px] text-red-700">
-                  <span className="flex-1 font-semibold">{pointingError}</span>
-                  <button
-                    onClick={clearPointingError}
-                    className="text-red-500 hover:text-red-800 leading-none px-1"
-                    title="Dismiss"
-                  >
-                    ×
-                  </button>
-                </div>
-              )}
-
-              {/* ── Lypsautierant toggle button ── */}
-              <button
-                onClick={() => setShowLypsPanel(v => !v)}
-                className={`text-[10px] px-1.5 py-0.5 border rounded transition-colors ${
-                  showLypsPanel ? 'bg-orange-600 text-white border-orange-600 font-semibold' : 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
-                }`}
-                title="Toggle Lypsautierant mode pointing panel"
-              >
-                {showLypsPanel ? 'Hide Lyps' : '♩ Lypsautierant'}
-              </button>
-
-              {/* ── Custom Tone GABC formulas panel ── */}
-              {showCustomTonePanel && (
-                <div className="w-full mt-1.5 p-2 bg-purple-50/80 border border-purple-200 rounded flex flex-col gap-1.5 text-[11px] no-print">
-                  <div className="flex items-center gap-2">
-                    <label className="w-28 text-[10px] font-semibold text-purple-900 shrink-0">Mediant GABC:</label>
-                    <input
-                      type="text"
-                      value={customMediant}
-                      onChange={e => {
-                        setCustomMediant(e.target.value);
-                        updateBlock(block.id, { customMediant: e.target.value });
-                      }}
-                      placeholder="e.g. g h jr 'k jr j."
-                      className="flex-1 font-mono text-[10px] px-2 py-0.5 border border-purple-300 rounded bg-white text-purple-950 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="w-28 text-[10px] font-semibold text-purple-900 shrink-0">Termination GABC:</label>
-                    <input
-                      type="text"
-                      value={customTermination}
-                      onChange={e => {
-                        setCustomTermination(e.target.value);
-                        updateBlock(block.id, { customTermination: e.target.value });
-                      }}
-                      placeholder="e.g. jr i j 'h gr g."
-                      className="flex-1 font-mono text-[10px] px-2 py-0.5 border border-purple-300 rounded bg-white text-purple-950 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* ── Lypsautierant mode panel ── */}
-              {showLypsPanel && (
-                <div className="w-full mt-1.5 p-2 bg-orange-50/80 border border-orange-200 rounded flex flex-col gap-2 text-[11px] no-print">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* Family */}
-                    <label className="text-[10px] font-semibold text-orange-900 shrink-0">Family:</label>
-                    <select
-                      value={lypsFamily}
-                      onChange={e => setLypsFamily(e.target.value)}
-                      className="text-[10px] px-1.5 py-0.5 border border-orange-300 rounded bg-white text-orange-950 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                    >
-                      <option value="english">english</option>
-                      <option value="gregorian">gregorian</option>
-                      <option value="modes">modes</option>
-                      <option value="french">french</option>
-                    </select>
-
-                    {/* Mode */}
-                    <label className="text-[10px] font-semibold text-orange-900 shrink-0">Mode:</label>
-                    <select
-                      value={lypsMode}
-                      onChange={e => setLypsMode(e.target.value)}
-                      className="text-[10px] px-1.5 py-0.5 border border-orange-300 rounded bg-white text-orange-950 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                    >
-                      {['one','two','three','four','five','six','seven','eight','peregrinus'].map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-
-                    {/* Termination. The list comes from the API because it
-                        differs per mode: gregorian/two has only 'd',
-                        gregorian/four 'a' and 'e', gregorian/six 'f' and 'd'. */}
-                    <label className="text-[10px] font-semibold text-orange-900 shrink-0">Termination:</label>
-                    <select
-                      value={lypsVariation}
-                      onChange={e => setLypsVariation(e.target.value)}
-                      disabled={lypsVariations.length === 0}
-                      className="text-[10px] px-1.5 py-0.5 border border-orange-300 rounded bg-white text-orange-950 focus:outline-none focus:ring-1 focus:ring-orange-500 disabled:opacity-50"
-                    >
-                      {lypsVariations.map(v => (
-                        <option key={v} value={v}>{v}</option>
-                      ))}
-                    </select>
-
-                    <button
-                      onClick={handleApplyLypsautierant}
-                      disabled={isApplyingLyps || !lypsVariation}
-                      className="text-[10px] px-2 py-0.5 bg-orange-600 border border-orange-600 text-white font-semibold rounded hover:bg-orange-700 disabled:opacity-50"
-                      title={`Apply ${lypsFamily}/${lypsMode}/${lypsVariation} pointing`}
-                    >
-                      {isApplyingLyps ? '…' : 'Apply Lypsautierant'}
-                    </button>
-                  </div>
-                  {(lypsFamily === 'english' || lypsFamily === 'gregorian') && !block.ibreviaryContent && (
-                    <p className="text-[9px] text-orange-600 italic">
-                      ⓘ The english and gregorian tones read acute accents to find the stresses. Load accented text via the &ldquo;Lypsautierant (EN)&rdquo; button above.
-                    </p>
-                  )}
-                  <p className="text-[9px] text-orange-700 italic">
-                    ⓘ The selected termination applies to the second half of each verse. Mediant lines (*) and flex lines (†) use their own cadences; accent-aware families may also combine cadence notes (= or −−) when the final syllable is stressed.
-                  </p>
-                  {lypsError && (
-                    <p className="text-[10px] text-red-700 font-semibold">{lypsError}</p>
-                  )}
-                  {lypsWarnings.map((w, i) => (
-                    <p key={i} className="text-[10px] text-amber-800">⚠ {w}</p>
-                  ))}
-                </div>
-              )}
-
-              {/* ── Legacy pointing row ── */}
-              <div className="flex items-center gap-1.5 border-l border-gray-200 pl-2">
-                <span className="text-[10px] uppercase tracking-widest text-gray-400">Finale:</span>
-                <div className="flex gap-0.5">
-                  {([1, 2, 3] as const).map(n => (
-                    <button
-                      key={n}
-                      onClick={() => {
-                        setFinalePreps(n);
-                        if (!showPointEditor) {
-                          handleAutoPoint(n);
-                        }
-                      }}
-                      className={`text-[10px] w-5 h-5 rounded font-mono ${finalePreps === n ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                      title={`Finale: ${n} italic prep syllable${n > 1 ? 's' : ''}`}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => setShowPointEditor(v => !v)}
-                  className={`text-[10px] px-2 py-0.5 border rounded ${showPointEditor ? 'bg-sky-500 text-white border-sky-500' : 'bg-sky-50 border-sky-300 text-sky-700 hover:bg-sky-100'}`}
-                >
-                  {showPointEditor ? 'Close Editor' : 'Point…'}
-                </button>
-                <button
-                  onClick={() => {
-                    const baseText = block.originalContent || block.content;
-                    updateBlock(block.id, { content: baseText });
-                    setShowPointEditor(false);
-                  }}
-                  className="text-[10px] px-2 py-0.5 bg-gray-50 border border-gray-200 text-gray-500 rounded hover:bg-gray-100"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          )}
-
-          {block.type === 'psalm' && showPointEditor && block.lang !== 'la' && (
-            <PsalmSyllableEditor
-              content={block.content}
-              finalePreps={finalePreps}
-              onChange={(html: string) => updateBlock(block.id, { content: html })}
-            />
-          )}
+              {pointingMethod === 'simple' && showPointEditor && block.lang !== 'la' && <PsalmSyllableEditor
+                content={block.content} finalePreps={finalePreps}
+                onChange={content => updateBlock(block.id, { content })}
+                onClose={() => setShowPointEditor(false)}
+              />}
+            </section>
+            {pointingError && <div role="alert" className="flex items-start justify-between gap-2 text-sm">
+              <p>{pointingError}</p><button onClick={clearPointingError}>Dismiss</button>
+            </div>}
+          </div>}
 
           {/* GABC Text Editor */}
-          {(block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon' || ((block.type === 'psalm' || block.type === 'psalm-prayer') && (showPointEditor || block.gabcScore))) && (
-            <div className={`no-print mt-2 p-2 bg-gray-50 border border-gray-100 rounded transition-all ${isActive ? 'block opacity-100' : 'hidden opacity-0'}`}>
-              <label className="text-[10px] uppercase font-bold text-gray-500 mb-1 block">GABC Score</label>
+          {(block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon' || block.type === 'psalm' || block.type === 'psalm-prayer') && (
+            <details className="no-print rounded border border-slate-200 p-3" open={block.type !== 'psalm' ? true : undefined}>
+              <summary className="cursor-pointer text-xs font-medium text-slate-700">Chant source and image</summary>
 
               {/* OCO candidate picker */}
               {block.gabcCandidates && block.gabcCandidates.length > 0 && !block.gabcScore && (
@@ -558,7 +601,8 @@ export function BlockEditor({
                 value={block.gabcScore || ''}
                 onChange={e => updateBlock(block.id, { gabcScore: e.target.value || undefined })}
                 className="w-full text-xs font-mono p-1 border rounded"
-                rows={3}
+                rows={6}
+                aria-label="GABC score source"
                 placeholder="(c3)Can(h)tá(h)bi(h)mus(g)..."
               />
 
@@ -589,8 +633,9 @@ export function BlockEditor({
                   }}
                 />
               </div>
-            </div>
+            </details>
           )}
+          </div>, toolsTarget)}
 
           {/* GABC SVG render */}
           {(block.type === 'antiphon' || block.type === 'hymn' || block.type === 'invitatory-antiphon' || block.type === 'psalm' || block.type === 'psalm-prayer') &&
@@ -617,6 +662,12 @@ export function BlockEditor({
                 </button>
               </div>
             )}
+          {hasTranslation && block.printTranslation !== false && <EditableText
+            value={block.content}
+            onChange={content => updateBlock(block.id, { content })}
+            className="w-full text-[0.82em] italic text-center text-[#555] mt-0.5"
+            placeholder="Enter translation…"
+          />}
         </>
       )}
     </div>

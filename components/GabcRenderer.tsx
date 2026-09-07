@@ -8,6 +8,34 @@
  */
 
 import React from 'react';
+import { positionGabcAnnotation } from '@/lib/gabc-layout';
+
+/**
+ * Exsurge's drop cap leaves a stray hyphen under one-letter words.
+ *
+ * When the drop cap takes the whole of a one-character syllable, exsurge puts
+ * a hyphen in the lyric's place (exsurge.js:3312) so a divided word like
+ * "A-men" still reads as one word. But it decides that from the length of the
+ * syllable alone, so a psalm opening on a one-letter *word* — "O God, you are
+ * my God" — got a hyphen joining the initial to the next word, which is not a
+ * thing the chant books print. The syllable's own lyricType already says which
+ * case this is, so the hyphen is kept for a word that really is continued and
+ * dropped for one that is not.
+ */
+function patchExsurgeDropCap(exsurge: any) {
+  if (exsurge.Lyric.prototype.dropCapKeepsWholeWords) return;
+  const generateDropCap = exsurge.Lyric.prototype.generateDropCap;
+  exsurge.Lyric.prototype.generateDropCap = function (ctxt: any) {
+    if (this.originalText.length === 1 && this.lyricType === exsurge.LyricType.SingleSyllable) {
+      const dropCap = new exsurge.DropCap(ctxt, this.originalText);
+      this.generateSpansFromText(ctxt, '');
+      this.centerStartIndex = -1;
+      return dropCap;
+    }
+    return generateDropCap.call(this, ctxt);
+  };
+  exsurge.Lyric.prototype.dropCapKeepsWholeWords = true;
+}
 
 export function GabcRenderer({ gabc, baseFontSize = 12 }: { gabc: string; baseFontSize?: number }) {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -33,6 +61,7 @@ export function GabcRenderer({ gabc, baseFontSize = 12 }: { gabc: string; baseFo
 
     let safeGabc = gabc
       .replace(/<v>\\greheightstar<\/v>/g, ' *')
+      .replace(/\\greheightstar/g, '*')
       .replace(/<v>\\GreDagger<\/v>/g, ' \u2020')
       .replace(/<v>[^<]*<\/v>/g, '')
       .replace(/<sp>V\/<\/sp>/g, '\u2123')
@@ -54,6 +83,7 @@ export function GabcRenderer({ gabc, baseFontSize = 12 }: { gabc: string; baseFo
         return;
       }
       try {
+        patchExsurgeDropCap((window as any).exsurge);
         const ctxt = new (window as any).exsurge.ChantContext();
         ctxt.lyricTextFont = "'EB Garamond', 'Garamond', 'Cormorant Garamond', serif";
         // Match the booklet's font-size selector. Exsurge's default 16-unit
@@ -82,13 +112,7 @@ export function GabcRenderer({ gabc, baseFontSize = 12 }: { gabc: string; baseFo
 
         score.performLayoutAsync(ctxt, function () {
           score.layoutChantLines(ctxt, layoutWidth, function () {
-            // Exsurge places the annotation only three staff intervals above
-            // the staff, which can make it collide with a tall drop cap.
-            // layoutChantLines sets this position, so apply the extra clearance
-            // afterwards and before generating the SVG.
-            if (score.annotation) {
-              score.annotation.bounds.y -= ctxt.staffInterval;
-            }
+            positionGabcAnnotation(score, ctxt);
             container.innerHTML = score.createSvg(ctxt);
             const svg = container.querySelector('svg');
             if (svg) {

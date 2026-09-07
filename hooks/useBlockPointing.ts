@@ -234,11 +234,17 @@ export function useBlockPointing(
         return;
       }
       const ibreviaryText = block.ibreviaryContent || stripPointing(block.content);
+      // Any accents held for the lypsautierant tones belonged to the text
+      // being replaced. Clearing them lets the new text supply its own —
+      // psautier's psalter carries acutes of its own, and iBreviary's does
+      // not and gets them from the stress dictionary.
       updateBlock(block.id, {
         content: data.rawText,
         originalContent: data.rawText,
         ibreviaryContent: ibreviaryText,
         lang: 'en',
+        lypsautierantAccents: undefined,
+        lypsautierantAccentsDerived: undefined,
       });
       setShowPointEditor(true);
     } catch (e) {
@@ -265,11 +271,17 @@ export function useBlockPointing(
         return;
       }
       const ibreviaryText = block.ibreviaryContent || stripPointing(block.content);
+      // Any accents held for the lypsautierant tones belonged to the text
+      // being replaced. Clearing them lets the new text supply its own —
+      // psautier's psalter carries acutes of its own, and iBreviary's does
+      // not and gets them from the stress dictionary.
       updateBlock(block.id, {
         content: data.rawText,
         originalContent: data.rawText,
         ibreviaryContent: ibreviaryText,
         lang: 'la',
+        lypsautierantAccents: undefined,
+        lypsautierantAccentsDerived: undefined,
       });
       setShowPointEditor(true);
     } catch (e) {
@@ -286,6 +298,10 @@ export function useBlockPointing(
       content: block.ibreviaryContent,
       originalContent: block.ibreviaryContent,
       lang: 'en',
+      // Back to the office's own text, so back to no accents: the next
+      // lypsautierant pointing supplies them again from the dictionary.
+      lypsautierantAccents: undefined,
+      lypsautierantAccentsDerived: undefined,
     });
   };
 
@@ -318,7 +334,7 @@ export function useBlockPointing(
     handleRestoreIbreviaryText,
     handleAutoPoint: (n: 1 | 2 | 3) => {
       const baseText = block.originalContent || stripPointing(block.content);
-      updateBlock(block.id, { content: autoPointPsalm(baseText, n), originalContent: baseText });
+      updateBlock(block.id, { content: autoPointPsalm(baseText, n), originalContent: baseText, gabcScore: undefined });
     },
   };
 }

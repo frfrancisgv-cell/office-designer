@@ -42,6 +42,52 @@ const psalmtone = nodeRequire(path.join(process.cwd(), 'psalmtone.js'));
 // it uses psalmtone.js's own regexLatin, which is a real syllabifier.
 psalmtone.setSyllabifier((word: string) => englishPhoneticSyllabify(word));
 
+/**
+ * English accents, written the way psalmtone.js reads them.
+ *
+ * psalmtone.js marks a syllable as accented when it holds an acute — but only
+ * as well as a mechanical rule that fires when the text carries none of its
+ * own `*` accent marks (psalmtone.js:480): it accents the last syllable of the
+ * line when that is a one-syllable word, and otherwise the penult of the last
+ * word. A psalter line ending "at dawn I séek you;" therefore had its final
+ * accent put on "you;", and every note of the cadence came out one syllable
+ * late. Marking the acute syllables explicitly turns that rule off and gives
+ * the engine the accents the text actually has.
+ *
+ * The `*` goes after the accented syllable, divided by the same syllabifier
+ * psalmtone.js is given above, so the offsets it counts agree with ours. It is
+ * stripped again before anything is printed (psalmtone.js:386).
+ */
+const ACUTE = /[áéíóúýǽ\u0301]/i;
+export function markEnglishAccents(text: string): string {
+  // \p{L}\p{M} rather than \w: an acute is not a word character, and \w broke
+  // every accented word in half, so no word ever looked accented.
+  return text.replace(/[\p{L}\p{M}'’-]+/gu, word => {
+    if (!ACUTE.test(word)) return word;
+    let at = 0;
+    for (const syllable of englishPhoneticSyllabify(word)) {
+      at += syllable.length;
+      if (ACUTE.test(syllable)) return `${word.slice(0, at)}*${word.slice(at)}`;
+    }
+    return word;
+  });
+}
+
+/**
+ * A line divided as psalmtone.js will divide it, in the ` -- ` join notation
+ * the lypsautierant syllabifier uses. A staff drawn on any other division
+ * cannot line up with the score the engine writes from it.
+ */
+export function syllabifyLineForScore(line: string): string {
+  return line.trim().split(/\s+/).map(token => {
+    const match = token.match(/^([^\p{L}\p{M}]*)([\p{L}\p{M}'’-]+)(.*)$/u);
+    if (!match) return token;
+    const [, lead, word, trail] = match;
+    const parts = englishPhoneticSyllabify(word);
+    return parts.length > 1 ? lead + parts.join(' -- ') + trail : token;
+  }).join(' ');
+}
+
 export const applyPsalmTone = psalmtone.applyPsalmTone;
 export const getPsalmTones = psalmtone.getPsalmTones;
 export const getEndings = psalmtone.getEndings;
@@ -63,5 +109,7 @@ export const getGabcTones: (
   preparatory: number;
   afterLastAccent: number;
   intonation: number;
+  /** The reciting note, and the note a flex falls to from it. */
   toneTenor?: string;
+  toneFlex?: string;
 } = psalmtone.getGabcTones;

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 import { OfficeSettings } from '@/lib/types';
-import { FileText } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, Trash2 } from 'lucide-react';
 
 import { BlockEditor, InsertPageBreak } from './BlockEditor';
 import { LeftSidebar } from './LeftSidebar';
@@ -32,7 +32,9 @@ export default function OfficeEditor() {
   const [finalePreps, setFinalePreps] = useState<1 | 2 | 3>(2);
   const [fetchVersion, setFetchVersion] = useState(0);
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
-  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
+  const [toolsTarget, setToolsTarget] = useState<HTMLDivElement | null>(null);
+  const activeBlock = blocks.find(block => block.id === activeBlockId);
+  const activeBlockIndex = blocks.findIndex(block => block.id === activeBlockId);
   const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
 
   const toggleSection = (id: string) => {
@@ -221,11 +223,11 @@ export default function OfficeEditor() {
         addBlock={addBlock}
         handleServerPdf={handleServerPdf} handleDownloadTex={handleDownloadTex} isPdfLoading={isPdfLoading}
         hasBlocks={blocks.length > 0}
-        isCollapsed={isLeftSidebarCollapsed}
-        onToggleCollapsed={() => setIsLeftSidebarCollapsed(collapsed => !collapsed)}
+        isCollapsed={false}
+        onToggleCollapsed={() => {}}
       />
 
-      <div className={`flex-1 ${isLeftSidebarCollapsed ? 'ml-12' : 'ml-72'} ${isRightSidebarCollapsed ? 'mr-12' : 'mr-80'} flex flex-col items-center p-8 print:mx-0 print:p-0 bg-[#dcdcdc] print:bg-transparent relative pb-32 min-h-screen print:min-h-0 transition-[margin] duration-200`}>
+      <main className={`flex-1 min-w-0 pt-20 ${isRightSidebarCollapsed && !activeBlock ? 'mr-12' : 'mr-12 lg:mr-112'} flex flex-col items-center px-8 print:mx-0 print:p-0 bg-slate-100 print:bg-transparent relative pb-32 min-h-screen print:min-h-0`}>
         {pdfError && (
           <div className="no-print w-full max-w-3xl mb-4 rounded border border-red-300 bg-red-50 p-3 text-[12px] text-red-900">
             <div className="flex items-start justify-between gap-3">
@@ -278,14 +280,15 @@ export default function OfficeEditor() {
                   <React.Fragment key={block.id}>
                     <InsertPageBreak onInsert={() => addBlock('page-break', idx)} />
                     <BlockEditor
-                      block={block} index={idx} total={blocks.length}
+                      block={block} index={idx}
                       rubricColor={settings.rubricColor}
-                      updateBlock={updateBlock} insertBlock={insertBlock} removeBlock={removeBlock}
-                      moveBlock={moveBlock} reorderBlock={reorderBlock}
+                      updateBlock={updateBlock} insertBlock={insertBlock}
+                      reorderBlock={reorderBlock}
                       finalePreps={finalePreps} setFinalePreps={setFinalePreps}
                       centerRubric={isPsalmRubric(blocks, idx)}
                       baseFontSize={settings.baseFontSize}
                       isActive={activeBlockId === block.id}
+                      toolsTarget={toolsTarget}
                       onClick={() => { setActiveBlockId(block.id); scrollSidebarToBlock(block.id); setInsertAfterIdx(idx); }}
                     />
                   </React.Fragment>
@@ -295,7 +298,7 @@ export default function OfficeEditor() {
             </div>
           </div>
         </div>
-      </div>
+      </main>
 
       <RightSidebar
         blocks={blocks}
@@ -311,10 +314,26 @@ export default function OfficeEditor() {
         reorderBlock={reorderBlock}
         moveSection={moveSection}
         deleteSection={deleteSection}
-        scrollToBlock={scrollToBlock}
+        selectBlock={idx => { setActiveBlockId(null); setInsertAfterIdx(idx); }}
+        openBlockEditor={id => { setActiveBlockId(id); scrollToBlock(id); }}
         isCollapsed={isRightSidebarCollapsed}
         onToggleCollapsed={() => setIsRightSidebarCollapsed(collapsed => !collapsed)}
       />
+      <aside
+        aria-label="Block editor"
+        className={`no-print fixed right-0 top-14 bottom-0 z-30 w-[min(100vw,28rem)] border-l border-slate-200 bg-white shadow-xl flex flex-col font-sans text-sm leading-normal ${activeBlock ? '' : 'hidden'}`}
+      >
+        <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-sm font-semibold capitalize">Edit {activeBlock?.type.replaceAll('-', ' ')} <span className="font-normal text-slate-400">· {activeBlock?.content.replace(/<[^>]*>/g, '').slice(0, 70) || 'Empty block'}</span></h2>
+          </div>
+          <button type="button" onClick={() => moveBlock(activeBlockIndex, 'up')} disabled={activeBlockIndex <= 0} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30" title="Move block up" aria-label="Move block up"><ChevronUp size={15} /></button>
+          <button type="button" onClick={() => moveBlock(activeBlockIndex, 'down')} disabled={activeBlockIndex < 0 || activeBlockIndex === blocks.length - 1} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30" title="Move block down" aria-label="Move block down"><ChevronDown size={15} /></button>
+          <button type="button" onClick={() => { if (activeBlock) removeBlock(activeBlock.id); }} className="rounded p-1.5 text-red-600 hover:bg-red-50" title="Delete block" aria-label="Delete block"><Trash2 size={15} /></button>
+          <button type="button" onClick={() => setActiveBlockId(null)} className="shrink-0 rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100">Structure</button>
+        </div>
+        <div key={activeBlockId} ref={setToolsTarget} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3" />
+      </aside>
     </div>
   );
 }

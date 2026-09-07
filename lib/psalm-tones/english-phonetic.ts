@@ -5,7 +5,11 @@
  * No Node dependencies, so it runs in the browser, and it is also what
  * psalmtone.js is given to divide English with (see psalmtone-wrapper.ts).
  */
-import { ENGLISH_STRESS, ENGLISH_RARELY_ACCENTED } from './english-stress';
+import {
+  ENGLISH_STRESS,
+  ENGLISH_RARELY_ACCENTED,
+  ENGLISH_UNSTRESSED_PREFIXES,
+} from './english-stress';
 
 export const ENGLISH_PSALM_DICT: Record<string, string[]> = {
   'remembering': ['re', 'mem', 'bering'], 'remémbering': ['re', 'mém', 'bering'],
@@ -142,7 +146,7 @@ export function englishPhoneticSyllabify(word: string): string[] {
 /**
  * Where the stress falls in an English word.
  *
- * The answer comes from ENGLISH_STRESS: 1,900 word forms read off the acutes
+ * The answer comes from ENGLISH_STRESS: 2,013 word forms read off the acutes
  * that the editors of the Revised Grail psalter and The Abbey Psalms and
  * Canticles put on their own text. Two hand-written lists used to stand here
  * instead — about fifty words with their stress patterns, and forty-five
@@ -152,9 +156,18 @@ export function englishPhoneticSyllabify(word: string): string[] {
  * a syllable number, and the number only means anything against
  * englishPhoneticSyllabify.
  *
- * Words the dictionary has never seen fall back to the old rule — the penult,
- * or the first of two. On the Abbey psalter that rule alone was right 83.4%
- * of the time and the dictionary 99.5% of the time on the 89.2% it covered.
+ * Words the dictionary has never seen fall back to a rule: the penult, or,
+ * for a word of two syllables, the second unless the first is a syllable the
+ * psalters stress off — a prefix. On the Abbey psalter the bare penult rule
+ * was right 83.4% of the time and the dictionary 99.5% of the time on the
+ * 89.2% it covered.
+ *
+ * The prefix clause is there because "the first of two" stresses prefixes,
+ * which English does not. "began" is the word that showed it: the psalters
+ * use it once and leave it unpointed, so the dictionary cannot help, and the
+ * bare rule sang "bégan". Over the two-syllable forms the Revised Grail never
+ * pointed, consulting ENGLISH_UNSTRESSED_PREFIXES first takes the fallback
+ * from 65.2% to 84.3% agreement with the Abbey psalter's editors.
  *
  * A word the psalters seldom point at all gets no stress: the cadence has to
  * pass over it. That is a claim about which WORD carries the accent, and it
@@ -174,7 +187,15 @@ export function inferEnglishWordStress(word: string, sylls: string[]): boolean[]
   if (ENGLISH_RARELY_ACCENTED.has(key)) return res;
   if (sylls.length === 1) return [true];
 
-  res[sylls.length === 2 ? 0 : Math.max(0, sylls.length - 2)] = true;
+  // Two syllables and the first is a prefix — be-gan, re-turn, un-done — puts
+  // the stress on the second. Three or more and the penult is already off the
+  // first syllable, so the prefix has nothing left to say.
+  if (sylls.length === 2) {
+    res[ENGLISH_UNSTRESSED_PREFIXES.has(sylls[0].toLowerCase()) ? 1 : 0] = true;
+    return res;
+  }
+
+  res[sylls.length - 2] = true;
   return res;
 }
 
@@ -184,4 +205,148 @@ export function inferEnglishWordStress(word: string, sylls: string[]): boolean[]
  */
 export function isUnstressedWord(word: string): boolean {
   return ENGLISH_RARELY_ACCENTED.has(stressKey(word));
+}
+
+// ─── Accentuation ─────────────────────────────────────────────────────────────
+
+/** The acute form of each vowel, in both cases. */
+const ACUTE_FOR: Record<string, string> = {
+  a: 'á', e: 'é', i: 'í', o: 'ó', u: 'ú', y: 'ý',
+  A: 'Á', E: 'É', I: 'Í', O: 'Ó', U: 'Ú', Y: 'Ý',
+};
+
+/** Words and the acutes already on them; punctuation and numerals are not touched. */
+const WORD_RE = /[A-Za-z'’áéíóúýÁÉÍÓÚÝ]+/g;
+
+const HAS_ACUTE = /[áéíóúýÁÉÍÓÚÝ]/;
+
+/** The plain vowel under each acute, for taking an accent back off. */
+const PLAIN_FOR: Record<string, string> = Object.fromEntries(
+  Object.entries(ACUTE_FOR).map(([plain, acute]) => [acute, plain]),
+);
+
+/**
+ * The vowel of a syllable that carries the acute.
+ *
+ * `y` counts as a vowel only where the syllable has no other: "cým-bals" and
+ * "whý" take it, but "years" is "yéars", not "ýears" — a word-initial y is a
+ * consonant, and searching one class of vowels found it first.
+ */
+function nucleus(syllable: string): number {
+  const real = syllable.search(/[aeiouAEIOU]/);
+  return real >= 0 ? real : syllable.search(/[yY]/);
+}
+
+/** Which syllable of the word carries an acute, or -1 if none does. */
+export function wordAccentIndex(word: string): number {
+  const at = [...word].findIndex(c => HAS_ACUTE.test(c));
+  if (at < 0) return -1;
+  const sylls = englishPhoneticSyllabify(stripWordAccents(word));
+  let pos = 0;
+  for (let i = 0; i < sylls.length; i++) {
+    if (at < pos + sylls[i].length) return i;
+    pos += sylls[i].length;
+  }
+  return sylls.length - 1;
+}
+
+/** The word with every acute taken off it. */
+export function stripWordAccents(word: string): string {
+  return word.replace(/[áéíóúýÁÉÍÓÚÝ]/g, c => PLAIN_FOR[c] ?? c);
+}
+
+/**
+ * Move the word's acute onto the vowel of `syllable`, or take it off with
+ * `null`. The syllable is numbered as englishPhoneticSyllabify divides the
+ * word — which is how ENGLISH_STRESS numbers it, and how the accent editor
+ * addresses the syllables it draws.
+ */
+export function setWordAccent(word: string, syllable: number | null): string {
+  const plain = stripWordAccents(word);
+  if (syllable === null) return plain;
+
+  const sylls = englishPhoneticSyllabify(plain);
+  if (syllable < 0 || syllable >= sylls.length) return plain;
+
+  let offset = 0;
+  for (let i = 0; i < syllable; i++) offset += sylls[i].length;
+  const v = nucleus(sylls[syllable]);
+  if (v < 0) return plain;
+
+  const i = offset + v;
+  const accented = ACUTE_FOR[plain[i]];
+  return accented ? plain.slice(0, i) + accented + plain.slice(i + 1) : plain;
+}
+
+/**
+ * The syllable accentuateEnglish puts the acute on by dictionary alone, or -1
+ * for a word it passes over. No override is consulted.
+ *
+ * This is what a correction is measured against: an accent moved off this
+ * syllable is a fact about the word worth saving, and one moved back onto it
+ * is a saved correction that has become unnecessary.
+ */
+export function dictionaryAccentIndex(word: string): number {
+  const key = stressKey(word);
+  if (!/[a-z]/.test(key)) return -1;
+  if (ENGLISH_RARELY_ACCENTED.has(key)) return -1;
+  const sylls = englishPhoneticSyllabify(key);
+  return inferEnglishWordStress(key, sylls).indexOf(true);
+}
+
+/**
+ * Put acutes on the stressed syllables of unaccented English psalm text.
+ *
+ * This is what lets an iBreviary psalm — the 1963 Grail, printed without
+ * accents — be sung to the lypsautierant English and gregorian tones, which
+ * find their stresses by reading acutes and mark almost nothing without them.
+ *
+ * Which words take an accent comes from ENGLISH_RARELY_ACCENTED and which
+ * syllable from ENGLISH_STRESS, both read off the psalters' own pointing.
+ * Measured against the Abbey psalter, held out from that dictionary: 92.3% of
+ * words are marked or passed over as the editors did, 90.6% carry the acute on
+ * exactly the letter they chose, and 54.9% of lines come out identical.
+ *
+ * Words already carrying an acute are left alone, so this is safe to run over
+ * half-corrected text and safe to run twice.
+ *
+ * `overrides` is the word layer of the saved corrections — `stressKey(word)`
+ * to the syllable the user moved the accent onto — and it is read ahead of the
+ * dictionary, so a correction made once in one psalm is made everywhere. See
+ * accent-corrections.ts. Nothing else in the app reads it: the jgabc side has
+ * its own pointing and the two systems stay apart.
+ */
+export function accentuateEnglish(
+  text: string,
+  overrides?: ReadonlyMap<string, number>,
+): string {
+  return text.replace(WORD_RE, (word) => {
+    if (HAS_ACUTE.test(word)) return word;
+
+    const key = stressKey(word);
+    if (!/[a-z]/.test(key)) return word;
+    // Position arithmetic below indexes the original word with offsets taken
+    // from the key's syllables, so the two must line up character for
+    // character. They do for precomposed accents; a decomposed one would not.
+    if (key.length !== word.length) return word;
+
+    const sylls = englishPhoneticSyllabify(key);
+    // A saved correction outranks the dictionary. Out of range it is ignored
+    // rather than obeyed: it was saved against a syllable division that has
+    // since changed, and the dictionary's answer is better than none.
+    const saved = overrides?.get(key);
+    const at = saved !== undefined && saved >= 0 && saved < sylls.length
+      ? saved
+      : dictionaryAccentIndex(key);
+    if (at < 0) return word;
+
+    let offset = 0;
+    for (let i = 0; i < at; i++) offset += sylls[i].length;
+    const v = nucleus(sylls[at]);
+    if (v < 0) return word;
+
+    const i = offset + v;
+    const accented = ACUTE_FOR[word[i]];
+    return accented ? word.slice(0, i) + accented + word.slice(i + 1) : word;
+  });
 }

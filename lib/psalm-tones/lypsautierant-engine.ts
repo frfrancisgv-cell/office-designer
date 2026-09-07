@@ -30,9 +30,12 @@
  *    scan the whole hemistich, and a stray numeral shifts their marks.
  *  - Accents. The accent-aware families (english, gregorian) read acute
  *    accents to find the stresses. Given unaccented text they mark almost
- *    nothing, so this file reports that rather than returning silent mush.
+ *    nothing, so English arrives here through accentuateEnglish, which puts
+ *    the acutes on from the psalters' own pointing, and the result carries a
+ *    warning saying where the stresses came from.
  */
 
+import { accentuateEnglish } from './english-phonetic';
 import { syllabifyLine } from './lypsautierant-syllabify';
 import { syllabifyLatinLine } from './latin-syllabify';
 import {
@@ -60,6 +63,14 @@ export interface LypsautierantResult {
   latex: string;
   /** Problems worth showing the user; the result is still usable. */
   warnings: string[];
+  /**
+   * The text the marks were read off, which is the input unless it had no
+   * accents and they were supplied. The caller keeps this so the accents can
+   * be corrected and re-pointed instead of being guessed again.
+   */
+  accented: string;
+  /** True when those accents were supplied rather than found in the input. */
+  accentsDerived: boolean;
 }
 
 /**
@@ -425,8 +436,10 @@ function lineMarker(role: Role): string {
  * Point a whole psalm text block.
  *
  * @param text      Psalm text, one hemistich per line, blank lines between
- *                  stanzas. Should carry acute accents on stressed syllables
- *                  for the english and gregorian families.
+ *                  stanzas. The english and gregorian families need acute
+ *                  accents on the stressed syllables; English text without
+ *                  them is accentuated from the psalter stress dictionary
+ *                  first, and the warning says so.
  * @param family    'modes' | 'french' | 'english' | 'gregorian'
  * @param mode      'one' … 'eight' | 'peregrinus'
  * @param variation Termination variation; must be one that exists for this
@@ -443,11 +456,12 @@ export function pointPsalmText(
   mode: ModeName,
   variation: string,
   lang: 'en' | 'la' = 'en',
+  customRules?: Record<'first' | 'termination' | 'flex', (line: string) => string>,
 ): LypsautierantResult {
   const warnings: string[] = [];
   const syllabify = lang === 'la' ? syllabifyLatinLine : syllabifyLine;
 
-  if (!hasVariation(family, mode, variation)) {
+  if (!customRules && !hasVariation(family, mode, variation)) {
     const known = getVariations(family, mode);
     throw new Error(
       `lypsautierant: ${family}/${mode} has no termination "${variation}". ` +
@@ -455,16 +469,40 @@ export function pointPsalmText(
     );
   }
 
+  // The accent-aware families read acutes to find the stresses, and English
+  // office texts do not have them: iBreviary prints the 1963 Grail plain. So
+  // supply them, from the pointing the psalters' own editors did (see
+  // accentuateEnglish). Without this the tones marked almost nothing and the
+  // only way to use them was to load psautier's own accented psalms — which
+  // are a different translation from the one in the office.
+  //
+  // Latin is not accentuated here. It arrives with its accents already on it,
+  // and accentuateEnglish knows nothing about Latin stress.
+  let source = text;
+  let accentsDerived = false;
   if (ACCENT_AWARE.includes(family) && !ACCENT_RE.test(text)) {
-    warnings.push(
-      `The "${family}" tones locate stresses from acute accents, and this text has none. ` +
-      `Load the accented psalter text first, or use the "modes"/"french" tones, ` +
-      `which count syllables instead.`,
-    );
+    if (lang === 'en') {
+      source = accentuateEnglish(text);
+      accentsDerived = true;
+      warnings.push(
+        `This text carried no accents, so the stresses come from the psalters' own ` +
+        `pointing: 92% of words are marked as their editors marked them, and 95% of ` +
+        `final accents — the one the cadence lands on — are in the right place. ` +
+        `The acutes it chose are visible in the pointed text, so a wrong one can be ` +
+        `seen and edited there. Load the accented psalter text with ` +
+        `"Lypsautierant (EN)" for a reading with no guesswork in it.`,
+      );
+    } else {
+      warnings.push(
+        `The "${family}" tones locate stresses from acute accents, and this Latin text ` +
+        `has none. Load the accented text first, or use the "modes"/"french" tones, ` +
+        `which count syllables instead.`,
+      );
+    }
   }
 
-  const stanzas = parseStanzas(text);
-  if (!stanzas.length) return { html: '', latex: '', warnings };
+  const stanzas = parseStanzas(source);
+  if (!stanzas.length) return { html: '', latex: '', warnings, accented: source, accentsDerived };
 
   const htmlStanzas: string[] = [];
   const latexStanzas: string[] = [];
@@ -481,7 +519,9 @@ export function pointPsalmText(
       }
 
       const rule = h.role === 'termination' ? variation : h.role;
-      const pointed = applyMode(family, mode, rule, syllabify(h.text));
+      const pointed = customRules
+        ? customRules[h.role](syllabify(h.text)) + (h.role === 'flex' ? '\\flagflex{\\dag}' : '')
+        : applyMode(family, mode, rule, syllabify(h.text));
 
       // The verse number is parsed out (see parseLine) but not printed: the
       // office does not want it. `h.verse` stays as the record of what was
@@ -504,6 +544,8 @@ export function pointPsalmText(
     html: htmlStanzas.join('\n\n'),
     latex: latexStanzas.join('\n\n'),
     warnings,
+    accented: source,
+    accentsDerived,
   };
 }
 

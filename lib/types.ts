@@ -1,3 +1,4 @@
+import type { CreatedTone } from './psalm-tones/creator';
 export type BlockType = 
   | 'heading' 
   | 'subheading'
@@ -28,12 +29,16 @@ export interface Block {
   content: string;
   musicDataUri?: string;
   gabcScore?: string;
+  /** Include accompanying translation below the chant; defaults to true. */
+  printTranslation?: boolean;
   gabcCandidates?: GabcCandidate[]; // Multiple OCO options; user picks one
   place?: string | null;
   /** Psalm number parsed from iBreviary rubric (e.g. 117, "119.1-8") */
   psalmNumber?: number | string;
   /** Gregorian tone detected from the preceding antiphon (e.g. "8.", "Custom") */
   psalmTone?: string;
+  /** Visual examples and derived formula travel with saved/shared offices. */
+  createdTone?: CreatedTone;
   /** Tone variant/termination code (e.g. "G", "G*", "D") */
   psalmVariant?: string;
   /**
@@ -68,6 +73,19 @@ export interface Block {
   lypsautierantMode?: string;
   /** Lypsautierant termination variation ('a'|'b'|'a_prime'|...) */
   lypsautierantVariation?: string;
+  /**
+   * The accented text the english/gregorian lypsautierant tones are pointed
+   * from, one hemistich per line.
+   *
+   * It has to be kept apart from `content` and `originalContent`. `content` is
+   * pointed HTML with the mark glyphs in it as real text nodes, and
+   * `originalContent` may only ever hold unpointed text — so hand-corrections
+   * to the accents had nowhere to live and were thrown away on every
+   * re-point. This is where they live.
+   */
+  lypsautierantAccents?: string;
+  /** True while `lypsautierantAccents` is what the stress dictionary guessed. */
+  lypsautierantAccentsDerived?: boolean;
 }
 
 

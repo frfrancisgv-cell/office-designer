@@ -18,6 +18,19 @@ import path from 'node:path';
 import { buildLatexDocument, escLtx } from './renderer';
 import type { Block, OfficeSettings } from '@/lib/types';
 
+test('chant translations follow the score and can be omitted without removing the score', () => {
+  const settings: OfficeSettings = { paperSize: 'A4', baseFontSize: 12, fontFamily: 'serif', rubricColor: '#C00000', lineSpacing: 'normal' };
+  for (const type of ['antiphon', 'invitatory-antiphon', 'hymn'] as const) {
+    const block: Block = { id: type, type, content: 'Translation example', gabcScore: '(c4) Test(g) (::)' };
+    const included = buildLatexDocument([block], settings);
+    assert.ok(included.texContent.indexOf('Translation example') > included.texContent.indexOf('\\gregorioscore{'));
+    const omitted = buildLatexDocument([{ ...block, printTranslation: false }], settings);
+    assert.ok(!omitted.texContent.includes('Translation example'));
+    assert.equal(Object.keys(omitted.gabcFiles).length, 1);
+    assert.equal(block.content, 'Translation example');
+  }
+});
+
 test('escapes every LaTeX special character', () => {
   assert.equal(escLtx('&'), '\\&');
   assert.equal(escLtx('%'), '\\%');
@@ -67,8 +80,9 @@ test('Gregorio exports keep red responsory stars and define response signs', () 
     id: 'rb',
     type: 'antiphon',
     content: 'Responsory',
-    gabcScore: '(c4) Re(f)spon(g)de,(f) <v>\\greheightstar</v>(;) '
-      + '<sp>V/</sp>(::) Verse(f) <sp>R/</sp>(::)',
+    // Bare is the form present in the affected OCO antiphons.
+    gabcScore: '(c4) Re(f)spon(g)de,(f) \\greheightstar(;) '
+      + 'V/.(::) Verse(f) R/.(::)',
   }];
   const settings: OfficeSettings = {
     paperSize: 'A4', baseFontSize: 12, fontFamily: 'serif',

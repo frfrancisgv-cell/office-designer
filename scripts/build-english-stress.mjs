@@ -63,18 +63,24 @@ function isWord(key) {
  * "last-2" is the question the mediant asks: are the last two words this
  * predicts the last two the editors accented?
  *
- *     ever-accented list    last-2 32.7%   last-3  7.1%   last-1 90.6%
- *     rate >= 0.25          last-2 77.8%   last-3 46.7%   last-1 94.4%
- *     rate >= 0.30          last-2 81.0%   last-3 49.5%   last-1 95.4%   <—
- *     rate >= 0.40          last-2 80.9%   last-3 49.4%   last-1 95.0%
- *     rate >= 0.50          last-2 80.7%   last-3 49.0%   last-1 94.4%
- *     rate >= 0.70          last-2 53.3%   last-3 26.2%   last-1 75.8%
+ *                       last-2   last-1   whole line   accents/line
+ *     ever-accented     32.7%    90.6%        —           6.15
+ *     rate >= 0.25      77.8%    94.4%       47.4%        3.38
+ *     rate >= 0.35      80.8%    95.1%       52.9%        3.13
+ *     rate >= 0.45      81.0%    94.8%       54.9%        2.99   <—
+ *     rate >= 0.55      80.6%    94.1%       54.5%        2.86
+ *     rate >= 0.60      79.8%    93.9%       53.9%        2.84
+ *
+ * last-2 is what a mediant of two accents asks. "whole line" is every accent
+ * in the line placed exactly as the editors placed it, which is what
+ * accentuateEnglish is judged on. The editors themselves average 2.92
+ * accents a line, so 0.45 is also where the count comes out right.
  *
  * It governs unaccented text only. Where the text carries its own acutes —
  * Latin, or lypsautierant's English psalms — those marks are obeyed and none
  * of this is consulted.
  */
-const RARELY_ACCENTED_BELOW = 0.30;
+const RARELY_ACCENTED_BELOW = 0.45;
 
 /**
  * And how many times a word must appear before its rate is worth believing.
@@ -85,6 +91,52 @@ const RARELY_ACCENTED_BELOW = 0.30;
  * "rahab", "sycamore", proper nouns that happen to appear twice unpointed.
  */
 const RATE_MIN_OCCURRENCES = 3;
+
+/**
+ * A first syllable is an unstressed prefix when the psalters point the stress
+ * off it more often than this, over at least PREFIX_MIN_FORMS two-syllable
+ * forms that begin with it.
+ *
+ * This is what the fallback needs. A word the psalters never pointed — "began"
+ * appears once in the Revised Grail, on a pointed line, unaccented — used to
+ * get the old rule, the first of two, and came out "bégan". But English does
+ * not stress its prefixes, and the psalters say so plainly: of the 56
+ * two-syllable forms in the Revised Grail beginning with the syllable "re",
+ * 55 are pointed on the second syllable; of the 22 beginning with "be", all
+ * 22 are. "benefits" and "under" are the kind of word that pulls the other
+ * way, and they are the exceptions the rate is measuring.
+ *
+ * Swept on the Abbey psalter over the two-syllable forms the Revised Grail
+ * never pointed — exactly the words the fallback is asked about:
+ *
+ *                        forms  right
+ *     first of two        204   65.2%
+ *     rate >= 0.55         43   84.3%
+ *     rate >= 0.60         41   84.3%
+ *     rate >= 0.65         37   83.8%
+ *     rate >= 0.70         32   84.3%   <—
+ *     rate >= 0.75         30   81.4%
+ *     rate >= 0.80         24   80.4%
+ *
+ * Accuracy is flat across the plateau, so 0.70 is taken as the highest
+ * threshold still on it: it keeps the list to the prefixes a reader would
+ * recognize and drops "for", "pre", "per" and "in", which the psalters point
+ * both ways ("fórmer" against "forgáve", "précepts" against "prepáre").
+ *
+ * The rule applies to two-syllable words only. For three or more the penult
+ * rule already lands off the first syllable, so a prefix tells it nothing.
+ */
+const PREFIX_UNSTRESSED_ABOVE = 0.70;
+
+/**
+ * And how many forms a first syllable needs before its rate is believed.
+ *
+ * Two, not three as above: the Laplace smoothing does the discounting, and
+ * this list is of syllables rather than words, so it has an order of
+ * magnitude less evidence per entry to work with. At two the held-out score
+ * is unchanged from one (84.3%) while the list drops from 61 entries to 32.
+ */
+const PREFIX_MIN_FORMS = 2;
 
 /** The key a word is stored and looked up under. Must match english-phonetic. */
 export function stressKey(word) {
@@ -119,7 +171,16 @@ export function collect() {
     for (const name of readdirSync(path.join(ROOT, dir))) {
       if (!isText.test(name)) continue;
       const text = readFileSync(path.join(ROOT, dir, name), 'utf8');
-      for (const word of text.match(WORD) ?? []) {
+      // Line by line, and only the lines the editors pointed. 18.5% of the
+      // Revised Grail's lines carry no acute at all — most of Psalm 119 — and
+      // counting those in the denominator made a word look unaccented when
+      // nobody had pointed the line it sat on. It put "law" at 21%,
+      // "precepts" at 12% and "statutes" at 4%, all below the threshold, so
+      // the cadence passed straight over them. On pointed lines alone they
+      // are 90%, 80% and 67%.
+      for (const line of text.split('\n')) {
+        if (!ACUTE.test(line)) continue;
+      for (const word of line.match(WORD) ?? []) {
         const key = stressKey(word);
         if (!isWord(key)) continue;
         occurrences.set(key, (occurrences.get(key) ?? 0) + 1);
@@ -129,6 +190,7 @@ export function collect() {
         if (!votes.has(key)) votes.set(key, new Map());
         const v = votes.get(key);
         v.set(syll, (v.get(syll) ?? 0) + 1);
+      }
       }
     }
   }
@@ -151,16 +213,40 @@ export function collect() {
     if (englishPhoneticSyllabify(key).length > 1) stress.set(key, best);
   }
 
+  // First syllables the stress falls off, counted over the two-syllable forms
+  // alone: those are the words the fallback has to guess, and the only ones
+  // where "stress the first of two" can land on a prefix.
+  const onPrefix = new Map();   // first syllable -> forms stressed on it
+  const offPrefix = new Map();  // first syllable -> forms stressed after it
+  for (const [key, syll] of stress) {
+    const sylls = englishPhoneticSyllabify(key);
+    if (sylls.length !== 2) continue;
+    const first = sylls[0];
+    const side = syll === 0 ? onPrefix : offPrefix;
+    side.set(first, (side.get(first) ?? 0) + 1);
+  }
+
   // Laplace smoothing: a word seen twice and never pointed is not evidence of
   // the same strength as one seen two hundred times and never pointed.
   const accentRate = (key) => ((accented.get(key) ?? 0) + 1) / (occurrences.get(key) + 2);
+
+  // Smoothed the same way, for the same reason: "op" seen three times and
+  // pointed off all three is weaker evidence than "re" seen fifty-six times.
+  const prefixes = [...new Set([...onPrefix.keys(), ...offPrefix.keys()])]
+    .filter((first) => {
+      const on = onPrefix.get(first) ?? 0;
+      const off = offPrefix.get(first) ?? 0;
+      return on + off >= PREFIX_MIN_FORMS
+        && (off + 1) / (on + off + 2) >= PREFIX_UNSTRESSED_ABOVE;
+    })
+    .sort();
 
   const rarely = [...occurrences]
     .filter(([key, n]) => n >= RATE_MIN_OCCURRENCES && accentRate(key) < RARELY_ACCENTED_BELOW)
     .map(([key]) => key)
     .sort();
 
-  return { stress, rarely, divided, occurrences, votes, accentRate };
+  return { stress, rarely, prefixes, divided, occurrences, votes, accentRate };
 }
 
 /**
@@ -184,7 +270,7 @@ function wrap(words, indent) {
     `${indent}${i ? '+ ' : '  '}"${l}${i < lines.length - 1 ? ' ' : ''}"`).join('\n');
 }
 
-function render({ stress, rarely, divided }) {
+function render({ stress, rarely, prefixes, divided }) {
   const byIndex = new Map();
   for (const word of [...stress.keys()].sort()) {
     const syll = stress.get(word);
@@ -247,6 +333,28 @@ export const ENGLISH_RARELY_ACCENTED: ReadonlySet<string> = new Set(
 ${wrap(rarely, '   ')}
   ).split(' '),
 );
+
+/**
+ * First syllables the psalters point the stress off more than ${Math.round(PREFIX_UNSTRESSED_ABOVE * 100)}% of the
+ * time, over at least ${PREFIX_MIN_FORMS} two-syllable forms: the unstressed prefixes of
+ * English, as the editors of these two psalters mark them.
+ *
+ * Only the fallback reads this, and only for a word of two syllables that the
+ * dictionary above has never seen. "began" is the case that asked for it: the
+ * psalters use the word once and do not point it, so the old rule — the first
+ * of two — sang "bégan". Of the two-syllable forms the Revised Grail never
+ * pointed, that rule placed 65.2% of the accents where the Abbey psalter's
+ * editors did; consulting this list first places 84.3%.
+ *
+ * A syllable, not a spelling: it must be the whole first syllable as
+ * englishPhoneticSyllabify cuts the word, so "be-gan" and "be-hold" match
+ * where "ben-e-fits" and "bet-ter" do not.
+ */
+export const ENGLISH_UNSTRESSED_PREFIXES: ReadonlySet<string> = new Set(
+  (
+${wrap(prefixes, '   ')}
+  ).split(' '),
+);
 `;
 }
 
@@ -256,3 +364,4 @@ console.log(`wrote ${path.relative(ROOT, OUT)}`);
 console.log(`  ${built.stress.size} multi-syllable forms with a known stress`);
 console.log(`  ${built.rarely.length} words accented under ${RARELY_ACCENTED_BELOW * 100}% of the time (seen ${RATE_MIN_OCCURRENCES}+ times)`);
 console.log(`  ${built.divided.length} forms the two psalters point differently`);
+console.log(`  ${built.prefixes.length} first syllables the stress falls off: ${built.prefixes.join(' ')}`);

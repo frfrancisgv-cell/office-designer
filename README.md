@@ -39,6 +39,26 @@ text, and the second and third rows switch text source and pointing engine.
 
 ![A psalm block selected, showing the pointing toolbar](docs/screenshots/pointing.png)
 
+#### Correcting the stresses, once
+
+The *+/− stress aware* engines sing from acute accents, and the office texts
+arrive without them: `accentuateEnglish` supplies them from the psalters' own
+pointing and gets about 92% of words right. *Review word stresses* opens the
+rest for correction — click a syllable to move the accent, click it again to
+unaccent the word and let the cadence pass over it.
+
+**Save these accents** keeps the correction, so it is made once:
+
+- the corrected text is kept whole and matched by its own words, so the psalm
+  comes back accented when it next comes round on the four-week cycle;
+- a word whose accent was *moved* also teaches the word list, so the same word
+  is accented right in psalms never opened. Unaccenting teaches it nothing —
+  a cadence passing over "God" in one line says nothing about "God" elsewhere.
+
+Both live in `data/accent-corrections.json`, in the repository: it is editorial
+work, and belongs where it can be read and diffed. *Forget saved accents* drops
+the text; the corrected words stay.
+
 ### Chant scores
 
 Each antiphon carries its GABC source. Edit it in place, search the local
@@ -161,6 +181,7 @@ The data on disk:
 | `jgabc-psalms/` | Latin psalm texts (Nova Vulgata) |
 | `vendor/psautier/` | the Revised Grail Psalter and the Abbey Psalms and Canticles, and the perl/sed pointing rules |
 | `lib/liturgy/data/` | the four-week psalter schema and the hymn table |
+| `data/accent-corrections.json` | psalm stresses corrected by hand in the editor, kept |
 
 ### The three pointing engines
 
@@ -192,6 +213,7 @@ They coexist deliberately, and are chosen per block in the UI:
 | `POST /api/lypsautierant` | point text with the psautier rules (`{action:'point', text, family, mode, variation}`) |
 | `POST /api/pdf` | `{blocks, settings}` → PDF; `?format=tex` returns the source bundle |
 | `GET /api/pdf` | dependency check: `lualatex` and `gregorio` versions |
+| `GET /api/accents` · `POST /api/accents` | the saved accent corrections; `{action:'save', accents, label?}` keeps a corrected psalm and learns its moved accents, `{action:'forget', text}` drops one |
 | `POST /api/share` · `GET /api/share?id=` | store a document under `/tmp/office-shares`, 30-day expiry, readable at `/share/<id>` (not yet wired into the editor) |
 
 ---
@@ -202,7 +224,7 @@ They coexist deliberately, and are chosen per block in the UI:
 |---|---|
 | `app/` | Next.js app router; the editor page and every API route |
 | `components/` | the editor UI — `office-editor.tsx` is the root, `BlockEditor.tsx` one block |
-| `hooks/` | document state (`useOfficeBlocks`) and pointing (`useBlockPointing`) |
+| `hooks/` | document state (`useOfficeBlocks`), pointing (`useBlockPointing`), saved accents (`useAccentCorrections`) |
 | `lib/latex/` | `renderer.ts` builds the .tex; `process.ts` runs gregorio and lualatex |
 | `lib/psalm-tones/` | the three pointing engines and the tone catalogue |
 | `lib/liturgy/` | offline office construction, for `/api/liturgy` |
@@ -295,3 +317,34 @@ belong to their publishers, and the *Liturgia Horarum* typical edition is
 deliberately **not** in this repository for that reason — it is read locally by
 the extraction scripts and excluded in [.gitignore](.gitignore). Check the terms
 before redistributing anything you generate.
+
+### Psalm Tone Creator
+
+Select a psalm, then open **Pointing → Psalm Tone Creator**. Choose **New tone
+from this psalm** to prepare syllable models for the mediant, ending, and flex.
+Edit each cadence before saving the tone.
+
+- **Lypsautierant + − =** places marks under individual syllables. Patterns can
+  count from the final syllable or follow the final accented syllable. For an
+  accent pattern, select its anchor with the radio button under the model text.
+  These rules execute through the existing TypeScript Lypsautierant port; the
+  Creator does not require or invoke an external `perl/model.pl`.
+- **jgabc chant notation** lets you click a four-line staff (or use arrow keys)
+  to choose a pitch above each syllable. The note field also accepts multiple
+  pitches, a–m, for a neume. Choose reciting, fixed, and accent roles to distinguish
+  the tenor from the cadence. Repeated recitation collapses into an open note;
+  an open note after each accent allows the formula to accommodate different
+  numbers of unstressed syllables.
+
+The formula box updates immediately and the whole-psalm preview follows each
+edit. **Save tone** keeps the named examples in `data/created-tones.json`;
+**Saved tones** makes them available on every other psalm. **Use on this psalm**
+applies the preview and embeds the tone definition in the office so it travels
+with saved/shared offices. Saving a tone alone does not change the psalm.
+
+Inference follows the explicit roles and anchors in the model; it does not infer
+all possible exceptional cadences from a single verse. Marks outside a short
+line are omitted. The two notation modes retain their own marks and pitches:
+plus/minus pointing alone cannot determine an absolute chant melody. English
+stress comes from the existing accentuation system; correct the psalm's accents
+before preparing a model when necessary.

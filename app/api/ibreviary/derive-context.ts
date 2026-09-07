@@ -104,7 +104,7 @@ export async function deriveContext(liturgicalName: string, hour: string, date: 
     }
 
     if (ferialCode) {
-      let shortName = liturgicalName.length > 40 ? liturgicalName.substring(0, 37) + '...' : liturgicalName;
+      let shortName = liturgicalName;
       if (isSaturdayVespers && otWeekNum !== null) {
         shortName = `1st Vespers of the ${otWeekNum}th Sunday in Ordinary Time`;
       }
@@ -128,7 +128,7 @@ export async function deriveContext(liturgicalName: string, hour: string, date: 
       availableOccasions.push({ label: `Feast/Memorial (${FEAST_CALENDAR[feastCode]})`, value: feastCode });
     }
     if (ferialCode) {
-      let shortName = liturgicalName.length > 40 ? liturgicalName.substring(0, 37) + '...' : liturgicalName;
+      let shortName = liturgicalName;
       if (isSaturdayVespers && otWeekNum !== null) {
         shortName = `1st Vespers of the ${otWeekNum}th Sunday in Ordinary Time`;
       }

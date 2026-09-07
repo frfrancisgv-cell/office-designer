@@ -664,6 +664,9 @@ function renderBlock(
       ? `\\noindent\\includegraphics[width=\\linewidth]{${filename}}\\par`
       : '{\\color{rubricred}\\itshape\\noindent ' +
         '[uploaded score image omitted: only PNG, JPEG and PDF can be typeset]}\\par';
+    if (['antiphon', 'invitatory-antiphon', 'hymn'].includes(block.type)) {
+      return `${figure}\n${block.printTranslation !== false ? body : ''}`;
+    }
     return `${body}\n${figure}`;
   }
 
@@ -693,7 +696,7 @@ function renderBlock(
         const title = block.content.split(/[\n<]/)[0].slice(0, 60).replace(/[^a-zA-Z0-9 ]/g, '').trim();
         gabcFiles[gabcFilename] = buildGabcFile(title || `Hymn ${idx}`, block.gabcScore);
         out.push(`\\gregorioscore{hymn-${idx}.gtex}`);
-        if (block.content) {
+        if (block.content && block.printTranslation !== false) {
           out.push(`\\officevsm\n\\begin{center}\\itshape\\small ${htmlToLatex(block.content)}\\end{center}\\par`);
         }
       } else {
@@ -754,7 +757,7 @@ function renderBlock(
         gabcFiles[gabcFilename] = buildGabcFile(title || `Antiphon ${idx}`, block.gabcScore);
         // Reference the pre-compiled .gtex file directly
         out.push(`\\gregorioscore{antiphon-${idx}.gtex}`);
-        if (block.content) {
+        if (block.content && block.printTranslation !== false) {
           out.push(`\\officevsm\n\\begin{center}\\itshape\\small ${htmlToLatex(block.content)}\\end{center}\\par`);
         }
       } else {
@@ -794,6 +797,15 @@ function buildGabcFile(name: string, rawGabc: string): string {
     if (annMatch) annotation = annMatch[1].trim();
     body = rawGabc.slice(sepIndex + 2).trim();
   }
+  // OCO contains both Gregorio's tagged form and a bare TeX command. A bare
+  // command is parsed as lyric text (and printed literally as
+  // "\\greheightstar"); make it a verbatim Gregorio syllable before the
+  // .gabc file is compiled. Already-tagged stars must remain single-wrapped.
+  body = body.replace(/(?<!<v>)\\greheightstar(?!<\/v>)/g, '<v>\\greheightstar</v>');
+  // The indexes likewise mix proper Gregorio specials with literal `V/` and
+  // `R/`. Left bare, gregorio faithfully engraves the ASCII "V/."/"R/."
+  // seen in the PDF instead of the ℣/℟ glyphs. Normalize only untagged forms.
+  body = body.replace(/(?<!<sp>)([VR])\/(?!<\/sp>)/g, '<sp>$1/</sp>');
   const annLine = annotation ? `annotation: ${annotation};\n` : '';
   return `name: ${name.replace(/[;]/g, ',')};
 gabc-copyright: ;

@@ -22,7 +22,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { parseGabcToneCounts, pointPsalm } from './psalm-tone-engine';
-import { applyPsalmTone, getGabcTones } from './psalmtone-wrapper';
+import { applyPsalmTone, getGabcTones, markEnglishAccents, syllabifyLineForScore } from './psalmtone-wrapper';
 import { PSALM_TONES } from './tone-data';
 
 /** Every formula in the catalogue, as (label, gabc, clef). */
@@ -154,4 +154,30 @@ test('the English score is divided into the same syllables as the text', () => {
     favor: 'intonation',
   });
   assert.match(score, /thir\([a-m]+\)sting/, `score divided "thirsting" as: ${score}`);
+});
+
+test('English accents are given to the score the way psalmtone.js reads them', () => {
+  // Left to itself psalmtone.js accents the last syllable of a line ending in
+  // a one-syllable word, so the whole cadence came out a syllable late.
+  const gabc = "hr 'i hr h.";
+  const line = 'at dawn I séek you;';
+  assert.match(
+    applyPsalmTone({ text: line, gabc, clef: 'c4', lang: 'en', useBoldItalic: false }),
+    /séek\(h\) you;\(i\.\)/,
+  );
+  assert.match(
+    applyPsalmTone({ text: markEnglishAccents(line), gabc, clef: 'c4', lang: 'en', useBoldItalic: false }),
+    /séek\(i\) you;\(h\.\)/,
+  );
+  // The mark goes after the accented syllable, not merely after the word.
+  assert.equal(markEnglishAccents('the Gód of Ísrael'), 'the Gód* of Ís*rael');
+  assert.equal(markEnglishAccents('for you my sóul is thírsting'), 'for you my sóul* is thír*sting');
+  assert.equal(markEnglishAccents('no accents here'), 'no accents here');
+});
+
+test('the chant staff is divided as psalmtone.js divides the words', () => {
+  // The lypsautierant syllabifier keeps "Bléssed" whole; psalmtone.js does not,
+  // so a staff drawn on the first division could not line up with the score.
+  assert.equal(syllabifyLineForScore('Bléssed be the Lórd,'), 'Blés -- sed be the Lórd,');
+  assert.equal(syllabifyLineForScore('O Gód, at dawn I séek you;'), 'O Gód, at dawn I séek you;');
 });

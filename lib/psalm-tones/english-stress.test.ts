@@ -24,7 +24,11 @@ import {
   isUnstressedWord,
   stressKey,
 } from './english-phonetic';
-import { ENGLISH_STRESS, ENGLISH_RARELY_ACCENTED } from './english-stress';
+import {
+  ENGLISH_STRESS,
+  ENGLISH_RARELY_ACCENTED,
+  ENGLISH_UNSTRESSED_PREFIXES,
+} from './english-stress';
 
 const ROOT = process.cwd();
 const CORPUS: Array<[string, RegExp]> = [
@@ -117,20 +121,97 @@ test('the words a psalm tone passes over, and the ones it does not', () => {
     'the', 'of', 'a', 'an', 'at', 'into', 'than', 'whose', 'their',
     // Every pronoun and possessive. Each of them IS accented somewhere —
     // "Hé is like a trée" — but a line carries two or three accents out of
-    // about seven words, and these take one in ten: his 0%, my 0%, their 0%,
-    // they 8%, he 11%, me 15%, you 23%. Asking whether a word is ever
-    // accented, rather than how often, left all of them out.
+    // about seven words, and these take one in ten: his 0%, my 1%, their 0%,
+    // they 10%, he 13%, you 26%. Asking whether a word is ever accented,
+    // rather than how often, left all of them out.
     'he', 'she', 'we', 'they', 'you', 'his', 'her', 'him', 'them', 'us',
     'my', 'me', 'i', 'our', 'your', 'its', 'it',
   ];
   for (const w of passedOver) {
     assert.ok(ENGLISH_RARELY_ACCENTED.has(w), `${w} should be passed over`);
   }
-  // And the words just the other side of the line, which are not passed over:
-  // "all" is accented 43% of the time, "this" 38%, "whom" 38%.
-  for (const w of ['all', 'this', 'whom', 'lord', 'god', 'soul', 'name']) {
+  // And the words the cadence does land on. The nearest either side of the
+  // 0.45 line are "all" at 47.0% and "this" at 46.3%, which it lands on, and
+  // "own" at 44.4% and "up" at 44.2%, which it passes over.
+  for (const w of ['all', 'lord', 'god', 'soul', 'name', 'this']) {
     assert.ok(!ENGLISH_RARELY_ACCENTED.has(w), `${w} takes the accent often enough`);
   }
+  for (const w of ['own', 'up', 'whom']) {
+    assert.ok(ENGLISH_RARELY_ACCENTED.has(w), `${w} sits just below the line`);
+  }
+
+  // Psalm 119's vocabulary, which was wrongly passed over while unpointed
+  // lines were still counted in the denominator: on pointed lines "law" is
+  // accented 91% of the time and "precepts" 80%, not 21% and 12%.
+  for (const w of ['law', 'precepts', 'statutes', 'decrees', 'commands']) {
+    assert.ok(!ENGLISH_RARELY_ACCENTED.has(w), `${w} is a noun the cadence lands on`);
+  }
+});
+
+test('the fallback does not stress a prefix', () => {
+  const stressOf = (word: string) => {
+    const sylls = englishPhoneticSyllabify(word);
+    return inferEnglishWordStress(word, sylls).indexOf(true);
+  };
+
+  // Not one of these is in the dictionary: the psalters either never use them
+  // or never point them. "began" is the one that asked for the rule — it
+  // appears once in the Revised Grail, on a pointed line, unaccented, and
+  // "the first of two" sang "bégan".
+  for (const w of ['began', 'begins', 'unpacked', 'consoles', 'remixed', 'disowned']) {
+    assert.ok(!ENGLISH_STRESS.has(w), `${w} should be a fallback case, not a stored one`);
+    assert.equal(stressOf(w), 1, `${w} is stressed off its prefix`);
+  }
+
+  // The rule reads a syllable, not a spelling: "bed-ding" and "red-dest" put
+  // the b and the e in the same syllable as the consonant after them, so they
+  // never match "be" or "re" and keep the first of two.
+  for (const w of ['bedding', 'reddest']) {
+    assert.ok(!ENGLISH_STRESS.has(w), `${w} should be a fallback case, not a stored one`);
+    assert.equal(stressOf(w), 0, `${w} does not begin with a prefix syllable`);
+  }
+
+  // It is a rate, not a law, and this is what the rate costs: "con-sul" is a
+  // noun stressed on its first syllable, and it comes out "consúl" because
+  // 22 of the 23 two-syllable "con" forms the psalters point are verbs. No
+  // psalm says "consul", which is why the trade is worth making.
+  assert.equal(stressOf('consul'), 1);
+
+  // Three syllables or more never consult the list: the penult is already off
+  // the first syllable, so a prefix has nothing left to say.
+  assert.equal(stressOf('reclassified'), 2);   // re-clas-si-FIED is wrong, but
+                                               // it is the penult rule's wrong
+                                               // answer, not the prefix rule's
+});
+
+test('the prefixes are syllables the psalters really do point off', () => {
+  // Every entry must be a syllable englishPhoneticSyllabify can actually cut,
+  // or the fallback would never match it.
+  for (const prefix of ENGLISH_UNSTRESSED_PREFIXES) {
+    assert.match(prefix, /^[a-z]+$/, `${prefix} is not a bare syllable`);
+  }
+  // The clearest cases, and the ones the threshold deliberately leaves out
+  // because the psalters point them both ways: "fórmer" against "forgáve",
+  // "précepts" against "prepáre", "pérfect" against "perfórmed".
+  for (const prefix of ['be', 're', 'de', 'con', 'dis', 'un', 'a']) {
+    assert.ok(ENGLISH_UNSTRESSED_PREFIXES.has(prefix), `${prefix} is an unstressed prefix`);
+  }
+  for (const prefix of ['for', 'pre', 'per', 'an', 'of']) {
+    assert.ok(!ENGLISH_UNSTRESSED_PREFIXES.has(prefix), `${prefix} is pointed both ways`);
+  }
+
+  // And the rule earns its keep on held-out words: over the two-syllable
+  // forms in the dictionary, taken as truth, the bare "first of two" rule
+  // agrees with the psalters far less often than the prefix rule does.
+  const two = [...ENGLISH_STRESS].filter(([w]) => englishPhoneticSyllabify(w).length === 2);
+  assert.ok(two.length > 1000, `expected the dictionary, got ${two.length} two-syllable forms`);
+  const right = (rule: (w: string) => number) =>
+    two.filter(([w, syll]) => rule(w) === syll).length / two.length;
+  const bare = right(() => 0);
+  const withPrefixes = right(w =>
+    (ENGLISH_UNSTRESSED_PREFIXES.has(englishPhoneticSyllabify(w)[0]) ? 1 : 0));
+  assert.ok(bare < 0.70, `first-of-two scores ${(100 * bare).toFixed(1)}%`);
+  assert.ok(withPrefixes > 0.85, `prefix rule scores ${(100 * withPrefixes).toFixed(1)}%`);
 });
 
 test('the words the old heuristic got wrong', () => {

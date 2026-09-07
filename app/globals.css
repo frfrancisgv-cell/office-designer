@@ -16,6 +16,87 @@
   }
 }
 
+.pointing-workflow {
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pointing-workflow section {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.pointing-workflow h3 { font-size: 14px; font-weight: 600; color: #0f172a; }
+.pointing-workflow label { display: grid; gap: 5px; }
+.pointing-workflow label.pointing-row,
+.pointing-workflow .pointing-fields label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.pointing-workflow label.pointing-row select,
+.pointing-workflow .pointing-fields label select {
+  flex: 1;
+  width: auto;
+}
+.pointing-workflow select,
+.pointing-workflow input:not([type=checkbox]) {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: white;
+  padding: 7px 9px;
+}
+.pointing-workflow section > button,
+.pointing-workflow section > .flex > button,
+.pointing-workflow [role=alert] > button {
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  padding: 6px 10px;
+  background: white;
+  color: #334155;
+}
+.pointing-workflow section > button:hover { background: #f1f5f9; }
+.pointing-workflow button:disabled { opacity: .5; cursor: default; }
+.pointing-workflow .pointing-apply { background: #1e293b; color: white; border-color: #1e293b; }
+.pointing-workflow .pointing-apply:hover { background: #334155; }
+.pointing-workflow .pointing-check { display: flex; align-items: center; gap: 8px; }
+.pointing-check input { accent-color: #334155; }
+.pointing-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pointing-workflow p { color: #64748b; font-size: 12px; }
+.pointing-workflow summary { cursor: pointer; font-weight: 500; }
+
+/* Editing controls live outside the booklet and use interface typography. */
+.block-tools input,
+.block-tools select,
+.block-tools textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.block-tools button,
+.block-tools select,
+.block-tools label {
+  font-size: 12px;
+}
+
+.block-tools textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.block-tools {
+  display: grid;
+  gap: 10px;
+}
+
+.block-tools details[open] > summary {
+  margin-bottom: 8px;
+}
+
 /* ── Lypsautierant psalm pointing ─────────────────────────────────────────
    Marks sit centred UNDERNEATH their syllable, as psautier/psalter.sty sets
    them with \oalign. The wrapper is an inline-flex column so its baseline is
@@ -115,3 +196,272 @@
     box-shadow: none !important;
   }
 }
+
+/* The Psalm Tone Creator has a page of its own at /tone-creator, so it is
+   laid out as a workshop: the library at the left, the cadence being edited in
+   the middle, and the whole psalm alongside it, in view as it is edited. */
+.tone-creator-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #faf8f5;
+  color: #334155;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.tc-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: white;
+}
+.tc-brand { display: flex; align-items: center; gap: 10px; }
+.tc-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  background: #4b3021;
+  color: white;
+}
+.tc-brand h1 { font-size: 14px; font-weight: 600; color: #0f172a; letter-spacing: -0.01em; }
+.tc-brand p { font-size: 11px; color: #64748b; }
+.tc-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-weight: 500;
+  color: #334155;
+}
+.tc-back:hover { background: #f1f5f9; }
+
+.tc-body { display: grid; grid-template-columns: 272px minmax(0, 1fr); align-items: start; flex: 1; }
+.tc-preview-pane { grid-column: 2; }
+@media (min-width: 1240px) {
+  .tc-body { grid-template-columns: 272px minmax(0, 1fr) minmax(360px, 30%); }
+  .tc-preview-pane { grid-column: 3; grid-row: 1; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+}
+@media (max-width: 860px) {
+  .tc-body { grid-template-columns: minmax(0, 1fr); }
+  .tc-preview-pane { grid-column: 1; }
+  .tc-side { position: static; border-right: none; border-bottom: 1px solid #e2e8f0; min-height: 0; max-height: none; }
+}
+
+/* The side panel carries the model text, the library and the tone's own
+   settings, so it scrolls with the page under it rather than with the page. */
+.tc-side {
+  position: sticky;
+  top: 0;
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  padding: 20px;
+  border-right: 1px solid #e2e8f0;
+  background: white;
+  min-height: 100%;
+  max-height: 100vh;
+  overflow: auto;
+}
+.tc-side section { display: grid; gap: 12px; align-content: start; }
+.tc-side section + section { border-top: 1px solid #e2e8f0; padding-top: 18px; }
+.tc-side h2, .tc-work h2, .tc-preview-head h2 { font-size: 13px; font-weight: 600; color: #0f172a; }
+.tc-side ul { display: grid; gap: 4px; }
+.tc-side li > button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 7px 9px;
+  text-align: left;
+  color: #334155;
+}
+.tc-side li > button:hover { background: #f1f5f9; }
+.tc-side li > button[aria-current=true] { border-color: #d8cbbb; background: #f6efe6; color: #4b3021; font-weight: 600; }
+.tc-side li em { font-style: normal; font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.tc-new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #4b3021;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #4b3021;
+  color: white;
+  font-weight: 600;
+}
+.tc-new:hover:not(:disabled) { background: #5f3d2b; }
+
+.tc-work { display: grid; gap: 16px; padding: 20px; }
+.tc-work section, .tc-preview-pane {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: white;
+}
+.tc-side p, .tc-work p, .tc-hint { color: #64748b; font-size: 12px; }
+.tone-creator-page button:disabled { opacity: .45; cursor: default; }
+
+.tc-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
+.tc-side .tc-row { flex-wrap: nowrap; gap: 8px; align-items: center; }
+.tc-side .tc-row > input, .tc-side .tc-row > select { flex: 1 1 auto; min-width: 0; }
+.tc-side .tc-load { display: inline-flex; align-items: center; gap: 5px; }
+/* What was loaded, in place of the verses themselves: the psalm is read in the
+   preview beside the staff, and the panel only has to say which one it is. */
+.tc-loaded { display: grid; gap: 2px; }
+.tc-loaded strong { color: #334155; font-weight: 600; }
+.tc-loaded span {
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 13px;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tc-side .tc-load { flex: 0 0 auto; padding: 7px 10px; }
+.tc-side .tc-segmented { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; }
+.tc-side .tc-segmented button { justify-content: center; padding: 5px 4px; min-width: 0; }
+.tc-field { display: grid; gap: 6px; min-width: 0; }
+.tc-row > .tc-field:first-child { flex: 1 1 180px; }
+.tc-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: #94a3b8; }
+.tc-side input, .tc-side select, .tc-side textarea, .tc-work input, .tc-work textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: white;
+  padding: 7px 9px;
+  color: #334155;
+}
+.tc-side input:focus-visible, .tc-side select:focus-visible, .tc-side textarea:focus-visible, .tc-work input:focus-visible, .tc-work textarea:focus-visible { outline: 2px solid #a08163; outline-offset: -1px; }
+.tc-side textarea, .tc-work textarea { resize: vertical; line-height: 1.6; font-family: var(--font-serif, Georgia, serif); font-size: 14px; }
+.tc-load {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 7px 12px;
+  background: white;
+  font-weight: 500;
+}
+.tc-load:hover:not(:disabled) { background: #f1f5f9; }
+
+/* Segmented controls stand in for every select the panel used to hold. */
+.tc-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f6f5f2;
+}
+.tc-segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 10px;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.tc-segmented button:hover:not(:disabled) { color: #334155; }
+.tc-segmented button[aria-pressed=true] {
+  background: white;
+  color: #4b3021;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(15 23 42 / .12);
+}
+.tc-editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.tc-tabs button[aria-pressed=true] { color: #0f172a; }
+
+/* The cadence itself: a staff and a row of syllables that scroll together. */
+.tc-strip {
+  overflow-x: auto;
+  padding: 10px 8px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fdfcfa;
+}
+.tc-staff { display: block; touch-action: none; cursor: crosshair; }
+.tc-staff-line { stroke: #cdbba6; stroke-width: 1; }
+.tc-staff-selected { fill: #efe2d2; }
+/* The notes are the chant's own shapes and all of one colour, as they are in
+   the books; what a syllable does in the cadence is the tint behind it. */
+.tc-note { fill: #1a1a1a; }
+.tc-note .tc-stroke { fill: none; stroke: #1a1a1a; stroke-width: 2.2; stroke-linecap: round; }
+.tc-column { fill: transparent; }
+.tc-column.is-recite { fill: #faf7f2; }
+.tc-column.is-accent { fill: #fbf0ec; }
+.tc-chips { display: flex; }
+.tc-chip {
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  padding: 5px 2px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  overflow: hidden;
+}
+.tc-chip:hover { background: #f1f5f9; }
+.tc-chip[aria-current=true] { border-color: #c7b299; background: #f6efe6; }
+.tc-chip-text { font-family: var(--font-serif, Georgia, serif); font-size: 14px; line-height: 1.2; }
+.tc-chip-mark { font-size: 11px; font-weight: 700; letter-spacing: -.04em; color: #cbd5e1; }
+.tc-chip-mark.is-set { color: #4b3021; }
+.tc-chip-flags { display: flex; gap: 2px; min-height: 12px; color: #8a6a4f; }
+
+.tc-inspector {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e8dfd2;
+  border-radius: 8px;
+  background: #fbf7f1;
+}
+.tc-inspector-head { display: flex; align-items: baseline; gap: 10px; }
+.tc-inspector-syl { font-family: var(--font-serif, Georgia, serif); font-size: 18px; color: #0f172a; }
+.tc-formula summary { cursor: pointer; font-weight: 500; color: #64748b; }
+.tc-formula textarea { margin-top: 8px; font-family: ui-monospace, monospace; font-size: 11px; }
+
+.tc-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tc-preview {
+  border: 1px solid #eee6da;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fdfcfa;
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 15px;
+  line-height: 2;
+  /* The lypsautierant HTML carries its own line breaks and no block wrapper. */
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+.tc-save {
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 7px 14px;
+  background: #1e293b;
+  color: white;
+  font-weight: 600;
+}
+.tc-save:hover:not(:disabled) { background: #334155; }
+.tc-alert { color: #b91c1c; font-size: 12px; }
+.tc-status { color: #15803d; font-size: 12px; }
