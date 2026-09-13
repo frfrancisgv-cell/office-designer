@@ -10,7 +10,7 @@
  * scoredSyllables), and the copy is a new tone from the moment it is made:
  * nothing here is ever written back to.
  */
-import { CADENCES, CROWDING, applyMarkExample, exampleSyllables, gabcFormula, markGroups, markedSyllables, scoredSyllables, type Cadence, type CreatedTone, type ToneExample } from './creator';
+import { CADENCES, CROWDING, DEFAULT_DISCERNED_RULE, applyMarkExample, exampleSyllables, gabcFormula, markGroups, markedSyllables, scoredSyllables, type Cadence, type CreatedTone, type DiscernedToneRule, type ToneExample } from './creator';
 import { PSALM_TONES, type ToneSpec } from './tone-data';
 import { applyMode, getModeNames, getVariations, hasVariation, type ModeFamily, type ModeName } from './lypsautierant-modes';
 import { syllabifyLine } from './lypsautierant-syllabify';
@@ -21,12 +21,35 @@ import type { SystemTone } from './system-tone-catalogue';
 export type { SystemTone } from './system-tone-catalogue';
 export { narrowSystemTones } from './system-tone-catalogue';
 interface Entry extends SystemTone {
+  discerned?: DiscernedToneRule;
   /**
    * `probes` are the other half-lines of the same model text. A tone read onto
    * one line is only a guess at the rule behind it, and these are what that
    * guess is then tried against.
    */
   build(samples: Record<Cadence, string>, lang: 'en' | 'la', probes: string[]): { examples: Record<Cadence, ToneExample>; warnings: string[] };
+}
+
+/** The one complete conditional tone supplied so far. */
+function discernedEntry(): Entry {
+  return {
+    id: 'system:discerned:english:tone-1',
+    name: 'Conditional Tone 1',
+    backend: 'discerned',
+    family: 'English — phrase stress',
+    tone: '1',
+    variant: '',
+    clef: 'c4',
+    discerned: DEFAULT_DISCERNED_RULE,
+    build(samples, lang) {
+      if (lang !== 'en') throw new Error('Conditional stress-and-distance tones currently support English only.');
+      const examples = Object.fromEntries(CADENCES.map(key => [
+        key,
+        { syllables: exampleSyllables(syllabifyLineForScore(samples[key])), anchor: 'end' },
+      ])) as Record<Cadence, ToneExample>;
+      return { examples, warnings: [] };
+    },
+  };
 }
 
 /** psautier/french is byte-identical to psautier/modes, so it is not listed twice. */
@@ -237,6 +260,7 @@ function entries(): Map<string, Entry> {
     const endings = spec.terminations ? Object.keys(spec.terminations) : [''];
     for (const ending of endings) all.push(gabcEntry(name, spec, ending));
   }
+  all.push(discernedEntry());
   catalogue = new Map(all.map(entry => [entry.id, entry]));
   return catalogue;
 }
@@ -266,7 +290,15 @@ export function copySystemTone(id: string, samples: Record<Cadence, string>, lan
   if (!entry) throw new Error('That tone is not in the library.');
   const { examples, warnings } = entry.build(samples, lang, probes);
   return {
-    tone: { version: 1, id: crypto.randomUUID(), name: `${entry.name} (copy)`.slice(0, 100), backend: entry.backend, clef: entry.clef, examples },
+    tone: {
+      version: 1,
+      id: crypto.randomUUID(),
+      name: `${entry.name} (copy)`.slice(0, 100),
+      backend: entry.backend,
+      clef: entry.clef,
+      examples,
+      ...(entry.discerned ? { discerned: entry.discerned } : {}),
+    },
     warnings,
   };
 }

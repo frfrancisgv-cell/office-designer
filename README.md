@@ -402,7 +402,9 @@ Edit each cadence before saving the tone.
   where the tone wants `'f fr g` — so "to behold your strength and your glory"
   came out with the g doubled. Reading an existing tone in keeps whatever note
   its formula holds them on.
-- **Conditional stress** assigns actual notes only after reading the phrase's
+- **Conditional stress** is selected under **Tone library → Or start from a
+  tone the app sings → Engine**; choose its English phrase-stress family and
+  Tone 1, then copy it into the editor. It assigns actual notes only after reading the phrase's
   stresses and the number of syllables between them. Its initial Tone 1 rule
   is the supplied A/B-flat/G mediation and G/F/D ending: edit the reciting,
   previous-stress, return, passing, preparation, and final pitches directly as

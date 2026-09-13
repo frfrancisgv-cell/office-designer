@@ -83,12 +83,16 @@ function Segmented<T extends string>({ label, value, options, onChange }: {
 function backendLabel(backend: CreatedTone['backend']): string {
   return backend === 'lyps' ? '+ − =' : backend === 'jgabc' ? 'GABC' : 'Conditional';
 }
-/** The three notations a tone can be written in, named once for both pickers. */
-const NOTATIONS: { value: CreatedTone['backend']; label: string; title: string }[] = [
+/** Every engine represented in the built-in catalogue. */
+const ENGINES: { value: CreatedTone['backend']; label: string; title: string }[] = [
   { value: 'lyps', label: '+ − = marks', title: 'Lypsautierant pointing marks' },
   { value: 'jgabc', label: 'Chant staff', title: 'jgabc chant notation' },
   { value: 'discerned', label: 'Conditional stress', title: 'Notes chosen from stress and syllable distance' },
 ];
+/** A blank tone can be drawn in these two general-purpose notations. */
+const NOTATIONS = ENGINES.filter(option => option.value !== 'discerned') as {
+  value: 'lyps' | 'jgabc'; label: string; title: string;
+}[];
 
 /** The editable musical values behind the stress-and-distance algorithm. */
 function DiscernedRuleEditor({ rule, onChange }: {
@@ -442,14 +446,14 @@ export function PsalmToneCreator() {
               </li>)}</ul>
               <button className="tc-new" disabled={busy || !text.trim()} onClick={create}><Plus size={14} />{busy ? 'Preparing…' : 'New tone from this psalm'}</button>
               {/* A hundred and fifty tones are too many for one list, so the
-                  catalogue is narrowed the way it is laid out: the notation,
+                  catalogue is narrowed the way it is laid out: the engine,
                   then the family of rules, the mode or tone, and the ending. */}
               <div className="tc-field">
                 <span className="tc-label">Or start from a tone the app sings</span>
                 <div className="tc-picker">
-                  <label className="tc-picker-wide">Notation
+                  <label className="tc-picker-wide">Engine
                     <select value={choice.backend} onChange={e => setChoice({ ...choice, backend: e.target.value })}>
-                      {NOTATIONS.filter(n => system.some(t => t.backend === n.value))
+                      {ENGINES.filter(n => system.some(t => t.backend === n.value))
                         .map(n => <option key={n.value} value={n.value} title={n.title}>{n.label}</option>)}
                     </select>
                   </label>
@@ -483,7 +487,9 @@ export function PsalmToneCreator() {
         {tone && example && <section>
           <h2>The tone</h2>
           <label className="tc-field"><span className="tc-label">Name</span><input maxLength={100} value={tone.name} onChange={e => change({ ...tone, name: e.target.value })} /></label>
-          <Segmented label="Notation" value={tone.backend} onChange={backend => void changeBackend(backend)} options={NOTATIONS} />
+          {tone.backend === 'discerned'
+            ? <div className="tc-field"><span className="tc-label">Engine</span><p>Conditional stress</p></div>
+            : <Segmented label="Notation" value={tone.backend} onChange={backend => void changeBackend(backend)} options={NOTATIONS} />}
           {tone.backend === 'lyps'
             ? <Segmented label="Cadence measured from" value={example.anchor} onChange={anchor => edit({ anchor })}
                 options={[{ value: 'end', label: 'Last syllable' }, { value: 'accent', label: 'Last accent' }]} />

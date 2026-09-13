@@ -13,11 +13,22 @@ const samples = {
 
 test('every tone the app ships with can be copied onto a model text', () => {
   const all = listSystemTones();
-  // The two families: the psautier pointing rules and the Gregorian tones.
+  // The psautier rules, Gregorian tones, and conditional phrase-stress tone.
   assert.ok(all.length > 100, `only ${all.length} tones listed`);
-  assert.ok(all.some(t => t.backend === 'lyps') && all.some(t => t.backend === 'jgabc'));
+  assert.ok(all.some(t => t.backend === 'lyps') && all.some(t => t.backend === 'jgabc') && all.some(t => t.backend === 'discerned'));
   for (const tone of all) validateTone(copySystemTone(tone.id, samples, 'en').tone);
   assert.throws(() => copySystemTone('system:jgabc:no such tone:', samples, 'en'), /not in the library/);
+});
+
+test('conditional Tone 1 is selected and copied through the built-in catalogue', () => {
+  const all = listSystemTones();
+  const selected = narrowSystemTones(all, { backend: 'discerned', family: '', tone: '', variant: '' });
+  assert.equal(selected.family, 'English — phrase stress');
+  assert.equal(selected.picked?.id, 'system:discerned:english:tone-1');
+  const { tone } = copySystemTone(selected.picked!.id, samples, 'en');
+  assert.equal(tone.backend, 'discerned');
+  assert.equal(tone.discerned?.mediation.previous, 'ixi');
+  assert.equal(tone.discerned?.ending.final, 'd');
 });
 
 test('every tone is reachable through the four selectors, and named once', () => {
