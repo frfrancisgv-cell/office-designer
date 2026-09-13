@@ -1,9 +1,29 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+/**
+ * /share/<id> — the office as prayed, on whatever device opened the link.
+ *
+ * This route intentionally contains no route back into the editor and no block
+ * controls. What it does contain is a booklet that fits the device it is read
+ * on: the sizing is worked out in lib/pray-view.ts, which explains why a paper
+ * design cannot simply be reproduced on a phone. Everything here is measured
+ * in em of the sheet's own type, so one reading size governs the words, the
+ * chant, and the space between them together, and the whole booklet reflows
+ * when the reader turns the phone or presses A+.
+ *
+ * Print is unaffected: the author's point size and real page box are restored
+ * for paper.
+ */
+
+import React, { useCallback, useEffect, useState } from 'react';
 import { Block, OfficeSettings } from '@/lib/types';
-import { isPsalmRubric } from '@/lib/blocks';
-import { positionGabcAnnotation } from '@/lib/gabc-layout';
+import { isPsalmRubric, isSuppressedAttribution } from '@/lib/blocks';
+import { GabcRenderer, prepareGabcForPrint } from '@/components/GabcRenderer';
+import {
+  DEFAULT_PRAY_SCALE, PRAY_SCALE_KEY, basePointSizeOf, canStepPrayScale, clampPrayScale,
+  gabcPointSizeForPx, printPageSize, readingFontPx, readingMeasureEm, readingPageWidthCss,
+  stepPrayScale,
+} from '@/lib/pray-view';
 
 interface SharePayload {
   blocks: Block[];
@@ -12,80 +32,13 @@ interface SharePayload {
   createdAt?: number;
 }
 
-// Minimal GABC renderer for share view (same logic as office-editor.tsx)
-function GabcViewRenderer({ gabc, baseFontSize = 12 }: { gabc: string; baseFontSize?: number }) {
-  const ref = React.useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!ref.current || !gabc) return;
-    const container = ref.current;
-
-    let annotation = '';
-    const sep = gabc.indexOf('%%');
-    if (sep !== -1) {
-      const annLines: string[] = [];
-      for (const m of gabc.slice(0, sep).matchAll(/annotation:\s*([^;\n]+);/g)) {
-        annLines.push(m[1].trim());
-      }
-      annotation = annLines.join('\n');
-    }
-
-    let safeGabc = gabc
-      .replace(/<v>\\greheightstar<\/v>/g, ' *')
-      .replace(/\\greheightstar/g, '*')
-      .replace(/<v>\\GreDagger<\/v>/g, ' †')
-      .replace(/<v>[^<]*<\/v>/g, '')
-      .replace(/<sp>V\/<\/sp>/g, '℣')
-      .replace(/<sp>R\/<\/sp>/g, '℟')
-      .replace(/<sp>[^<]*<\/sp>/g, '')
-      .replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
-    if (safeGabc.includes('%%')) safeGabc = safeGabc.slice(safeGabc.indexOf('%%') + 2).trim();
-
-    const tryRender = () => {
-      const ex = (window as any).exsurge;
-      if (!ex) { setTimeout(tryRender, 400); return; }
-      try {
-        const ctxt = new ex.ChantContext();
-        ctxt.lyricTextFont = "'EB Garamond', Georgia, serif";
-        ctxt.lyricTextSize = 16 * (baseFontSize / 12);
-        const chantScale = 0.88;
-        ctxt.glyphScaling *= chantScale;
-        ctxt.staffInterval *= chantScale;
-        ctxt.intraNeumeSpacing *= chantScale;
-        const width = container.clientWidth || 600;
-        const layoutWidth = width;
-        const mappings = ex.Gabc.createMappingsFromSource(ctxt, safeGabc);
-        const score = new ex.ChantScore(ctxt, mappings, true);
-        // Set annotation on score (not ctxt) — correct exsurge API
-        if (annotation) score.annotation = new ex.Annotation(ctxt, annotation);
-        score.performLayoutAsync(ctxt, () => {
-          score.layoutChantLines(ctxt, layoutWidth, () => {
-            positionGabcAnnotation(score, ctxt);
-            container.innerHTML = score.createSvg(ctxt);
-            const svg = container.querySelector('svg');
-            if (svg) {
-              const height = Number(svg.getAttribute('height')) || score.bounds.height;
-              svg.setAttribute('viewBox', `0 0 ${layoutWidth} ${height}`);
-              svg.style.width = '100%';
-              svg.style.height = 'auto';
-              svg.style.display = 'block';
-            }
-          });
-        });
-      } catch { container.innerHTML = `<pre class="text-xs text-gray-400">${safeGabc.slice(0, 100)}</pre>`; }
-    };
-    tryRender();
-  }, [gabc, baseFontSize]);
-
-  return <div ref={ref} className="w-full my-1" />;
-}
-
 function BlockView({
-  block, rubricColor, baseFontSize, centerRubric = false,
+  block, rubricColor, baseFontSize, printBaseFontSize, centerRubric = false,
 }: {
   block: Block;
   rubricColor: string;
   baseFontSize: number;
+  printBaseFontSize: number;
   centerRubric?: boolean;
 }) {
   const isRubric = block.type === 'rubric' || block.type === 'subheading';
@@ -93,20 +46,20 @@ function BlockView({
 
   switch (block.type) {
     case 'heading':
-      return <h2 className="text-center text-lg font-serif font-normal uppercase tracking-wide mt-6 mb-1" style={style}>{block.content}</h2>;
+      return <h2 className="text-center text-[1.15em] font-serif font-normal uppercase tracking-wide mt-[1.5em] mb-[0.25em]" style={style}>{block.content}</h2>;
     case 'subheading':
-      return <h3 className="text-center text-base italic mb-1" style={style}>{block.content}</h3>;
+      return <h3 className="text-center text-[1em] italic mb-[0.25em]" style={style}>{block.content}</h3>;
     case 'rubric':
-      return <p className={`text-[0.9em] italic mb-1 ${centerRubric ? 'text-center' : ''}`} style={style}>{block.content}</p>;
+      return <p className={`text-[0.9em] italic mb-[0.25em] ${centerRubric ? 'text-center' : ''}`} style={style}>{block.content}</p>;
     case 'antiphon':
     case 'invitatory-antiphon':
     case 'hymn':
       return (
-        <div className="mb-2">
+        <div className="mb-[0.5em]">
           {block.gabcScore
             ? <>
-                <GabcViewRenderer gabc={block.gabcScore} baseFontSize={baseFontSize} />
-                {block.content && block.printTranslation !== false && <p className="text-[0.82em] italic text-center text-gray-600 mt-0.5">{block.content}</p>}
+                <GabcRenderer gabc={block.gabcScore} baseFontSize={baseFontSize} printBaseFontSize={printBaseFontSize} />
+                {block.content && block.printTranslation !== false && <p className="text-[0.82em] italic text-center text-gray-600 mt-[0.125em]">{block.content}</p>}
               </>
             : <p className="italic text-justify">{block.content}</p>
           }
@@ -114,26 +67,93 @@ function BlockView({
       );
     case 'psalm':
       return block.gabcScore
-        ? <div className="mb-2"><GabcViewRenderer gabc={block.gabcScore} baseFontSize={baseFontSize} /></div>
+        ? <div className="mb-[0.5em]"><GabcRenderer gabc={block.gabcScore} baseFontSize={baseFontSize} printBaseFontSize={printBaseFontSize} /></div>
         : (
-            <div className="mb-2 text-justify whitespace-pre-wrap"
+            <div className="mb-[0.5em] text-justify whitespace-pre-wrap"
               dangerouslySetInnerHTML={{ __html: block.content }} />
           );
     case 'psalm-prayer':
-      return <p className="italic my-2 text-justify">{block.content}</p>;
+      return <p className="italic my-[0.5em] text-justify">{block.content}</p>;
     case 'text':
-      return <p className="mb-1 text-justify whitespace-pre-wrap">{block.content}</p>;
+      return <p className="mb-[0.25em] text-justify whitespace-pre-wrap">{block.content}</p>;
     case 'page-break':
-      return <hr className="my-4 border-dashed border-gray-300 print:break-after-page" />;
+      return <hr className="my-[1em] border-dashed border-gray-300 print:break-after-page" />;
     default:
-      return <p className="mb-1">{block.content}</p>;
+      return <p className="mb-[0.25em]">{block.content}</p>;
   }
+}
+
+function readRootFontPx(): number {
+  if (typeof window === 'undefined') return 16;
+  return parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+}
+
+/**
+ * The reader's own root font size, which is the one thing about the device the
+ * type is measured against — a phone or browser set to large text should give
+ * a large booklet. The viewport is not consulted: how wide the sheet may be is
+ * settled in CSS, and the width a device happens to have is no reason to set
+ * the office in type its author did not ask for.
+ *
+ * Watched, because a browser's text size and page zoom can both change under
+ * a reader who is already praying.
+ */
+function useRootFontPx(): number {
+  const [rootFontPx, setRootFontPx] = useState<number>(readRootFontPx);
+
+  useEffect(() => {
+    // Rotation on iOS fires more than once as the viewport settles; only a
+    // real change should relay out every chant score on the page.
+    const measure = () => setRootFontPx(previous => {
+      const next = readRootFontPx();
+      return next === previous ? previous : next;
+    });
+
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+    };
+  }, []);
+
+  return rootFontPx;
+}
+
+/**
+ * The reading size the person holding the device chose, remembered on that
+ * device. It is deliberately not part of the shared booklet: the author's
+ * point size travels in the link, and this is the reader's own eyes.
+ */
+function usePrayScale() {
+  const [scale, setScale] = useState<number>(() => {
+    if (typeof window === 'undefined') return DEFAULT_PRAY_SCALE;
+    try { return clampPrayScale(window.localStorage.getItem(PRAY_SCALE_KEY)); }
+    catch (error) {
+      console.warn('Could not read the saved reading size:', error);
+      return DEFAULT_PRAY_SCALE;
+    }
+  });
+
+  const step = useCallback((direction: 1 | -1) => {
+    setScale(current => {
+      const next = stepPrayScale(current, direction);
+      try { window.localStorage.setItem(PRAY_SCALE_KEY, String(next)); }
+      catch (error) { console.warn('Could not save the reading size:', error); }
+      return next;
+    });
+  }, []);
+
+  return { scale, step };
 }
 
 export default function SharePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
   const [payload, setPayload] = useState<SharePayload | null>(null);
   const [error, setError] = useState('');
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+  const rootFontPx = useRootFontPx();
+  const { scale, step } = usePrayScale();
 
   useEffect(() => {
     fetch(`/api/share?id=${id}`)
@@ -141,6 +161,16 @@ export default function SharePage({ params }: { params: Promise<{ id: string }> 
       .then(setPayload)
       .catch(() => setError('This shared office booklet was not found or has expired.'));
   }, [id]);
+
+  const handlePrint = async () => {
+    setIsPreparingPrint(true);
+    try {
+      await prepareGabcForPrint();
+      window.print();
+    } finally {
+      setIsPreparingPrint(false);
+    }
+  };
 
   if (error) return (
     <main className="min-h-screen flex items-center justify-center text-gray-500">
@@ -154,51 +184,105 @@ export default function SharePage({ params }: { params: Promise<{ id: string }> 
   );
 
   const { blocks, settings, title, createdAt } = payload;
-  const paperWidths: Record<string, string> = {
-    Letter: '8.5in', HalfLetter: '5.5in', A4: '210mm', A5: '148mm',
-  };
-  const pageWidth = paperWidths[settings.paperSize] ?? '5.5in';
   const rubricColor = settings.rubricColor || '#C00000';
   const fontFamily = settings.fontFamily === 'sans' ? 'sans-serif' : 'Georgia, serif';
-  const fontSize = `${settings.baseFontSize ?? 12}pt`;
+  const lineHeight = settings.lineSpacing === 'tight' ? '1.2' : settings.lineSpacing === 'relaxed' ? '1.6' : '1.35';
+
+  // The size this device reads at, and the size its paper prints at.
+  const readingPx = readingFontPx({ rootFontPx, scale, settings });
+  const printPt = basePointSizeOf(settings);
 
   return (
     <>
       {/* Load exsurge for GABC rendering */}
       <script src="/exsurge.js" async />
 
-      <div className="min-h-screen bg-gray-200 py-8 print:bg-white print:py-0">
-        {/* View-only banner */}
-        <div className="no-print text-center mb-4 text-xs text-gray-500 flex items-center justify-center gap-4">
-          <span>View-only shared booklet{title ? `: ${title}` : ''}</span>
-          {createdAt && <span>· Created {new Date(createdAt).toLocaleDateString()}</span>}
+      <div className="pray-view min-h-dvh overflow-x-hidden bg-[#f4f1ec] print:bg-white">
+        <header className="no-print sticky top-0 z-10 flex min-h-12 items-center gap-2 border-b border-stone-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur sm:gap-3 sm:px-4">
+          <div className="min-w-0 flex-1">
+            <strong className="block truncate text-sm font-semibold text-stone-900">{title || 'Pray this office'}</strong>
+            <span className="block truncate text-[10px] uppercase tracking-wider text-stone-400">Read-only prayer view{createdAt ? ` · Shared ${new Date(createdAt).toLocaleDateString()}` : ''}</span>
+          </div>
+          <div className="flex shrink-0 items-center gap-px rounded-md border border-stone-300" role="group" aria-label="Reading size">
+            <button
+              type="button"
+              onClick={() => step(-1)}
+              disabled={!canStepPrayScale(scale, -1)}
+              title="Smaller text"
+              aria-label="Smaller text"
+              className="rounded-l-md px-2 py-1.5 text-[11px] font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-35 disabled:hover:bg-transparent"
+            >A−</button>
+            <span className="hidden w-10 text-center text-[10px] tabular-nums text-stone-400 sm:inline">{Math.round(scale * 100)}%</span>
+            <button
+              type="button"
+              onClick={() => step(1)}
+              disabled={!canStepPrayScale(scale, 1)}
+              title="Larger text"
+              aria-label="Larger text"
+              className="rounded-r-md px-2 py-1.5 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-35 disabled:hover:bg-transparent"
+            >A+</button>
+          </div>
           <button
-            onClick={() => window.print()}
-            className="px-3 py-1 bg-gray-800 text-white rounded text-xs hover:bg-black"
-          >Print / Save PDF</button>
-        </div>
+            onClick={() => void handlePrint()}
+            disabled={isPreparingPrint}
+            className="shrink-0 rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-50"
+          >{isPreparingPrint ? 'Preparing…' : 'Print'}</button>
+        </header>
 
-        <div
-          className="mx-auto bg-white shadow-xl px-10 py-10 print:shadow-none print:px-0 print:py-0"
-          style={{ maxWidth: pageWidth, fontFamily, fontSize, lineHeight: '1.3' }}
+        <article
+          className="pray-sheet mx-auto min-h-[calc(100dvh-3rem)] w-full bg-white px-[clamp(0.85rem,4vw,2.5rem)] py-[clamp(1.5rem,6vw,2.5rem)] shadow-lg print:min-h-0 print:shadow-none print:px-0 print:py-0"
+          style={{
+            fontFamily,
+            lineHeight,
+            '--pray-font': `${readingPx}px`,
+            '--pray-page': readingPageWidthCss(settings),
+            '--pray-measure': `${readingMeasureEm(settings)}em`,
+            '--pray-print-font': `${printPt}pt`,
+          } as React.CSSProperties}
         >
-          {blocks.map((block, idx) => (
-            <React.Fragment key={block.id}>
-              <BlockView
-                block={block}
-                rubricColor={rubricColor}
-                baseFontSize={settings.baseFontSize ?? 12}
-                centerRubric={isPsalmRubric(blocks, idx)}
-              />
-            </React.Fragment>
-          ))}
-        </div>
+          {blocks.map((block, idx) => {
+            // A scored hymn's credits are already printed under its staff, so
+            // the editor and the PDF both drop the rubrics that repeat them.
+            // The reader gets the same office, not a doubled attribution.
+            if (isSuppressedAttribution(blocks, idx)) return null;
+            return (
+              <React.Fragment key={block.id}>
+                <BlockView
+                  block={block}
+                  rubricColor={rubricColor}
+                  baseFontSize={gabcPointSizeForPx(readingPx)}
+                  printBaseFontSize={printPt}
+                  centerRubric={isPsalmRubric(blocks, idx)}
+                />
+              </React.Fragment>
+            );
+          })}
+        </article>
       </div>
 
       <style>{`
+        .pray-sheet { overflow-wrap: anywhere; }
+        .pray-sheet img, .pray-sheet svg { max-width: 100%; }
+        @media screen {
+          .pray-sheet {
+            font-size: var(--pray-font);
+            /* The page at its own width, or the same page measured in the
+               reader's type, whichever is wider — so A+ widens the sheet and
+               A− never narrows it below the paper — and never wider than the
+               device. An em here is the sheet's own type. */
+            max-width: min(100%, max(var(--pray-page), var(--pray-measure)));
+          }
+        }
+        @media screen and (max-width: 640px) {
+          /* A phone has no margins to spare: the sheet goes edge to edge and
+             takes whatever measure that width allows, rather than leaving
+             cream gutters when the reader chooses smaller type. */
+          .pray-sheet { max-width: 100%; box-shadow: none; }
+        }
         @media print {
           .no-print { display: none !important; }
-          @page { margin: 15mm; }
+          .pray-sheet { font-size: var(--pray-print-font); max-width: none; }
+          @page { size: ${printPageSize(settings)}; margin: 15mm; }
         }
       `}</style>
     </>

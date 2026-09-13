@@ -9,7 +9,12 @@
  */
 
 import { FEAST_CALENDAR, ORDINALS, DAY_TO_FERIA } from './constants';
-import { getCommonOccasionCode, getObservances } from '@/lib/liturgy/calendar-context';
+import {
+  antiphonOccasionCodes, getCommonOccasionCode, getLiturgicalContext, getObservances,
+  hymnOccasionCodes, invitatoryOccasionCodes, responsoryOccasionCodes,
+} from '@/lib/liturgy/calendar-context';
+import type { LiturgicalContext, OfficeHour } from '@/lib/liturgy/calendar-context';
+import { hasOcoProper } from './gabc-lookup';
 
 // ── Public types ───────────────────────────────────────────────────────────────
 
@@ -24,6 +29,41 @@ export interface DerivedContext {
   availableOccasions: AvailableOccasion[];
   otWeekNum: number | null;
   liturgicalYear: 'a' | 'b' | 'c';
+  /** romcal's reckoning of the day, or null if romcal failed. The chains below are built on it. */
+  calendar: LiturgicalContext | null;
+  /**
+   * The OCO codes to try for each index, most specific first — the day's own
+   * section, then its common, then the season, then the psalter.
+   *
+   * The iBreviary route used to pass one code, and that code came from the
+   * name on iBreviary's main menu, **which is always the temporal day**: on 8
+   * September 2026 the menu reads "Tuesday of the Twenty-Third Week in
+   * Ordinary Time", not the Nativity of the Blessed Virgin Mary. The sanctoral
+   * therefore reached the office only through `FEAST_CALENDAR`, a hand-kept
+   * list of some sixty dates, and every memorial outside it sang the psalter:
+   * Saint Peter Claver's *Frange esurienti* is filed under `9/9` and no part of
+   * the route ever asked for it.
+   */
+  antiphonCodes: string[];
+  hymnCodes: string[];
+  responsoryCodes: string[];
+  invitatoryCodes: string[];
+}
+
+/** The hour names the route accepts, mapped onto romcal's. */
+export function officeHourOf(hour: string): OfficeHour {
+  switch (hour.toLowerCase()) {
+    case 'lauds': return 'lauds';
+    case 'compline': return 'compline';
+    case 'terce': return 'terce';
+    case 'sext': return 'sext';
+    case 'none': return 'none';
+    case 'matins':
+    case 'office-of-readings':
+    case 'office_of_readings':
+    case 'readings': return 'readings';
+    default: return 'vespers';
+  }
 }
 
 const CELEBRATION_NAME_FILLER = new Set([
@@ -57,8 +97,14 @@ export function celebrationNamesMatch(expected: string, actual: string): boolean
  * @param date           - Calendar date of the request
  */
 export async function deriveContext(liturgicalName: string, hour: string, date: Date): Promise<DerivedContext> {
-  const m = date.getMonth();
-  const y = date.getFullYear();
+  // The date parts are read in UTC, as the rest of this file reads them. They
+  // used to be read locally here and in `_parseFerialContext`, and the app is
+  // deployed west of Greenwich, so `new Date('2026-04-07')` — UTC midnight —
+  // answered Monday 6 April to `getDay()`. That shifted the whole Easter
+  // octave and the dated days of late Advent onto the day before, and put
+  // 1 December in the wrong year of the lectionary cycle.
+  const m = date.getUTCMonth();
+  const y = date.getUTCFullYear();
   const liturgicalStartYear = m >= 11 ? y : y - 1;
   const yearCycle = (['a', 'b', 'c'] as const)[((liturgicalStartYear - 2022) % 3 + 3) % 3];
 
@@ -84,6 +130,25 @@ export async function deriveContext(liturgicalName: string, hour: string, date: 
   }
 
   const availableOccasions: AvailableOccasion[] = [];
+
+  // romcal's own reckoning of the day, which knows the sanctoral the menu name
+  // does not show and which the four code chains are built from. A romcal
+  // failure has always left this route working off the name alone, so it still
+  // does: the chains come back empty and `populateGabc` falls to the single
+  // code, as it did before there were chains.
+  const officeHour = officeHourOf(hour);
+  const calendar = await getLiturgicalContext(date, officeHour).catch(err => {
+    console.error('Romcal error:', err);
+    return null;
+  });
+
+  // The day's own dated section — `9/9` for Saint Peter Claver — offered only
+  // when OCO actually holds it. romcal has already resolved precedence, so an
+  // optional memorial that was not taken up leaves this null and the day keeps
+  // the feria.
+  const datedProper = calendar?.properOccasionCode && hasOcoProper(calendar.properOccasionCode)
+    ? calendar.properOccasionCode
+    : null;
 
   try {
     // romcal returns the observed celebration first, then the optional
@@ -113,9 +178,11 @@ export async function deriveContext(liturgicalName: string, hour: string, date: 
 
     for (const observance of observances) {
       if (!['MEMORIAL', 'OPTIONAL_MEMORIAL', 'FEAST'].includes(observance.romcalRank)) continue;
-      // Offered only when a common can actually be named for it. A menu entry
-      // whose code matches nothing in the OCO indexes would yield no chant.
-      const ocoCode = getCommonOccasionCode(observance);
+      // The celebration actually observed is offered under its own dated
+      // section where OCO has one; the rest, and any celebration OCO does not
+      // date, under the common. Offered only when some code can be named for
+      // it: a menu entry matching nothing in the indexes would yield no chant.
+      const ocoCode = (observance === observed ? datedProper : null) ?? getCommonOccasionCode(observance);
       if (ocoCode) availableOccasions.push({ label: `Memorial/Feast (${observance.name})`, value: ocoCode });
     }
 
@@ -137,7 +204,14 @@ export async function deriveContext(liturgicalName: string, hour: string, date: 
   }
 
   // Memorials do not have First Vespers and are superseded by Sunday.
-  const defaultOccasion = isSaturdayVespers ? ferialCode : (feastCode || ferialCode);
+  //
+  // `datedProper` is romcal's answer and `feastCode` the hand-kept list's; the
+  // first covers the second and more besides, so it leads. Where neither names
+  // the day, a memorial still has the common of its own class — a Pastor, a
+  // Virgin — which the psalter does not, and that comes before the feria.
+  const defaultOccasion = isSaturdayVespers
+    ? ferialCode
+    : (datedProper || feastCode || (calendar && getCommonOccasionCode(calendar)) || ferialCode);
 
   return {
     occasionCode: defaultOccasion,
@@ -145,6 +219,14 @@ export async function deriveContext(liturgicalName: string, hour: string, date: 
     availableOccasions,
     otWeekNum,
     liturgicalYear: yearCycle,
+    calendar,
+    // First Vespers of a Sunday takes nothing from the Saturday's sanctoral,
+    // and `getLiturgicalContext` has already moved the celebration onto the
+    // Sunday for it, so the chains are the coming Sunday's either way.
+    antiphonCodes: calendar ? antiphonOccasionCodes(calendar, officeHour) : [],
+    hymnCodes: calendar ? hymnOccasionCodes(calendar, officeHour) : [],
+    responsoryCodes: calendar ? responsoryOccasionCodes(calendar, officeHour) : [],
+    invitatoryCodes: calendar ? invitatoryOccasionCodes(calendar) : [],
   };
 }
 
@@ -156,8 +238,8 @@ function _parseFerialContext(
   yearCycle: 'a' | 'b' | 'c',
 ): { occasionCode: string | null; otWeekNum: number | null; liturgicalYear: 'a' | 'b' | 'c' } {
   const lower = liturgicalName.toLowerCase();
-  const monthNum  = date.getMonth();
-  const dayOfMonth = date.getDate();
+  const monthNum  = date.getUTCMonth();
+  const dayOfMonth = date.getUTCDate();
 
   // ── Ordinary Time ────────────────────────────────────────────────────────────
 
@@ -208,7 +290,7 @@ function _parseFerialContext(
   }
 
   // Special check for ferial late Advent by date (Dec 17-24)
-  if (monthNum === 11 && dayOfMonth >= 17 && dayOfMonth <= 24 && date.getDay() !== 0) {
+  if (monthNum === 11 && dayOfMonth >= 17 && dayOfMonth <= 24 && date.getUTCDay() !== 0) {
     return { occasionCode: `A-${dayOfMonth}/12`, otWeekNum: null, liturgicalYear: yearCycle };
   }
 
@@ -261,7 +343,7 @@ function _parseFerialContext(
     lower.includes('easter thursday') || lower.includes('easter friday') ||
     lower.includes('easter saturday')
   ) {
-    const dayOfWeek = date.getDay();
+    const dayOfWeek = date.getUTCDay();
     if (dayOfWeek > 0) {
       return { occasionCode: `1P${dayOfWeek + 1}`, otWeekNum: null, liturgicalYear: yearCycle };
     }
@@ -318,7 +400,7 @@ function _parseFerialContext(
       if (weekNum) return { occasionCode: `${weekNum}P1`, otWeekNum: null, liturgicalYear: yearCycle };
     }
     if (lower.includes('ottava')) {
-      const dayOfWeek = date.getDay();
+      const dayOfWeek = date.getUTCDay();
       if (dayOfWeek > 0) return { occasionCode: `1P${dayOfWeek + 1}`, otWeekNum: null, liturgicalYear: yearCycle };
     }
   }

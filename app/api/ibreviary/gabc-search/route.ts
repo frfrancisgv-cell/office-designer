@@ -1,19 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAnts, getHyms, getInvs, getGrego } from '../gabc-loaders';
 import { resolveGabc, withAnnotation } from '../gabc-lookup';
-
+import { searchByDay, toOfficeHour } from '../day-search';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const q = (searchParams.get('q') || '').toLowerCase().trim();
+  const raw = (searchParams.get('q') || '').trim();
+  const q = raw.toLowerCase();
   const type = searchParams.get('type') || 'antiphon';
 
-  if (!q) {
-    return NextResponse.json({ results: [] });
+  if (!raw) {
+    return NextResponse.json(type === 'day' ? { heading: '', groups: [] } : { results: [] });
+  }
+
+  // ── By day or feast ────────────────────────────────────────────────────────
+  if (type === 'day') {
+    try {
+      return NextResponse.json(await searchByDay(raw, toOfficeHour(searchParams.get('hour'))));
+    } catch (error) {
+      console.error('[OCO] day search failed:', error);
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : String(error) }, { status: 500 },
+      );
+    }
   }
 
   const results = [];
-  let limit = 20;
+  const limit = 20;
 
   if (type === 'antiphon' || type === 'invitatory') {
     const ants = type === 'invitatory' ? getInvs() : getAnts();

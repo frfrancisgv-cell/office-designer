@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import type { Block } from '@/lib/types';
 import { stripVerseNumbers } from '@/lib/psalm-tones/verse-numbers';
+import { isPsalmPrayerLabel } from '@/lib/user-preferences';
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
@@ -73,8 +74,27 @@ const PSALM_TITLE = /^(?:Psalm |Psalmus |Canticle[: ]|Canticum |I{1,3}V?\s*$|IV\
 const SCRIPTURE_CITATION =
   /^(?:Luke|Lc|Col|Eph|Phil|Rev|Ap|Dan|Is|Jer|Hab|Ez|Ex|Deut|Sam|Chr|Tob|Jud|Wis|Sir|Hebr?|Cant)\s+\d/i;
 
-/** A section heading, which ends whatever the previous rubric was governing. */
-const SECTION_HEADING = /class="(?:capolettera_piccolo|titoletto)"/;
+/**
+ * A major section heading — HYMN, PSALMODY, READING — which both opens its
+ * section and ends whatever the previous rubric was governing.
+ *
+ * iBreviary marks them with `capolettera_piccolo`, or occasionally
+ * `titoletto`, and this used to be a substring test against the raw HTML:
+ * `class="capolettera_piccolo"`, closing quote and all. A heading carrying a
+ * second class therefore matched nothing — and iBreviary writes one now and
+ * then, the PSALMODY of Lauds on 9 September 2026 being
+ * `class="capolettera_piccolo rubrica"`. The section then never changed, and
+ * the whole psalmody stayed inside the HYMN the heading before it had opened:
+ * the PSALMODY label, the three psalm titles and the three psalms themselves
+ * all came through typed `hymn`, so none of them could be pointed and every
+ * one of them was given the hymn's chant.
+ *
+ * Read as a class rather than as an attribute, the order and the company it
+ * keeps stop mattering.
+ */
+function isSectionHeading(part$: cheerio.CheerioAPI): boolean {
+  return part$('.capolettera_piccolo, .titoletto').length > 0;
+}
 
 /**
  * A versicle: a line, then its response, introduced by an em dash in English
@@ -108,6 +128,43 @@ function isMostlyRubrica(part$: cheerio.CheerioAPI): boolean {
   if (!all) return false;
   const rubrica = part$('.rubrica').text().replace(/\s+/g, '').length;
   return rubrica / all >= 0.75;
+}
+
+/**
+ * The sentence of commentary that stands between a psalm's title and its
+ * first verse, set whole in italic: "Sing in praise of Christ's redeeming
+ * work (Saint Athanasius)", "How often I have longed to gather your children
+ * (Matthew 23:37)".
+ *
+ * Most of them name the Father or the book they come from, and those were
+ * already caught by the italic-and-a-parenthesis rule further down. A few
+ * carry no attribution at all — Psalm 63's "Whoever has left the darkness of
+ * sin yearns for God", the Latin "Ad Deum vigilat, qui opera noctis reicit" —
+ * and those came through as verses, so the psalm they introduce opened on a
+ * line of commentary and sang it to the tone. Measured over 84 offices, no
+ * verse of any psalm or canticle is set in italic at all.
+ */
+function isMostlyItalic(part$: cheerio.CheerioAPI): boolean {
+  const all = part$.text().replace(/\s+/g, '').length;
+  if (!all) return false;
+  return part$('em, i').text().replace(/\s+/g, '').length / all >= 0.9;
+}
+
+/**
+ * An instruction that opens in red: "*At the end of the canticle the* Glory to
+ * the Father *is not said.*"
+ *
+ * `isMostlyRubrica` cannot see this one. The words it quotes are set outside
+ * the rubrica spans, in the type of the text it is speaking about, and they
+ * are a third of the sentence — so the rubric measures 68% red and the
+ * threshold is 75%. Lowering it would be guessing; what tells this apart from
+ * a verse is that it *opens* on red words, where a verse's only red is the
+ * `*` and `+` inside it. The canticle of Daniel ends with this rubric, and
+ * without it the sentence was sung as the canticle's last line.
+ */
+function opensOnSpokenRubric(part: string): boolean {
+  const opening = part.trim().match(/^<span[^>]*class="rubrica"[^>]*>([\s\S]*?)<\/span>/i);
+  return !!opening && /\p{L}{2,}/u.test(cheerio.load(opening[1]).text());
 }
 
 export function parseBlocks(
@@ -151,7 +208,7 @@ export function parseBlocks(
           // paragraph is the opening we never use. A section heading ends it
           // early, in case iBreviary ever reorders the page.
           if (droppingInvitatoryAlternative) {
-             if (!SECTION_HEADING.test(part)) continue;
+             if (!isSectionHeading(part$)) continue;
              droppingInvitatoryAlternative = false;
           }
 
@@ -182,7 +239,7 @@ export function parseBlocks(
               else if (upSub.includes('NUNC DIMITTIS') || upSub.includes('NUNC DIMITIS') || upSub.includes('SIMEON')) currentCanticleName = 'Nunc dimittis';
             }
             parsedBlocks.push({ id: generateId(), type: 'rubric', content: rawText });
-          } else if (part.includes('class="capolettera_piccolo"') || part.includes('class="titoletto"')) {
+          } else if (isSectionHeading(part$)) {
             // Major liturgical section heading (HYMN, PSALMODY, READING, etc.)
             // Handles English, Latin, and Italian iBreviary headings.
             nextIsPsalmPrayer = false;
@@ -230,6 +287,7 @@ export function parseBlocks(
             const rt = cheerio.load(cleanHtml2).text().trim();
             if (rt) parsedBlocks.push({ id: generateId(), type: 'text', content: rt });
           } else if (part.includes('class="antifona"') || rawText.toLowerCase().startsWith('ant.')) {
+            nextIsPsalmPrayer = false;
             const digitMatch = rawText.match(/^Ant\.?\s*(\d+)/i);
             if (digitMatch) {
               currentAntNum = parseInt(digitMatch[1], 10);
@@ -247,6 +305,7 @@ export function parseBlocks(
             const finalText = clean$.text().trim();
 
             if (part.includes('class="citazione"')) {
+               nextIsPsalmPrayer = isPsalmPrayerLabel(finalText);
                parsedBlocks.push({ id: generateId(), type: 'rubric', content: finalText });
             } else if (/^<em>/i.test(part.trim()) && (finalText.includes('(') || /\d:\d/.test(finalText))) {
                // Scripture citation in italic (psalm intro line)
@@ -290,9 +349,17 @@ export function parseBlocks(
                   // they title. Tested only here, where the alternative is to
                   // typeset a rubric as a verse.
                   || isMostlyRubrica(part$)
+                  || isMostlyItalic(part$)
+                  || opensOnSpokenRubric(part)
                   || (finalText.length < 80 && /^[A-Z][a-z]+ \d|^\d+[,.]\d/.test(finalText))
                   || /^(The Invitatory is said|The antiphon is repeated|If the Invitatory is not said)/i.test(finalText);
                if (isPsalmIntro) {
+                 // "Psalm Prayer" is one of the rubrics this branch catches —
+                 // PSALM_TITLE matches its first word — so the paragraph under
+                 // it was coming through as another verse of the psalm above:
+                 // pointed to that psalm's tone, and untouched by the switch
+                 // that is meant to leave psalm prayers out.
+                 nextIsPsalmPrayer = isPsalmPrayerLabel(finalText);
                  parsedBlocks.push({ id: generateId(), type: 'rubric', content: finalText });
                } else {
                  const textNoNums = stripVerseNumbers(finalText);
@@ -348,7 +415,7 @@ export function parseBlocks(
      if (blocks.length > 0) {
         const last = blocks[blocks.length - 1];
         // If a text block follows a Psalm Prayer rubric, classify it as a psalm-prayer
-        if (b.type === 'text' && last.type === 'rubric' && last.content.toLowerCase().includes('psalm prayer')) {
+        if (b.type === 'text' && last.type === 'rubric' && isPsalmPrayerLabel(last.content)) {
            b.type = 'psalm-prayer';
         }
         // If both are psalms, hymns, or text, we can merge them

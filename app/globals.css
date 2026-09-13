@@ -23,18 +23,20 @@
 }
 .pointing-workflow section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   padding-bottom: 10px;
   margin-bottom: 10px;
   border-bottom: 1px solid #e2e8f0;
 }
 .pointing-workflow h3 { font-size: 14px; font-weight: 600; color: #0f172a; }
-.pointing-workflow label { display: grid; gap: 5px; }
+.pointing-workflow label { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; }
 .pointing-workflow label.pointing-row,
 .pointing-workflow .pointing-fields label {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   white-space: nowrap;
 }
 .pointing-workflow label.pointing-row select,
@@ -65,7 +67,7 @@
 .pointing-workflow .pointing-apply:hover { background: #334155; }
 .pointing-workflow .pointing-check { display: flex; align-items: center; gap: 8px; }
 .pointing-check input { accent-color: #334155; }
-.pointing-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pointing-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .pointing-workflow p { color: #64748b; font-size: 12px; }
 .pointing-workflow summary { cursor: pointer; font-weight: 500; }
 
@@ -88,8 +90,11 @@
   line-height: 1.5;
 }
 
+/* The panel clips overflow-x, so the column must be allowed to shrink: a bare
+   `grid` track is auto-sized and a wide child pushes it past the panel's edge. */
 .block-tools {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 
@@ -97,12 +102,22 @@
   margin-bottom: 8px;
 }
 
+/* Long words in a psalm text or a GABC incipit have no break opportunity;
+   without this they reach past the panel and are cut off. */
+.block-tools p,
+.block-tools summary,
+.block-tools label,
+.block-tools h2,
+.block-tools h3 {
+  overflow-wrap: break-word;
+}
+
 /* ── Lypsautierant psalm pointing ─────────────────────────────────────────
    Marks sit centred UNDERNEATH their syllable, as psautier/psalter.sty sets
    them with \oalign. The wrapper is an inline-flex column so its baseline is
    the syllable's baseline, keeping pointed and unpointed words on the same
-   line; the mark rows then add their height below it, uniformly for every
-   line of a pointed psalm.
+   line; the mark rows hang below that baseline, in the leading the line
+   already has, so a pointed psalm sets on the same rhythm as an unpointed one.
 
    A syllable may carry more than one mark row: the rules sometimes re-mark a
    syllable that is already marked, which in print nests one \oalign inside
@@ -114,16 +129,61 @@
   /* Keep pointing wrappers independent of any text-indent inherited from
      pasted or user-authored content. */
   text-indent: 0;
+  /* The wrapper claims the syllable's height and NOTHING for the mark rows,
+     which hang below it into the leading the line already has. This is what
+     print does: \lypsmark builds a \vtop whose syllable box has its depth
+     zeroed and whose \lineskip is 0.25ex, so a mark's whole depth plus the
+     next line's ascent stays under \baselineskip and TeX never opens the
+     line up for it. Left to itself the flex column measures every mark row
+     into the line box instead, and a pointed psalm sets its lines almost
+     half a line further apart than the unpointed ones around it.
+
+     0.8em is the syllable's box: tight enough that its bottom edge sits just
+     under the baseline, as the zeroed depth does in print, so the marks start
+     where print starts them. */
+  line-height: 0.8;
+  height: 0.8em;
+}
+
+/* A fixed height must not squeeze the rows: the column's main axis is
+   vertical, so the default flex-shrink would compress syllable and marks
+   alike into 0.8em rather than letting them overflow. */
+.lyps-pt > * {
+  flex: 0 0 auto;
 }
 
 .lyps-mk {
-  font-size: 0.5em;
-  line-height: 1;
+  /* Print sets these \fontsize{5}{5} against a 12pt text face — 0.42em — and
+     on paper a 5pt bold "+" is small but perfectly crisp. A screen cannot hold
+     that ratio: at 12pt text it comes out a 7px glyph four device pixels wide,
+     which vanishes under the syllable it is pointing. The two other marks of
+     the same system are already larger than that — the verse number is 0.65em
+     and the flex dagger 0.7em — so the screen sets these level with the
+     dagger, and print below keeps the printed psalter's own size. The range
+     either side is narrow: 0.8em already reads a shade heavy against the
+     text, and past about 1em the "+" begins to crowd the line beneath it.
+
+     The row's *height* is what the line rhythm depends on: .lyps-pt claims only
+     0.8em and the mark hangs below it into the leading the line already has.
+     So the line-height is trimmed as the glyph grows, leaving the row no deeper
+     than the 0.45em one it replaces — a pointed psalm still sets on the same
+     baselines as an unpointed one. */
+  font-size: 0.7em;
+  line-height: 0.57;
   font-weight: 700;
   letter-spacing: -0.02em;
-  margin-top: 0.05em;
   user-select: none;
   -webkit-user-select: none;
+}
+
+@media print {
+  /* Paper is legible at the size the printed psalter uses, and should agree
+     with it rather than with the screen. */
+  .lyps-mk {
+    font-size: 0.45em;
+    line-height: 0.8;
+    margin-top: 0.05em;
+  }
 }
 
 /* Verse number, set in the margin by \flagverse. */
@@ -162,6 +222,22 @@
   -webkit-user-select: none;
 }
 
+/* Exsurge scores are deliberately rendered as one SVG per staff system.
+   A whole multi-system SVG is atomic during browser printing, which makes the
+   paginator push or clip the score. These units let it break between systems
+   while keeping every individual staff, its notes, and its lyrics together. */
+.gabc-container {
+  width: 100%;
+}
+
+.gabc-line {
+  display: block;
+  width: 100%;
+  height: auto;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
 @media print {
   body {
     -webkit-print-color-adjust: exact;
@@ -187,6 +263,16 @@
     break-inside: avoid;
   }
 
+  .gabc-container {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .gabc-line {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   /* Reset any margins applied to the canvas holding area so it fills the print page */
   #print-canvas-container {
     margin: 0 !important;
@@ -194,6 +280,34 @@
     width: 100% !important;
     max-width: none !important;
     box-shadow: none !important;
+  }
+}
+
+/* On a phone the page reflows to the available editing width instead of being
+   centred with its left edge outside the viewport, and it keeps a page's
+   proportion at that width: a spacer whose percentage padding is measured
+   against the sheet's own width holds the paper open. It is a floor and not a
+   height, so a long hour still grows the white ground under itself — which is
+   why neither min-height (no width to scale from) nor aspect-ratio (on a flex
+   item it becomes the height) can do this work.
+   Screen only: a printed page box is narrower than 640px, and print sets the
+   physical dimensions itself. */
+@media screen and (max-width: 640px) {
+  .page-sheet {
+    width: 100% !important;
+    min-height: 0 !important;
+    padding: 20px !important;
+  }
+  .page-sheet::before {
+    content: '';
+    float: left;
+    width: 0;
+    padding-bottom: var(--page-ratio, 141.4%);
+  }
+  .page-sheet::after {
+    content: '';
+    display: block;
+    clear: both;
   }
 }
 
@@ -215,11 +329,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 20px;
+  padding: 8px 16px;
   border-bottom: 1px solid #e2e8f0;
   background: white;
 }
 .tc-brand { display: flex; align-items: center; gap: 10px; }
+.tc-brand > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
 .tc-mark {
   display: grid;
   place-items: center;
@@ -244,15 +359,62 @@
 .tc-back:hover { background: #f1f5f9; }
 
 .tc-body { display: grid; grid-template-columns: 272px minmax(0, 1fr); align-items: start; flex: 1; }
+.tc-mobile-tabs, .tc-mobile-messages { display: none; }
 .tc-preview-pane { grid-column: 2; }
+/* The staff already scrolls horizontally, so the workshop remains useful with
+   a 500px middle pane. Keeping all three panes down to that point avoids the
+   large height jump caused by putting an entire psalm below the editor. */
+@media (min-width: 1080px) {
+  .tc-body { grid-template-columns: 240px minmax(0, 1fr) minmax(340px, 31%); }
+  .tc-preview-pane { grid-column: 3; grid-row: 1; position: sticky; top: 16px; max-height: calc(100dvh - 67px); overflow: auto; }
+  .tc-side { max-height: calc(100dvh - 51px); }
+}
 @media (min-width: 1240px) {
   .tc-body { grid-template-columns: 272px minmax(0, 1fr) minmax(360px, 30%); }
-  .tc-preview-pane { grid-column: 3; grid-row: 1; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
 }
-@media (max-width: 860px) {
+@media (max-width: 1079px) {
+  .tc-bar { padding-inline: 10px; }
+  .tc-brand p { display: none; }
+  .tc-back { width: 32px; height: 32px; justify-content: center; padding: 0; font-size: 0; }
   .tc-body { grid-template-columns: minmax(0, 1fr); }
   .tc-preview-pane { grid-column: 1; }
-  .tc-side { position: static; border-right: none; border-bottom: 1px solid #e2e8f0; min-height: 0; max-height: none; }
+  .tc-side {
+    position: static;
+    padding-inline: max(16px, calc((100% - 520px) / 2));
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+    min-height: 0;
+    max-height: none;
+  }
+  .tc-mobile-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
+    padding: 5px;
+    border-bottom: 1px solid #e2e8f0;
+    background: rgb(255 255 255 / .96);
+    backdrop-filter: blur(8px);
+  }
+  .tc-mobile-tabs button {
+    border-radius: 6px;
+    padding: 7px 8px;
+    color: #64748b;
+    font-weight: 500;
+  }
+  .tc-mobile-tabs button[aria-pressed=true] { background: #4b3021; color: white; }
+  .tc-mobile-tabs button:disabled { opacity: .35; }
+  .tc-mobile-messages { display: grid; gap: 4px; padding: 0 12px; background: white; }
+  .tc-mobile-messages:empty { display: none; }
+  .tc-body.tc-mobile-setup > .tc-work,
+  .tc-body.tc-mobile-setup > .tc-preview-pane,
+  .tc-body.tc-mobile-edit > .tc-side,
+  .tc-body.tc-mobile-edit > .tc-preview-pane,
+  .tc-body.tc-mobile-preview > .tc-side,
+  .tc-body.tc-mobile-preview > .tc-work { display: none; }
+  .tc-work > .tc-alert, .tc-work > .tc-status { display: none; }
 }
 
 /* The side panel carries the model text, the library and the tone's own
@@ -261,17 +423,18 @@
   position: sticky;
   top: 0;
   display: grid;
-  gap: 18px;
+  min-width: 0;
+  gap: 14px;
   align-content: start;
-  padding: 20px;
+  padding: 16px;
   border-right: 1px solid #e2e8f0;
   background: white;
   min-height: 100%;
   max-height: 100vh;
   overflow: auto;
 }
-.tc-side section { display: grid; gap: 12px; align-content: start; }
-.tc-side section + section { border-top: 1px solid #e2e8f0; padding-top: 18px; }
+.tc-side section { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 10px; align-content: start; }
+.tc-side section + section { border-top: 1px solid #e2e8f0; padding-top: 14px; }
 .tc-side h2, .tc-work h2, .tc-preview-head h2 { font-size: 13px; font-weight: 600; color: #0f172a; }
 .tc-side ul { display: grid; gap: 4px; }
 .tc-side li > button {
@@ -289,6 +452,27 @@
 .tc-side li > button:hover { background: #f1f5f9; }
 .tc-side li > button[aria-current=true] { border-color: #d8cbbb; background: #f6efe6; color: #4b3021; font-weight: 600; }
 .tc-side li em { font-style: normal; font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.tc-model-summary,
+.tc-library-summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  color: #0f172a;
+  font-weight: 600;
+  list-style: none;
+}
+.tc-model-summary::-webkit-details-marker,
+.tc-library-summary::-webkit-details-marker { display: none; }
+.tc-model-summary::before,
+.tc-library-summary::before { content: '›'; color: #94a3b8; font-size: 16px; line-height: 1; transform: rotate(0); transition: transform .15s ease; }
+.tc-model[open] > .tc-model-summary::before,
+.tc-library[open] > .tc-library-summary::before { transform: rotate(90deg); }
+.tc-model-summary em,
+.tc-library-summary em { margin-left: auto; color: #94a3b8; font-size: 10px; font-style: normal; font-weight: 500; }
+.tc-model-summary em { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-model-content,
+.tc-library-content { display: grid; gap: 10px; margin-top: 10px; }
 .tc-new {
   display: inline-flex;
   align-items: center;
@@ -302,13 +486,40 @@
   font-weight: 600;
 }
 .tc-new:hover:not(:disabled) { background: #5f3d2b; }
+/* The four selectors that stand in for a list of every tone the app sings.
+   The notation and the family are whole phrases and take the panel's width;
+   the mode and the ending are a character or two and sit beside each other. */
+.tc-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tc-picker > .tc-picker-wide { grid-column: 1 / -1; }
+.tc-picker > label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: #94a3b8;
+}
+.tc-picker > label > select { font-size: 12px; text-transform: none; letter-spacing: 0; }
+/* The tone the four have come to rest on, named in full beside the button. */
+.tc-side .tc-picked {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: #334155;
+}
 
-.tc-work { display: grid; gap: 16px; padding: 20px; }
+.tc-work { display: grid; gap: 12px; padding: 16px; }
 .tc-work section, .tc-preview-pane {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   align-content: start;
-  padding: 16px;
+  padding: 12px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   background: white;
@@ -317,14 +528,24 @@
 .tone-creator-page button:disabled { opacity: .45; cursor: default; }
 
 .tc-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
-.tc-side .tc-row { flex-wrap: nowrap; gap: 8px; align-items: center; }
+.tc-side .tc-row { width: 100%; min-width: 0; flex-wrap: nowrap; gap: 8px; align-items: center; }
 .tc-side .tc-row > input, .tc-side .tc-row > select { flex: 1 1 auto; min-width: 0; }
 .tc-side .tc-load { display: inline-flex; align-items: center; gap: 5px; }
 /* What was loaded, in place of the verses themselves: the psalm is read in the
    preview beside the staff, and the panel only has to say which one it is. */
-.tc-loaded { display: grid; gap: 2px; }
-.tc-loaded strong { color: #334155; font-weight: 600; }
+.tc-loaded { display: flex; align-items: baseline; gap: 6px; }
+.tc-loaded strong {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #334155;
+  font-weight: 600;
+}
 .tc-loaded span {
+  flex: 1 1 auto;
+  min-width: 0;
   font-family: var(--font-serif, Georgia, serif);
   font-size: 13px;
   color: #94a3b8;
@@ -387,7 +608,13 @@
   font-weight: 600;
   box-shadow: 0 1px 2px rgb(15 23 42 / .12);
 }
-.tc-editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.tc-editor-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.tc-editor-title { display: grid; gap: 1px; flex: 1 1 280px; }
+.tc-editor-help summary,
+.tc-context-help summary { cursor: pointer; color: #64748b; font-size: 12px; font-weight: 500; }
+.tc-editor-help p,
+.tc-context-help p { margin-top: 6px; }
+.tc-editor { container-type: inline-size; }
 .tc-tabs button[aria-pressed=true] { color: #0f172a; }
 
 /* The cadence itself: a staff and a row of syllables that scroll together. */
@@ -404,6 +631,10 @@
 /* The notes are the chant's own shapes and all of one colour, as they are in
    the books; what a syllable does in the cadence is the tint behind it. */
 .tc-note { fill: #1a1a1a; }
+/* Sung only when a verse has syllables to put there, so it is drawn as the
+   possibility it is rather than as a note of the cadence. */
+.tc-held-note { fill: #b9a992; opacity: .75; }
+.tc-held-note .tc-stroke { stroke: #b9a992; }
 .tc-note .tc-stroke { fill: none; stroke: #1a1a1a; stroke-width: 2.2; stroke-linecap: round; }
 .tc-column { fill: transparent; }
 .tc-column.is-recite { fill: #faf7f2; }
@@ -423,10 +654,22 @@
 }
 .tc-chip:hover { background: #f1f5f9; }
 .tc-chip[aria-current=true] { border-color: #c7b299; background: #f6efe6; }
+/* The pointing strip has no staff behind it, so the recitation — the unmarked
+   opening, the part that stretches to whatever length a verse has — is shown
+   by holding it back rather than by a tint of its own. The anchor the cadence
+   is counted from is the one syllable that carries a rule underneath. */
+.tc-chip.is-recited .tc-chip-text { color: #94a3b8; }
+.tc-chip.is-anchor .tc-chip-text { box-shadow: 0 2px 0 -1px #8a6a4f; }
+/* A syllable lying between two figures is counted by neither, so a verse may
+   have any number of them there. The dotted rule under it is that stretch. */
+.tc-chip.is-held .tc-chip-text { border-bottom: 1px dotted #cbd5e1; }
+.tc-counted { margin: 0; }
+.tc-field > select { width: 100%; }
 .tc-chip-text { font-family: var(--font-serif, Georgia, serif); font-size: 14px; line-height: 1.2; }
 .tc-chip-mark { font-size: 11px; font-weight: 700; letter-spacing: -.04em; color: #cbd5e1; }
 .tc-chip-mark.is-set { color: #4b3021; }
 .tc-chip-flags { display: flex; gap: 2px; min-height: 12px; color: #8a6a4f; }
+.tc-chip-flags:empty { display: none; }
 
 .tc-inspector {
   display: grid;
@@ -438,6 +681,24 @@
 }
 .tc-inspector-head { display: flex; align-items: baseline; gap: 10px; }
 .tc-inspector-syl { font-family: var(--font-serif, Georgia, serif); font-size: 18px; color: #0f172a; }
+/* The figure's short-line rule is about the whole figure rather than the one
+   syllable in hand, and it needs the width its five choices ask for. */
+.tc-crowding { display: grid; gap: 6px; }
+/* When the editor itself has room, keep selection and note controls on one
+   line. The container query follows the useful space, rather than the window:
+   the middle pane can be narrow even on a wide three-column screen. */
+@container (min-width: 620px) {
+  .tc-inspector {
+    grid-template-columns: auto minmax(280px, 1fr) auto;
+    align-items: end;
+  }
+  .tc-inspector > p { grid-column: 1 / -1; }
+  .tc-inspector > .tc-context-help { grid-column: 1 / -1; }
+  .tc-inspector > .tc-crowding { grid-column: 1 / -1; }
+  .tc-inspector > .tc-notation-help { grid-column: 1 / -1; }
+}
+.tc-notation-help summary { cursor: pointer; color: #64748b; font-size: 12px; font-weight: 500; }
+.tc-notation-help p { margin-top: 8px; }
 .tc-formula summary { cursor: pointer; font-weight: 500; color: #64748b; }
 .tc-formula textarea { margin-top: 8px; font-family: ui-monospace, monospace; font-size: 11px; }
 
@@ -449,7 +710,7 @@
   background: #fdfcfa;
   font-family: var(--font-serif, Georgia, serif);
   font-size: 15px;
-  line-height: 2;
+  line-height: 1.8;
   /* The lypsautierant HTML carries its own line breaks and no block wrapper. */
   white-space: pre-wrap;
   overflow-x: auto;

@@ -145,10 +145,10 @@ machinery. The app never reads it, so clone it only if you need those:
    its dropdown, collapse a whole section, or move and delete a section at once.
    *+ Text*, *+ Rubric* and *+ Break* insert after the selected block.
 5. **Point the psalms.** Select a psalm: choose a tone and termination, tick
-   *solemn* for a solemn mediant (the default on the gospel canticles), and
-   press *Apply Tone*. `Lypsautierant (EN)` and `✝ Latin (jgabc)` swap in a
-   different text for the same psalm; `♩ Lypsautierant` points with the psautier
-   rules instead; *Finale 1/2/3* is the naive client-side fallback.
+   *solemn* for a solemn mediant, and press *Apply Tone*. `Lypsautierant (EN)`
+   and `✝ Latin (jgabc)` swap in a different text for the same psalm;
+   `♩ Lypsautierant` points with the psautier rules instead; *Finale 1/2/3* is
+   the naive client-side fallback.
 6. **Fix the chant.** On an antiphon or hymn, edit the GABC directly, search the
    database by Latin incipit, or upload an image if no score exists.
 7. **Export.** *Server PDF (LuaLaTeX)* for the real thing, *Download .tex
@@ -210,7 +210,9 @@ They coexist deliberately, and are chosen per block in the UI:
 | `GET /api/ibreviary/gabc-search?q&type` | search the chant database by incipit |
 | `GET /api/psalm-text?psalm=N` (or `ot=N`, `nt=N`) | one psalm or canticle, Latin or English |
 | `POST /api/psalm-tone` | point text to a tone (`{action:'point', text, tone, variant, lang, solemn}`) |
-| `POST /api/lypsautierant` | point text with the psautier rules (`{action:'point', text, family, mode, variation}`) |
+| `POST /api/lypsautierant` | point text with the psautier rules (`{action:'point', text, family, mode, variation}`); `{action:'variations', family, mode}` lists one mode's endings and `{action:'catalogue'}` the whole family/mode/ending tree |
+| `GET /api/chanted-ordinary` | the GABC for the sung introduction, Pater noster and dismissal, by gregobase id |
+| `GET /api/sunday-collect?date&hour` | the week's Sunday collect for a ferial weekday of Ordinary Time |
 | `POST /api/pdf` | `{blocks, settings}` → PDF; `?format=tex` returns the source bundle |
 | `GET /api/pdf` | dependency check: `lualatex` and `gregorio` versions |
 | `GET /api/accents` · `POST /api/accents` | the saved accent corrections; `{action:'save', accents, label?}` keeps a corrected psalm and learns its moved accents, `{action:'forget', text}` drops one |
@@ -324,11 +326,65 @@ Select a psalm, then open **Pointing → Psalm Tone Creator**. Choose **New tone
 from this psalm** to prepare syllable models for the mediant, ending, and flex.
 Edit each cadence before saving the tone.
 
-- **Lypsautierant + − =** places marks under individual syllables. Patterns can
-  count from the final syllable or follow the final accented syllable. For an
-  accent pattern, select its anchor with the radio button under the model text.
-  These rules execute through the existing TypeScript Lypsautierant port; the
-  Creator does not require or invoke an external `perl/model.pl`.
+- **Lypsautierant + − =** places marks under individual syllables. A mark is
+  not a note: it is a sign telling the singer to leave the reciting note, so
+  the elastic part of a hemistich is exactly the part that carries *no* mark.
+  A rule in `psautier/{english,gregorian}` is one or more **figures** — runs
+  of adjacent marks — each hung on one accent, with everything else left bare.
+  Choose what the cadence follows under **Cadence measured from**: the last
+  syllable of the line, or its accents. Under *accents* the editor groups
+  adjacent marks into figures and hangs each on the accent it covers, counting
+  accents back from the end of the line; **Counted from** in the inspector
+  moves a whole figure to a different accent when the reading needs correcting.
+  The anchor is read off the model line rather than picked by hand, so the
+  marks you draw and the marks the engine lays down are in the same places.
+
+  Bare syllables are where a verse stretches, and they are shown greyed: the
+  bare opening is the recitation, and a bare gap *between* two figures is not
+  counted at all. That gap is what a one-anchor reading could not express — the
+  mediant of English 1, 6 and 7 and Gregorian 1, 3 and 7 points `+ −` on the
+  second-to-last accent and `− +` on the last, with however many unaccented
+  syllables the line happens to have between them, and counting through that
+  stretch dragged the opening figure off its accent on every line spaced
+  differently from the model. The one further exception the corpus has is a
+  mark on the *first* syllable of a hemistich, which English 2′, 5′ and 8″ use;
+  select the opening syllable and set **Counted from → The opening syllable**
+  to pin one there. These rules execute through the existing
+  TypeScript Lypsautierant port; the Creator does not require or invoke an
+  external `perl/model.pl`.
+
+  A model line has room for the whole cadence, and half the psalter has not:
+  an accent can stand so near the end that a figure runs off it, or the figure
+  after it can already hold the syllables it needs. What happens then cannot be
+  drawn on a line that never meets the difficulty, so it is said — select a
+  marked syllable and set **With no room for it** for that whole figure:
+
+  | | |
+  | --- | --- |
+  | **Step back** | hang it on the accent before, and keep stepping back until it fits — the mediant of English and Gregorian 1, 6 and 7 puts `+ −` on the *third*-to-last accent when the second-to-last has no room |
+  | **Slide** | keep the figure whole and move it towards the start of the line until every mark has a syllable of its own |
+  | **Pass back** | keep the marks that fit, from the accent onwards, and give the rest to the figure before |
+  | **Fold** | write a mark with no spare syllable onto the one the figure last wrote on, the two as a pair mark — `+ −` squeezed against the figure after it becomes `+−` on its accent alone, and Gregorian 1 a's `+ +` becomes `++` where the accent *is* the last syllable |
+  | **Trim** | write the marks that fit and let the rest fall off |
+  | **Leave out** | leave the figure off any line with no room for it |
+
+  *Pass back* is how the two-figure mediants finish a line whose last accent is
+  also its last syllable: `− +` sings only its `+` there and hands the `−` back,
+  so `+ −` on the accent before becomes `+ − −`. A passed mark rides at the end
+  of the run that took it in — counting as that figure's own from then on — but
+  only while the run stays put: a figure that steps back, slides, or is left off
+  the line leaves the mark behind on the accent it vacated, which is exactly what
+  `english/one/first` does, marking a bare `−` on the second-to-last accent and
+  taking its own `+ −` back to the third.
+
+  The rules combine per figure, so a cadence can be squeezed rather than moved:
+  *Fold* on `+ −` with *Slide* on `− +` points “I will bléss you áll my lífe;”
+  as `bléss you +−áll −my +lífe;`, the opening figure written whole on its own
+  accent because the line has no spare syllable to carry its second mark.
+
+  A figure whose accent the line does not have at all — one accent where the
+  model had two — is always dropped whole, rather than slid onto a neighbouring
+  accent and pointing the line with a figure the tone puts nowhere near it.
 - **jgabc chant notation** lets you click a four-line staff (or use arrow keys)
   to choose a pitch above each syllable. The note field also accepts multiple
   pitches, a–m, for a neume. Choose reciting, fixed, and accent roles to distinguish
@@ -336,15 +392,47 @@ Edit each cadence before saving the tone.
   an open note after each accent allows the formula to accommodate different
   numbers of unstressed syllables.
 
+  Which note those extra syllables are *held on* is a choice the tone makes,
+  and the model line usually cannot show it — a line with no spare syllable
+  after the accent sings the same whichever note is chosen. So it is named
+  rather than drawn: select an accent and set **Held on**, and the note appears
+  faint on the staff at the edge of that accent's column. It defaults to the
+  note the accent moves on to. Leaving it at the default made a tone whose
+  extras belong on the accent's own note sing that next pitch twice — `'f gr g`
+  where the tone wants `'f fr g` — so "to behold your strength and your glory"
+  came out with the g doubled. Reading an existing tone in keeps whatever note
+  its formula holds them on.
+- **Conditional stress** assigns actual notes only after reading the phrase's
+  stresses and the number of syllables between them. Its initial Tone 1 rule
+  is the supplied A/B-flat/G mediation and G/F/D ending: edit the reciting,
+  previous-stress, return, passing, preparation, and final pitches directly as
+  GABC notes. With one intervening syllable the previous-stress and return
+  notes form one neume; the two-syllable and longer branches are chosen by the
+  engine. A long gap may receive a proposed minor stress, and every such choice
+  is named above the whole-psalm preview for review. No missing Tone 2, 3, 7,
+  or 8 melody is inferred. Conditional rules currently support English only.
+
 The formula box updates immediately and the whole-psalm preview follows each
 edit. **Save tone** keeps the named examples in `data/created-tones.json`;
 **Saved tones** makes them available on every other psalm. **Use on this psalm**
 applies the preview and embeds the tone definition in the office so it travels
 with saved/shared offices. Saving a tone alone does not change the psalm.
 
-Inference follows the explicit roles and anchors in the model; it does not infer
-all possible exceptional cadences from a single verse. Marks outside a short
-line are omitted. The two notation modes retain their own marks and pitches:
+Copying a built-in psautier tone tries every half-line of the model psalm as
+the model, under both anchors and with or without the opening mark pinned, then
+fits each figure with the short-line rule that suits it, and keeps the reading
+that follows the rule over the most of the psalm — a rule's shape is only as
+visible as the line it is read off, and a line whose accents fall close
+together hides a two-figure cadence entirely. It says so when the copy and the
+tone part company. Across every psautier tone copied onto Psalm 63, the copy
+points 98% of half-lines exactly as the tone itself does, against 87% with the
+figures alone and 61% before them; the mediant of English 1, 6 and 7 — the rule
+that drove this — now comes across exactly, on every half-line. What is left is
+mostly `gregorian/three`, whose terminations write a rule (`\rule{2ex}{.5pt}`,
+a dash in the margin) that has no mark to stand for it. Inference otherwise
+follows the explicit roles and anchors in the model; it does not infer all
+possible exceptional cadences from a single verse.
+The three notation modes retain their own marks, pitches, and conditional rule:
 plus/minus pointing alone cannot determine an absolute chant melody. English
 stress comes from the existing accentuation system; correct the psalm's accents
 before preparing a model when necessary.

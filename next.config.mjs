@@ -1,6 +1,21 @@
-import type {NextConfig} from 'next';
+/**
+ * Plain JavaScript on purpose. Next transpiles a `next.config.ts` on every
+ * start — `next start` in production included — and it does that with the SWC
+ * native binding, which maps 32MB of compiler into the server and opens one
+ * Tokio worker thread per core (32 of them on this box) that never compile
+ * anything again. `next.config.js` and `.mjs` are looked for before `.ts`, so
+ * keeping this file in JavaScript keeps the compiler out of the running
+ * server. The JSDoc type below gives editors the checking the TS annotation
+ * used to.
+ */
 
-const nextConfig: NextConfig = {
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: false,
@@ -21,9 +36,9 @@ const nextConfig: NextConfig = {
     // external so Node.js require() loads the raw file at runtime.
     config.externals = [
       ...(Array.isArray(config.externals) ? config.externals : []),
-      ({ request }: { request?: string }, callback: Function) => {
+      ({ request }, callback) => {
         if (request && request.includes('psalmtone.js')) {
-          return callback(null, 'commonjs ' + require('path').resolve(__dirname, 'psalmtone.js'));
+          return callback(null, 'commonjs ' + path.resolve(dirname, 'psalmtone.js'));
         }
         callback();
       },

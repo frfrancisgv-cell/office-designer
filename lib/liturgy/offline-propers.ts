@@ -291,6 +291,31 @@ function sundayCollects(): Map<number, string> {
   return (sundayCollectCache = collects);
 }
 
+/**
+ * The collect of the Sunday whose week this day falls in, where the day is a
+ * weekday of Ordinary Time that may take it.
+ *
+ * The rule is GILH's, and the psalter's own `PRAYER: of Sunday` on its Sunday
+ * entry is pointing at the same section: a weekday of Ordinary Time says the
+ * Sunday's collect. `getOfflineProper` below already reaches for it to fill a
+ * gap; this is the same reading offered on its own, for the preference that
+ * prefers it over the psalter's own prayer for the weekday.
+ *
+ * Compline is excluded for the reason given below — its collects are a weekly
+ * cycle of its own — and so are the daytime hours, whose prayers in Ordinary
+ * Time are the psalter's per-day ones rather than the collect of the day. A
+ * memorial or feast is excluded because it has a collect of its own.
+ */
+export function sundayCollectFor(
+  context: LiturgicalContext, hour: OfficeHour,
+): { prayer: string; week: number } | null {
+  if (!['lauds', 'vespers', 'readings'].includes(hour)) return null;
+  if (context.season !== 'ordinary' || !context.seasonWeek) return null;
+  if (context.rank !== 'FERIAL') return null;
+  const prayer = sundayCollects().get(context.seasonWeek);
+  return prayer ? { prayer, week: context.seasonWeek } : null;
+}
+
 function commonFile(context: LiturgicalContext, properText: string | null): string | null {
   const haystack = `${context.name}\n${context.titles.join(' ')}\n${properText || ''}`;
   return COMMON_FILES.find(([pattern]) => pattern.test(haystack))?.[1] || null;

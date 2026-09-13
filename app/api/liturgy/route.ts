@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateCanonicalOffice } from '@/lib/liturgy/office-engine';
 import { antiphonOccasionCodes, getCommonOccasionCode, getLiturgicalContext, hymnOccasionCodes, invitatoryOccasionCodes, responsoryOccasionCodes, sundayGospelAntiphonWeek } from '@/lib/liturgy/calendar-context';
 import type { OfficeHour } from '@/lib/liturgy/calendar-context';
-import { getAnts, getHyms, getRbs } from '@/app/api/ibreviary/gabc-loaders';
+import { hasOcoProper } from '@/app/api/ibreviary/gabc-lookup';
 import { propagateTones } from '@/lib/psalm-tones/propagate';
 import { textFromChant, chantTextCoverage } from '@/lib/liturgy/latin-propers';
 import type { Block } from '@/lib/types';
@@ -62,11 +62,7 @@ export async function GET(request: NextRequest) {
       ? `${computedWeek}${context.ferialOccasionCode.slice(1)}`
       : context.ferialOccasionCode;
     const datedCode = context.properOccasionCode;
-    const hasDatedProper = !!datedCode && (
-      getAnts().some(entry => entry.occasion === datedCode) ||
-      getHyms().some(entry => entry.seasonCode.split(/\s+/).includes(datedCode)) ||
-      getRbs().some(entry => entry.seasonCode.split('|')[0].split(/\s+/).includes(datedCode))
-    );
+    const hasDatedProper = !!datedCode && hasOcoProper(datedCode);
     const occasionCode = hasDatedProper
       ? datedCode
       : (getCommonOccasionCode(context) || ferialCode);

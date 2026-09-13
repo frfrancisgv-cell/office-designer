@@ -239,3 +239,114 @@ test('the Lauds canticle is numbered too, in both languages', () => {
     );
   }
 });
+
+test('a psalm prayer is imported as a psalm prayer, not as another verse', () => {
+  const blocks = laudsBlocks();
+  const prayers = blocks.filter((b) => b.type === 'psalm-prayer');
+  // Lauds of this Saturday prints one after Psalm 92 and one after Psalm 8.
+  assert.equal(prayers.length, 2, blocks.map((b) => b.type).join(', '));
+  assert.match(prayers[0].content, /^Take our shame away from us/);
+  assert.match(prayers[1].content, /^Almighty Lord, how wonderful is your name/);
+  // The prayer used to come through as a verse of the psalm above it, which
+  // both pointed it to that psalm's tone and put it out of reach of the
+  // switch that leaves psalm prayers out.
+  for (const block of blocks.filter((b) => b.type === 'psalm')) {
+    assert.doesNotMatch(block.content, /Take our shame away from us/);
+  }
+});
+
+/**
+ * The Nativity of the Blessed Virgin Mary, 8 September 2026 (`s=lodi`), which
+ * is the day the two rubrics below were reported on: an unattributed line of
+ * commentary over Psalm 63, and the note that closes the canticle of Daniel.
+ */
+function nativityLauds() {
+  const html = fs.readFileSync(
+    path.join(process.cwd(), 'app', 'api', 'ibreviary', '__fixtures__',
+      'lauds-2026-09-08-en.html'),
+    'utf8',
+  );
+  return parseBlocks(cheerio.load(html), '', '', '');
+}
+
+test('the line of commentary over a psalm is a rubric, not its first verse', () => {
+  const blocks = nativityLauds();
+  const line = 'Whoever has left the darkness of sin yearns for God.';
+
+  const rubric = blocks.find((b) => b.content.trim() === line);
+  assert.ok(rubric, 'the commentary line is gone');
+  assert.equal(rubric.type, 'rubric');
+
+  // It used to open Psalm 63 — pointed to the psalm's tone and sung.
+  const psalm = blocks.find((b) => b.type === 'psalm' && b.content.includes('you are my God'));
+  assert.ok(psalm, 'Psalm 63 is missing');
+  assert.match(psalm.content, /^O God, you are my God/);
+  for (const block of blocks.filter((b) => b.type === 'psalm')) {
+    assert.doesNotMatch(block.content, /darkness of sin yearns/);
+  }
+});
+
+test('the note closing the canticle of Daniel is a rubric, not its last verse', () => {
+  const blocks = nativityLauds();
+  const note = 'At the end of the canticle the Glory to the Father is not said.';
+
+  const rubric = blocks.find((b) => b.content.trim() === note);
+  assert.ok(rubric, 'the note about the doxology is gone');
+  assert.equal(rubric.type, 'rubric');
+
+  const canticle = blocks.find((b) => b.type === 'psalm' && b.content.includes('Bless the Lord, all you works'));
+  assert.ok(canticle, 'the canticle of Daniel is missing');
+  assert.match(canticle.content.trim(), /above all forever\.$/);
+  for (const block of blocks.filter((b) => b.type === 'psalm')) {
+    assert.doesNotMatch(block.content, /Glory to the Father is not said/);
+  }
+});
+
+/**
+ * The Lauds of Saint Peter Claver, 9 September 2026, where iBreviary wrote the
+ * PSALMODY heading as `class="capolettera_piccolo rubrica"` rather than
+ * `class="capolettera_piccolo"` alone.
+ *
+ * The heading test was a substring of the raw HTML, closing quote included, so
+ * the second class hid the heading: the section never left the HYMN above it,
+ * and the label, the three psalm titles and the three psalms all came through
+ * typed `hymn` — eight blocks instead of one. Nothing there could be pointed,
+ * and the hymn's chant was stamped on every one of them.
+ */
+function claverLauds() {
+  const html = fs.readFileSync(
+    path.join(process.cwd(), 'app', 'api', 'ibreviary', '__fixtures__',
+      'lauds-2026-09-09-en.html'),
+    'utf8',
+  );
+  return parseBlocks(cheerio.load(html), '', '', '');
+}
+
+test('a heading that carries a second class is still a heading', () => {
+  const blocks = claverLauds();
+  const psalmody = blocks.find((b) => b.content.trim() === 'PSALMODY');
+
+  assert.ok(psalmody, 'the PSALMODY label is gone');
+  assert.equal(psalmody.type, 'heading');
+});
+
+test('the psalmody under such a heading is psalmody, not hymn', () => {
+  const blocks = claverLauds();
+
+  const hymns = blocks.filter((b) => b.type === 'hymn');
+  assert.deepEqual(hymns.map((b) => b.content.slice(0, 19)),
+    ['Faithful confessor,'],
+    'the psalmody was swallowed by the hymn');
+
+  for (const opening of ['Turn your ear, O Lord', 'Hear, you who are far off', 'Sing a new song to the Lord']) {
+    const psalm = blocks.find((b) => b.content.startsWith(opening));
+    assert.ok(psalm, `the psalm opening "${opening}" is missing`);
+    assert.equal(psalm.type, 'psalm', `"${opening}" came through as ${psalm.type}`);
+  }
+
+  for (const title of ['Psalm 86', 'Canticle: Isaiah 33:13-16', 'Psalm 98']) {
+    const rubric = blocks.find((b) => b.content.startsWith(title));
+    assert.ok(rubric, `the title "${title}" is missing`);
+    assert.equal(rubric.type, 'rubric', `"${title}" came through as ${rubric.type}`);
+  }
+});

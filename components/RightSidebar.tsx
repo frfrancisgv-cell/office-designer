@@ -70,7 +70,7 @@ export const RightSidebar = React.forwardRef<HTMLDivElement, RightSidebarProps>(
       onDragOver={handleSidebarDragOver}
       onDragLeave={stopDragScroll}
       onDrop={stopDragScroll}
-      className={`${isCollapsed ? 'w-12 overflow-hidden' : 'w-[min(100vw,28rem)] overflow-y-auto'} fixed right-0 top-14 bottom-0 bg-slate-50 border-l border-slate-200 flex flex-col no-print z-30 transition-[width] duration-200`}
+      className={`${isCollapsed ? 'w-12 overflow-hidden' : 'w-[min(80vw,20rem)] lg:w-[28rem] overflow-y-auto'} fixed right-0 top-14 bottom-0 bg-slate-50 border-l border-slate-200 flex flex-col no-print z-30 transition-[width] duration-200`}
     >
       {isCollapsed ? (
         <button

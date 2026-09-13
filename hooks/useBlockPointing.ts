@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Block } from '@/lib/types';
 import { getToneNames, getVariants, getPresetGabc, hasSolemnForm, SOLEMN_BY_DEFAULT } from '@/lib/psalm-tones/tone-data';
 import { stripPointing } from '@/lib/psalm-tones/strip';
+import { firstVerseRange } from '@/lib/psalm-tones/first-verse';
 import { autoPointPsalm } from '@/components/psalm-utils';
 
 export function useBlockPointing(
@@ -153,23 +154,26 @@ export function useBlockPointing(
       const data = await res.json();
       if (data.result) {
         if (data.gabcScore && insertBlock && index !== undefined && (block.type === 'psalm' || block.type === 'psalm-prayer')) {
-          // Split the returned HTML by newline
+          // Split the returned HTML by newline. The verse the score was
+          // engraved from is not always one line — iBreviary prints the
+          // termination half under the mediant — so the whole of it goes
+          // under the score and the rest of the psalm begins at the next.
           const lines = data.result.split('\n');
-          const firstVerseIdx = lines.findIndex((l: string) => l.trim().length > 0);
+          const verse = firstVerseRange(data.result);
           
-          if (firstVerseIdx !== -1) {
-            const firstVerseHtml = lines[firstVerseIdx];
-            lines.splice(firstVerseIdx, 1);
+          if (verse) {
+            const firstVerseHtml = lines.slice(verse.start, verse.end).join('\n');
+            lines.splice(verse.start, verse.end - verse.start);
             const remainingHtml = lines.join('\n');
             
             // Base text split (original raw text)
             const baseLines = baseText.split('\n');
-            const baseFirstVerseIdx = baseLines.findIndex((l: string) => l.trim().length > 0);
-            const baseFirstVerse = baseFirstVerseIdx !== -1 ? baseLines[baseFirstVerseIdx] : baseText;
+            const baseVerse = firstVerseRange(baseText);
+            const baseFirstVerse = baseVerse ? baseLines.slice(baseVerse.start, baseVerse.end).join('\n') : baseText;
             let baseRemaining = baseText;
-            if (baseFirstVerseIdx !== -1) {
+            if (baseVerse) {
                const newBaseLines = [...baseLines];
-               newBaseLines.splice(baseFirstVerseIdx, 1);
+               newBaseLines.splice(baseVerse.start, baseVerse.end - baseVerse.start);
                baseRemaining = newBaseLines.join('\n');
             }
             

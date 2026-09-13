@@ -217,3 +217,31 @@ export function resolveToneFromMode(rawMode: string | undefined | null): ToneRes
     },
   };
 }
+
+/**
+ * The same correspondence entered from the other side: the lypsautierant
+ * `english` tone that sings the cadence a jgabc tone and termination sing.
+ *
+ * `resolveToneFromMode` reads OCO's `Mode` column, which is where the pairing
+ * is recorded; this takes a `PSALM_TONES` key and its termination code — what
+ * a psalm block actually carries — and asks the same table. It exists for the
+ * override editor, which offers a new row a target and should offer it the one
+ * the app already uses rather than a guess of its own.
+ *
+ * Two of the tone keys name a book rather than a mode ("2. monasticus",
+ * "3. antiquo"); the words come off, because the table is keyed on the mode
+ * and termination and those two tones sing the mode they name. "per.-alt" is
+ * read as the tonus peregrinus for the same reason. `null` where the table has
+ * no row — the caller decides what to do with a gap, as everywhere else here.
+ */
+export function lypsForJgabcTone(
+  tone: string, variant: string,
+): { family: 'english'; mode: string; variation: string } | null {
+  const spelling = /^per/i.test(tone)
+    ? 'per.'
+    : `${tone.replace(/\b(?:monasticus|antiquo)\b/gi, ' ').replace(/\s+/g, ' ').trim()} ${variant}`.trim();
+  const resolved = resolveToneFromMode(spelling);
+  if (!resolved.ok) return null;
+  const { lypsFamily, lypsMode, lypsVariation } = resolved.tone;
+  return { family: lypsFamily, mode: lypsMode, variation: lypsVariation };
+}

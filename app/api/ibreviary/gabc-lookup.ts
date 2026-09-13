@@ -29,6 +29,21 @@ import {
 // change their import paths.
 export type { InvEntry };
 
+/**
+ * Does OCO hold anything of its own under a dated code — `15/8`, `9/9`?
+ *
+ * A celebration romcal dates is not therefore in these indexes: the sanctoral
+ * they carry is the one the Ordo Cantus Officii prints, which is smaller than
+ * the calendar. Asking all three tells a day with a proper of its own from one
+ * that must fall back on its common, and both routes ask the same question so
+ * that they answer it the same way.
+ */
+export function hasOcoProper(code: string): boolean {
+  return getAnts().some(entry => entry.occasion === code)
+    || getHyms().some(entry => entry.seasonCode.split(/\s+/).includes(code))
+    || getRbs().some(entry => entry.seasonCode.split('|')[0].split(/\s+/).includes(code));
+}
+
 // ── Direct OCO occasion lookup ────────────────────────────────────────────────
 
 /**
@@ -117,32 +132,84 @@ export function antsByCodes(codes: string[], hour: string, isFirstVespers: boole
 }
 
 /**
+ * The years of the lectionary cycle a `Place` names, or null when it names
+ * none.
+ *
+ * A Gospel-canticle antiphon is one of three on every Sunday of Ordinary Time
+ * and on most Sundays of Advent, Lent and Eastertide — one for each year of
+ * the cycle — and the three are told apart by nothing but the letter after the
+ * `M` or the `B`: `Ba`, `Bb`, `Bc`, and `Bab` where two years share one. The
+ * letters may be followed by "ad lib" for an antiphon the book allows beside
+ * the appointed one.
+ *
+ * Nothing else in the column is a year. `B1` and `Ma5b` are numbered, `BTP`
+ * and `BTpA` are seasonal, and the bare `B` belongs to every year alike, so
+ * the pattern is anchored at both ends rather than read as a prefix.
+ */
+const YEAR_PLACE = /^[MB]([abc]+)( ad lib)?$/;
+
+function placeYears(place: string): string | null {
+  return YEAR_PLACE.exec(place.trim())?.[1] ?? null;
+}
+
+/**
  * The Gospel-canticle antiphon — the Magnificat's, the Benedictus's, or the
  * Nunc dimittis's — for one occasion code.
  *
  * Filed in the same rows as the psalm antiphons and told apart only by the
- * `Place` column, so it is a separate query rather than a separate index. The
- * Sunday's, which vary by liturgical year, are `sundayMagBenCandidates`.
+ * `Place` column, so it is a separate query rather than a separate index.
+ *
+ * `year` is the year of the lectionary cycle, and where the section holds one
+ * antiphon per year it decides between them: the other years' are not a choice
+ * the book offers, they belong to other years. Without it the three came back
+ * together and the first of them was sung, which on the third Sunday of Lent
+ * meant *Auferte ista hinc* — Year B's — in all three years. A caller that
+ * passes no year gets every row, as before.
  */
-function magBenByOccasion(occasionCode: string, hour: string, isFirstVespers: boolean = false): GabcCandidate[] {
+function magBenByOccasion(
+  occasionCode: string,
+  hour: string,
+  isFirstVespers: boolean = false,
+  year?: 'a' | 'b' | 'c' | null,
+): GabcCandidate[] {
   const isCompline = hour.toLowerCase().includes('compline');
-  return getAnts()
+  const rows = getAnts()
     .filter(e => (e.occasion === occasionCode || (isCompline && e.occasion === 'H0-7')) &&
                  /^[MB]|Nunc/.test(e.place.trim()) &&
-                 officeMatches(e.office, officeFilters(hour, isFirstVespers)))
+                 officeMatches(e.office, officeFilters(hour, isFirstVespers)));
+
+  // The year's own first, its *ad libitum* next, and the antiphon no year owns
+  // last: `magBenByCodes` hands the first of these to the block to be sung.
+  const rank = (place: string) => {
+    const match = YEAR_PLACE.exec(place.trim());
+    if (!match) return 2;
+    return match[2] ? 1 : 0;
+  };
+
+  return rows
+    .filter(e => {
+      const years = placeYears(e.place);
+      return !year || !years || years.includes(year);
+    })
+    .sort((a, b) => rank(a.place) - rank(b.place))
     .flatMap(e => {
       const g = resolveGabc(e.gbId, e.gabc) || '';
       return [{ incipit: e.incipit, gabc: g ? withAnnotation(g, e.incipit, e.mode) : '', mode: e.mode,
                 office: e.office, occasion: e.occasion,
                 source: (e.gbId > 0 ? 'gregobase' : 'OCO') as 'gregobase' | 'OCO',
-                gbId: e.gbId || undefined } satisfies GabcCandidate];
+                gbId: e.gbId || undefined, place: e.place.trim() } satisfies GabcCandidate];
     });
 }
 
 /** The Gospel-canticle antiphon, from the innermost section that has one. */
-export function magBenByCodes(codes: string[], hour: string, isFirstVespers: boolean = false): GabcCandidate[] {
+export function magBenByCodes(
+  codes: string[],
+  hour: string,
+  isFirstVespers: boolean = false,
+  year?: 'a' | 'b' | 'c' | null,
+): GabcCandidate[] {
   for (const code of codes) {
-    const found = magBenByOccasion(code, hour, isFirstVespers);
+    const found = magBenByOccasion(code, hour, isFirstVespers, year);
     if (found.length) return found;
   }
   return [];
@@ -150,44 +217,36 @@ export function magBenByCodes(codes: string[], hour: string, isFirstVespers: boo
 
 // ── Proper Sunday Magnificat/Benedictus lookup ───────────────────────────────
 
+/** How the picker names a Gospel-canticle antiphon's place in the book. */
+function magBenLabel(office: string, place: string): string {
+  const years = placeYears(place);
+  if (years) {
+    const named = years.toUpperCase().split('').join(' and ');
+    const adLib = /ad lib/.test(place) ? ', ad libitum' : '';
+    return `${office} (Proper for Year${years.length > 1 ? 's' : ''} ${named}${adLib})`;
+  }
+  if (place === 'M' || place === 'B') return `${office} (Generic/Common)`;
+  if (place.includes('ad lib')) return `${office} (${place})`;
+  return office;
+}
+
+/**
+ * The Sunday of Ordinary Time's own Gospel-canticle antiphons, filed under the
+ * week — `23D` for the twenty-third — rather than under the day of the psalter.
+ *
+ * The three years' antiphons used to be gathered together here and handed to
+ * the block as a choice. They are not a choice: the year decides, and the year
+ * is known. Worse, the Lauds list named the year's own place twice — once as
+ * `B${yr}` and again in the `Bb`/`Ba`/`Bc` that followed it — so every Sunday
+ * offered four Benedictus antiphons, the right one twice and two other years'.
+ * `magBenByOccasion` now reads the year out of the `Place` column, so this only
+ * asks it for the Sunday's own week and labels what comes back.
+ */
 function sundayMagBenCandidates(otWeekNum: number | null, liturgicalYear: 'a'|'b'|'c', hour: string, isFirstVespers: boolean): GabcCandidate[] {
   if (!otWeekNum || !liturgicalYear) return [];
-  const occ = `${otWeekNum}D`;
-  const isVespers = hour.toLowerCase().includes('vespers');
-  const yr = liturgicalYear.toLowerCase();
-
-  const validFilters = officeFilters(hour, isFirstVespers);
-  const priorityPlaces = isVespers
-    ? [`M${yr}`, 'M', 'M-I ad lib', 'M-II ad lib', 'M ad lib']
-    : [`B${yr}`, 'B', 'Bb', 'Ba', 'Bc'];
-  
-  const officeFilter = validFilters;
-
-  const candidates: GabcCandidate[] = [];
-  for (const place of priorityPlaces) {
-    const matches = getAnts().filter(e =>
-      e.occasion === occ &&
-      officeFilter.some(f => e.office === f) &&
-      e.place.trim() === place
-    );
-    for (const e of matches) {
-      const gabc = resolveGabc(e.gbId, e.gabc) || '';
-      let label = e.office;
-      const p = e.place.trim();
-      if (p === `M${yr}` || p === `B${yr}`) label += ` (Proper for Year ${yr.toUpperCase()})`;
-      else if (p === 'M' || p === 'B') label += ` (Generic/Common)`;
-      else if (p.includes('ad lib')) label += ` (${p})`;
-      else if (/^[MB][abc]$/.test(p)) label += ` (Proper for Year ${p.slice(-1).toUpperCase()})`;
-
-      candidates.push({
-        incipit: e.incipit, gabc: gabc ? withAnnotation(gabc, e.incipit, e.mode) : '', mode: e.mode,
-        office: label,
-        occasion: occ, source: e.gbId > 0 ? 'gregobase' : 'OCO',
-        gbId: e.gbId || undefined,
-      });
-    }
-  }
-  return candidates;
+  const yr = liturgicalYear.toLowerCase() as 'a' | 'b' | 'c';
+  return magBenByOccasion(`${otWeekNum}D`, hour, isFirstVespers, yr)
+    .map(candidate => ({ ...candidate, office: magBenLabel(candidate.office ?? '', candidate.place ?? '') }));
 }
 
 // ── Scoring ───────────────────────────────────────────────────────────────────
@@ -817,10 +876,11 @@ export async function populateGabc(
 ): Promise<Block[]> {
 
   let finalOccasion = occasionOverride || occasionCode;
-  // An explicit override is the editor naming the occasion, and it names one:
-  // the chain is the calendar's answer and is set aside for it.
-  const antCodes = occasionOverride ? [occasionOverride]
-    : antiphonCodes?.length ? antiphonCodes
+  // A caller that supplies the chain has already folded any override into its
+  // head — both routes do — so the chain is used as given. Only a caller with
+  // no chain falls back on the override alone, and then on the one code.
+  const antCodes = antiphonCodes?.length ? antiphonCodes
+    : occasionOverride ? [occasionOverride]
     : finalOccasion ? [finalOccasion] : [];
   let ocoAntiphons = antCodes.length ? antsByCodes(antCodes, hour, isFirstVespers) : null;
 
@@ -833,12 +893,30 @@ export async function populateGabc(
   // Update occasionCode to be the final resolved one so downstream functions (like hymnByOccasion) use it too
   occasionCode = finalOccasion;
 
-  // Sunday Magnificat/Benedictus candidates for this OT week (Lauds/Vespers only)
-  const sunCandidates = (otWeekNum && liturgicalYear)
+  // ── The Sunday's Gospel-canticle antiphons ────────────────────────────────
+  //
+  // They belong to the Sunday, and to no other day. `otWeekNum` is the week of
+  // Ordinary Time the day falls in, which every weekday of that week shares,
+  // so reading it as leave to sing the Sunday's Magnificat antiphon handed the
+  // whole week — and every feast inside it — last Sunday's antiphon in place of
+  // its own. On 8 September the Nativity of the Blessed Virgin Mary sang the
+  // twenty-third Sunday's *Si duo ex vobis* instead of *Gloriosae Virginis
+  // Mariae*, and did so with the Sunday's label on it.
+  //
+  // The day is kept as its Sunday only when nothing displaced the psalter —
+  // `finalOccasion` is still the ferial code — and that ferial code is the
+  // Sunday's own, which "H1" is: the psalter counts feria 1 from Sunday.
+  // Saturday Vespers reaches here already carrying the coming Sunday's week
+  // and code, so first Vespers is included; an occasion named in the editor
+  // has replaced `finalOccasion` and so answers for itself either way.
+  const keepsTheSunday = !!ferialCode && finalOccasion === ferialCode && /H1$/.test(ferialCode);
+  const sunCandidates = (keepsTheSunday && otWeekNum && liturgicalYear)
     ? sundayMagBenCandidates(otWeekNum, liturgicalYear, hour, isFirstVespers)
     : [];
   if (sunCandidates.length) {
     console.log(`[OCO] Sunday ${otWeekNum}D Year ${liturgicalYear?.toUpperCase()} → ${sunCandidates.length} Mag/Ben candidates`);
+  } else if (otWeekNum && liturgicalYear) {
+    console.log(`[OCO] Sunday ${otWeekNum}D antiphons not offered: ${finalOccasion ?? 'the day'} is not kept as that Sunday`);
   }
 
   // Identify the Gospel Canticle antiphon: the first antiphon block that comes
@@ -870,7 +948,7 @@ export async function populateGabc(
   // ocoAntiphons already contains only the place-indexed antiphons via antsByOccasion();
   // the Mag/Ben fallback is handled separately via ocoMagBen.
   // Re-fetch OCO entries specifically for Mag/Ben/Nunc if available
-  const ocoMagBen = antCodes.length ? magBenByCodes(antCodes, hour, isFirstVespers) : null;
+  const ocoMagBen = antCodes.length ? magBenByCodes(antCodes, hour, isFirstVespers, liturgicalYear) : null;
 
   let antIdx = 0, hymIdx = 0;
   let ocoIdx = 0;
@@ -928,17 +1006,42 @@ export async function populateGabc(
         return newBlock;
       };
 
-      // ── Magnificat / Benedictus block: use Sunday candidates + ferial option ──
+      // ── Magnificat / Benedictus block ────────────────────────────────────
+      //
+      // The day's own antiphon comes first, and on any day but the Sunday it
+      // is the only one offered. `magBenByCodes` reaches the Sunday's own
+      // `23D` as well when the day *is* that Sunday, where it would offer one
+      // of the three year-propers a second time with the year stripped off
+      // its label; those rows are dropped in favour of the labelled ones.
       if (isLastAnt) {
-        const ferial = ocoMagBen?.[0] ?? null;
-        if (sunCandidates.length > 0) {
-          const all = ferial ? [...sunCandidates, ferial] : sunCandidates;
-          console.log(`[OCO] Mag/Ben ${all.length} candidates (${sunCandidates.length} Sunday + ${ferial ? 1 : 0} ferial)`);
-          return cacheAndReturn({ ...block, gabcCandidates: all });
-        }
-        if (ferial) {
-          console.log(`[OCO] Mag/Ben ferial-only "${ferial.incipit.slice(0,40)}"`);
-          return cacheAndReturn({ ...block, gabcScore: ferial.gabc });
+        const own = (ocoMagBen ?? []).filter(c => !sunCandidates.some(s => s.occasion === c.occasion));
+        // The Sunday's own comes first where the day is that Sunday, then the
+        // day's own section. Both are sung, not merely offered: the Sunday's
+        // used to be left as a candidate and nothing else, so the Gospel
+        // canticle of every Sunday of Ordinary Time came through bare and
+        // waited on the picker. What follows the one sung is carried so the
+        // picker can still show the psalter's, and whatever the book allows
+        // *ad libitum* beside it.
+        const all = [...sunCandidates, ...own];
+        if (all.length > 0) {
+          // 189 of the Gospel-canticle rows name an antiphon the Ordo Cantus
+          // Officii appoints but carry no notation for it, almost all of them
+          // on the dated memorials this chain now reaches. The first row that
+          // *has* music is the one sung — an *ad libitum* the book allows is a
+          // better answer than silence — and where none has any the block is
+          // left bare for the text match below rather than stamped with an
+          // empty score. What it is never given is another day's antiphon.
+          const sung = all.find(c => c.gabc);
+          const where = sunCandidates.length ? 'Sunday' : 'of the day';
+          if (sung) {
+            console.log(`[OCO] Mag/Ben ${all.length} ${where}, singing "${sung.incipit.slice(0,40)}"`);
+            return cacheAndReturn({
+              ...block,
+              gabcScore: sung.gabc,
+              ...(all.length > 1 ? { gabcCandidates: all } : {}),
+            });
+          }
+          console.log(`[OCO] Mag/Ben "${all[0].incipit.slice(0,40)}" ${where} is in OCO without notation`);
         }
         // Fall through to text-match if neither
       }
@@ -957,14 +1060,25 @@ export async function populateGabc(
             }
           }
 
-          if (candidates.length === 1) {
+          // A row may name the antiphon the place is to have and carry no
+          // notation for it — the common of Virgins does that with its third
+          // at Vespers, *Mens mea*. Stamping the empty string as a score gave
+          // the block a defined field that every reader then had to treat as
+          // absent; leaving it bare lets the text match below try, and the
+          // block keeps the words iBreviary printed either way. What the place
+          // is never given is the antiphon of some other section that happens
+          // to have music.
+          const sung = candidates.filter(c => c.gabc);
+          if (candidates.length && !sung.length) {
+            console.log(`[OCO] ANT place ${block.place} "${candidates[0].incipit.slice(0,40)}" is in OCO without notation`);
+          } else if (sung.length === 1) {
             antIdx++;
-            console.log(`[OCO] ANT direct "${candidates[0].incipit.slice(0,50)}" (place: ${block.place})`);
-            return cacheAndReturn({ ...block, gabcScore: candidates[0].gabc, gabcCandidates: undefined });
-          } else if (candidates.length > 1) {
+            console.log(`[OCO] ANT direct "${sung[0].incipit.slice(0,50)}" (place: ${block.place})`);
+            return cacheAndReturn({ ...block, gabcScore: sung[0].gabc, gabcCandidates: undefined });
+          } else if (sung.length > 1) {
             antIdx++;
-            console.log(`[OCO] ANT ${candidates.length} direct candidates for place ${block.place}`);
-            return cacheAndReturn({ ...block, gabcCandidates: candidates });
+            console.log(`[OCO] ANT ${sung.length} direct candidates for place ${block.place}`);
+            return cacheAndReturn({ ...block, gabcCandidates: sung });
           }
           // place provided but no OCO match found — fall through to text-match
         } else {

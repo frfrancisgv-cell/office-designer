@@ -2,13 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 
 import { Block } from '@/lib/types';
-import { populateGabc, resolveInvitatory, responsoryByOccasion, responsoryByText } from './gabc-lookup';
+import { populateGabc, resolveInvitatory, responsoryByCodes, responsoryByOccasion, responsoryByText } from './gabc-lookup';
 import { deriveContext } from './derive-context';
 import { FEAST_CALENDAR } from './constants';
 import { parseBlocks } from './parse-blocks';
 import { getIBreviarySessions } from '@/lib/ibreviary/session';
 import { propagateTones } from '@/lib/psalm-tones/propagate';
-import { getLiturgicalContext, invitatoryOccasionCodes } from '@/lib/liturgy/calendar-context';
 import { placeGregorianInvitatory } from '@/lib/liturgy/invitatory';
 
 // Re-export AvailableOccasion so the editor can import it from a single path.
@@ -66,10 +65,26 @@ function responsoryTexts(blocks: Block[]): string[] {
   return texts;
 }
 
+/**
+ * Attach the OCO short responsory to each responsory section already imported.
+ *
+ * Where the hour prints one responsory it is the day's, and `defaultCodes` —
+ * `responsoryOccasionCodes(context, hour)` — names the sections to try for it,
+ * innermost first. A `chosen` occasion is the editor naming one instead, and
+ * goes through `responsoryByOccasion`, which translates the spellings the rest
+ * of the app uses into the ones `IDX_RB.csv` keeps. Where the hour prints two
+ * responsories they are alternative readings, each naming its own common in
+ * the rubric above it, and that common answers for it alone.
+ *
+ * The Latin text of the printed responsory is the last resort in every case,
+ * as it was before there were chains.
+ */
 function injectOcoResponsories(
   blocks: Block[],
   hour: string,
-  defaultOccasion: string | null,
+  chosen: string | null,
+  defaultCodes: string[],
+  isFirstVespers: boolean,
   latinBlocks: Block[],
 ): void {
   if (!/lauds|vespers/i.test(hour)) return;
@@ -87,7 +102,7 @@ function injectOcoResponsories(
   const insertions = responsoryIndexes.flatMap((responsoryIndex, responsoryOrdinal) => {
     const occasion = responsoryIndexes.length > 1
       ? responsoryCommonBefore(blocks, responsoryIndex)
-      : defaultOccasion;
+      : chosen;
     const importedText = importedResponsories[responsoryOrdinal] || '';
     const normalizedImportedText = importedText.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const hasAlleluia = /\balleluia\b|\baleluya\b/i.test(normalizedImportedText);
@@ -95,15 +110,15 @@ function injectOcoResponsories(
       ? latinResponsories[responsoryOrdinal] || ''
       : '';
     const rb = (occasion ? responsoryByOccasion(occasion, hour, hasAlleluia) : null) ||
-      responsoryByText(latinText, hour) ||
-      (responsoryIndexes.length === 1 && defaultOccasion
-        ? responsoryByOccasion(defaultOccasion, hour, hasAlleluia)
-        : null);
+      (responsoryIndexes.length === 1 && defaultCodes.length
+        ? responsoryByCodes(defaultCodes, hour, isFirstVespers, hasAlleluia)
+        : null) ||
+      responsoryByText(latinText, hour);
     if (!rb) return [];
 
     let insertAt = responsoryIndex + 1;
     while (insertAt < blocks.length && blocks[insertAt].type !== 'heading') insertAt++;
-    return [{ insertAt, occasion: occasion || 'text match', rb }];
+    return [{ insertAt, occasion: occasion || defaultCodes.join(' → ') || 'text match', rb }];
   });
 
   // Work backwards so earlier indexes remain valid as blocks are inserted.
@@ -218,20 +233,23 @@ export async function GET(request: NextRequest) {
       : [];
 
     // Call the populateGabc module to attach GABC notation where possible
-    const occasionOverride = searchParams.get('occasionOverride') || null;
-    let invCodes: string[] = [];
+    //
+    // The editor remembers the occasion the route returned and sends it back
+    // as `occasionOverride` on the next fetch — of another date, or another
+    // hour, or another language. An override that is the route's own answer is
+    // that echo and not a choice, so it is dropped: leading the chains with it
+    // would put the day's own code ahead of the section it belongs to, and on
+    // a Sunday that is `3H1` ahead of `23D`.
+    const sentOverride = searchParams.get('occasionOverride') || null;
+    const occasionOverride = sentOverride && sentOverride !== ctx.occasionCode ? sentOverride : null;
+    const withChoice = (codes: string[]) =>
+      [...new Set([...(occasionOverride ? [occasionOverride] : []), ...codes])];
+
+    // IDX_INV uses a ferial spelling of its own (`1-4H7`), which no occasion
+    // the rest of the route computes ever matches, so the calendar's codes are
+    // kept behind a chosen occasion rather than replaced by it.
+    const invCodes = withChoice(ctx.invitatoryCodes);
     if (hour.toLowerCase() === 'lauds') {
-      const calendarContext = await getLiturgicalContext(
-        new Date(`${dateParam}T00:00:00.000Z`), 'lauds');
-      const calendarInvCodes = invitatoryOccasionCodes(calendarContext);
-      // The editor remembers the route's general OCO occasion (`2H7` on this
-      // Saturday) and sends it back on a subsequent fetch. IDX_INV uses its
-      // own ferial spelling (`1-4H7`), so an override is a preference, not a
-      // reason to discard the invitatory-specific calendar fallback.
-      invCodes = [...new Set([
-        ...(occasionOverride ? [occasionOverride] : []),
-        ...calendarInvCodes,
-      ])];
       finalBlocks = placeGregorianInvitatory(
         finalBlocks,
         resolveInvitatory(invCodes),
@@ -248,13 +266,19 @@ export async function GET(request: NextRequest) {
       occasionOverride,
       new Date(dateParam).getUTCDay() === 6,
       new Date(dateParam).getUTCDay() === 6 && hour.toLowerCase() === 'vespers',
-      invCodes
+      invCodes,
+      withChoice(ctx.hymnCodes),
+      withChoice(ctx.antiphonCodes),
     );
 
     // Add the OCO short responsory chant after the imported responsory text.
     // When iBreviary supplies alternative readings, each alternative gets the
     // chant belonging to its own common (e.g. Doctors and Pastors).
-    injectOcoResponsories(enrichedBlocks, hour, occasionOverride || ctx.occasionCode, latinBlocks);
+    injectOcoResponsories(
+      enrichedBlocks, hour, occasionOverride, ctx.responsoryCodes,
+      new Date(dateParam).getUTCDay() === 6 && hour.toLowerCase() === 'vespers',
+      latinBlocks,
+    );
 
     // ── Phase 3: Psalm number extraction + tone propagation ─────────────────
     const fullyEnrichedBlocks = propagateTones(enrichedBlocks);

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   pointPsalmText,
+  getFamilyNames,
+  getModeNames,
   getVariations,
   hasVariation,
   ModeFamily,
@@ -47,6 +49,19 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Missing required fields: family, mode' }, { status: 400 });
       }
       return NextResponse.json({ variations: getVariations(family, mode) });
+    }
+
+    if (action === 'catalogue') {
+      // Every family, mode and variation in one answer. The override editor
+      // needs the whole tree to populate its selects, and the alternative —
+      // a 'variations' round-trip per row — would fire one request per select
+      // on every render. The generated engine is 4,000 lines and stays on the
+      // server; this is the shape of it the client actually needs.
+      const families = Object.fromEntries(getFamilyNames().map(family => [
+        family,
+        Object.fromEntries(getModeNames(family).map(mode => [mode, getVariations(family, mode)])),
+      ]));
+      return NextResponse.json({ families });
     }
 
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });

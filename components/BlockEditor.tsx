@@ -34,6 +34,9 @@ interface BlockEditorProps {
   isActive: boolean;
   toolsTarget: HTMLDivElement | null;
   onClick: () => void;
+  /** The date and hour the office was built for, for the chant search by day. */
+  officeDate?: string;
+  officeHour?: string;
 }
 
 export function BlockEditor({
@@ -50,9 +53,13 @@ export function BlockEditor({
   isActive,
   toolsTarget,
   onClick,
+  officeDate,
+  officeHour,
 }: BlockEditorProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const hasTranslation = !!(block.gabcScore || block.musicDataUri) && ['antiphon', 'invitatory-antiphon', 'hymn'].includes(block.type);
+  /** Which of the day's candidates the score in the editor is, if it is one. */
+  const chosenCandidate = block.gabcCandidates?.findIndex(c => c.gabc === block.gabcScore) ?? -1;
 
   // ── Lypsautierant panel state ──
   const [pointingMethod, setPointingMethod] = useState<'gregorian' | 'stress' | 'simple' | 'created'>(block.createdTone ? 'created' : block.lypsautierantFamily ? 'stress' : 'gregorian');
@@ -528,7 +535,7 @@ export function BlockEditor({
 
               {pointingMethod === 'created' && <>
                 <label className="pointing-row">Tone:<select value={createdToneId} onChange={e => setCreatedToneId(e.target.value)} disabled={!createdTones.length}>
-                  {createdTones.length ? createdTones.map(t => <option key={t.id} value={t.id}>{t.name} ({t.backend === 'lyps' ? '+ − =' : 'GABC'})</option>) : <option value="">No tones saved yet</option>}
+                  {createdTones.length ? createdTones.map(t => <option key={t.id} value={t.id}>{t.name} ({t.backend === 'lyps' ? '+ − =' : t.backend === 'jgabc' ? 'GABC' : 'Conditional'})</option>) : <option value="">No tones saved yet</option>}
                 </select></label>
                 <p>Tones are designed in the Psalm Tone Creator — the button beside Print, which opens in its own tab. Reopen this menu after saving there to pick up a new tone.</p>
                 {createdToneError && <p role="alert">{createdToneError}</p>}
@@ -570,15 +577,20 @@ export function BlockEditor({
             <details className="no-print rounded border border-slate-200 p-3" open={block.type !== 'psalm' ? true : undefined}>
               <summary className="cursor-pointer text-xs font-medium text-slate-700">Chant source and image</summary>
 
-              {/* OCO candidate picker */}
-              {block.gabcCandidates && block.gabcCandidates.length > 0 && !block.gabcScore && (
+              {/* OCO candidate picker.
+                  Shown whether or not a score is already set: the book's other
+                  antiphons for the day are how you see what was chosen and
+                  change it, and hiding the list behind an empty score meant
+                  emptying the editor below to get the list back. */}
+              {block.gabcCandidates && block.gabcCandidates.length > 0 && (
                 <div className="mb-2">
-                  <label className="text-[10px] text-indigo-700 font-semibold mb-1 block">
-                    OCO candidates — select the correct one:
+                  <label className="text-[10px] text-indigo-700 font-semibold mb-1 block" htmlFor={`oco-${block.id}`}>
+                    OCO candidates for this day:
                   </label>
                   <select
+                    id={`oco-${block.id}`}
                     className="w-full text-xs border border-indigo-300 rounded p-1 bg-white"
-                    defaultValue=""
+                    value={chosenCandidate >= 0 ? String(chosenCandidate) : ''}
                     onChange={e => {
                       const idx = parseInt(e.target.value, 10);
                       if (!isNaN(idx)) {
@@ -587,7 +599,9 @@ export function BlockEditor({
                       }
                     }}
                   >
-                    <option value="" disabled>Choose…</option>
+                    <option value="" disabled={!block.gabcScore}>
+                      {block.gabcScore ? 'None of these — the score below is its own' : 'Choose…'}
+                    </option>
                     {(block.gabcCandidates as GabcCandidate[]).map((c, i) => (
                       <option key={i} value={i}>
                         {c.incipit}{c.mode ? ` [${c.mode}]` : ''}{c.office ? ` · ${c.office}` : ''}{c.occasion ? ` · ${c.occasion}` : ''} ({c.source})
@@ -606,7 +620,10 @@ export function BlockEditor({
                 placeholder="(c3)Can(h)tá(h)bi(h)mus(g)..."
               />
 
-              <GabcSearchPanel block={block} onSelect={gabc => updateBlock(block.id, { gabcScore: gabc })} />
+              <GabcSearchPanel
+                block={block} officeDate={officeDate} officeHour={officeHour}
+                onSelect={gabc => updateBlock(block.id, { gabcScore: gabc })}
+              />
 
               {!block.gabcScore && block.gabcCandidates && block.gabcCandidates.length > 0 && (
                 <button

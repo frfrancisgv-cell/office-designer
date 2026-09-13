@@ -1,7 +1,8 @@
 {
   "version": 1,
   "words": {
-    "immeasurably": 1
+    "immeasurably": 1,
+    "palaces": 0
   },
   "texts": [
     {
@@ -18,6 +19,11 @@
       "accents": "Práised be the Gód and Fáther *\nof our Lórd Jésus Chríst,\nwho has bestówed on us in Chríst *\nevery spirítual bléssing in the héavens.\n\nGód chose ús in hím *\nbefóre the wórld begán\ntó be hóly *\nand blámeless in his síght.\n\nHé predéstined us *\nto be his adópted sóns through Jésus Chríst,\nsuch wás his will and pléasure, †\nthat áll might práise the glórious fávor *\nhe has bestówed on ús in his belóved.\n\nIn him and through his blóod, we have béen redéemed, *\nand our síns forgíven,\nso imméasurably génerous *\nis God’s fávor to ús.\n\nGód has gíven us the wísdom *\nto understánd fúlly the mýstery,\nthe plán he was pléased *\nto decrée in Chríst.\n\nA plán to bé carried óut *\nin Chríst, in the fúllness of tíme,\nto bring áll things into óne in hím, *\nin the héavens and on éarth.\n\nGlóry to the Fáther, and to the Són, *\nand to the Hóly Spírit:\nas it wás in the begínning, is nów, *\nand will be for éver. Amén.",
       "label": "Psalm NT 4",
       "updated": "2026-09-07"
+    },
+    {
+      "accents": "I rejóiced when I héard them sáy: *\n“Let us gó to God’s hóuse.”\nAnd nów our féet are stánding *\nwithín your gátes, O Jerúsalem.\n\nJerúsalem is búilt as a cíty *\nstróngly compáct.\nIt is thére that the tríbes go úp, *\nthe tríbes of the Lórd.\n\nFor Ísrael’s láw it is, *\nthere to práise the Lord’s náme.\nThere were sét the thrónes of júdgment *\nof the hóuse of Dávid.\n\nFor the péace of Jerúsalem práy: *\n“Péace be to your hómes!\nMay péace réign in your wálls, *\nin your pálaces, péace!”\n\nFor lóve of my bréthren and fríends *\nI sáy: “Péace upón yóu.”\nFor lóve of the hóuse of the Lórd *\nI will ásk for your góod.\n\nGlóry to the Fáther, and to the Són, *\nand to the Hóly Spírit:\nas it wás in the begínning, is nów, *\nand will be for éver. Amén.",
+      "label": "Psalm 122",
+      "updated": "2026-09-08"
     }
   ]
 }

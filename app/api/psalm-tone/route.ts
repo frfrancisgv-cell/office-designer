@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PSALM_TONES } from '@/lib/psalm-tones/tone-data';
 import { pointPsalm, NO_FORMULA_PREFIX } from '@/lib/psalm-tones/psalm-tone-engine';
 import { applyPsalmTone } from '@/lib/psalm-tones/psalmtone-wrapper';
+import { firstVerseText } from '@/lib/psalm-tones/first-verse';
 
 /**
  * POST /api/psalm-tone
@@ -39,10 +40,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         solemn: Boolean(solemn),
       });
 
-      // Generate GABC for the first verse (first non-empty line)
+      // Generate GABC for the first verse, which may be printed over more
+      // than one line: iBreviary breaks every verse after its `*`.
       let gabcScore = '';
-      const lines = String(text).split('\n');
-      const firstVerseLine = lines.find(line => line.trim().length > 0) || '';
+      const firstVerseLine = firstVerseText(String(text));
       
       if (firstVerseLine) {
         try {

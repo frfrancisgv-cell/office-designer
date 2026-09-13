@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server.js';
 import { readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { CADENCES, validateTone, exampleSyllables, gabcFormula, applyMarkExample, repeatIndex, scoreMismatches, type Cadence, type CreatedTone, type ToneExample } from '@/lib/psalm-tones/creator';
+import { CADENCES, validateTone, exampleSyllables, gabcFormula, applyMarkExample, anchorIndex, cadenceStart, scoreMismatches, type Cadence, type CreatedTone, type ToneExample } from '@/lib/psalm-tones/creator';
 import { copySystemTone, listSystemTones } from '@/lib/psalm-tones/system-tones';
 import { describeStructure, pointPsalmText } from '@/lib/psalm-tones/lypsautierant-engine';
 import { syllabifyLine } from '@/lib/psalm-tones/lypsautierant-syllabify';
@@ -10,6 +10,7 @@ import { syllabifyLatinLine } from '@/lib/psalm-tones/latin-syllabify';
 import { accentuateEnglish } from '@/lib/psalm-tones/english-phonetic';
 import { applyPsalmTone, markEnglishAccents, syllabifyLineForScore } from '@/lib/psalm-tones/psalmtone-wrapper';
 import { stripPointing } from '@/lib/psalm-tones/strip';
+import { pointDiscernedTone1 } from '@/lib/psalm-tones/discerned-engine';
 
 const file = join(process.cwd(), 'data', 'created-tones.json');
 function read(): CreatedTone[] {
@@ -59,29 +60,48 @@ export async function POST(req: NextRequest) {
     const halves = stanzas.flat().filter(h => h.role !== 'divider');
     const sampleFor = (key: Cadence) => halves.find(h => h.role === key)?.text || halves[0]?.text || source;
     if (body.action === 'import') {
-      const { tone, warnings } = copySystemTone(String(body.id), Object.fromEntries(CADENCES.map(key => [key, sampleFor(key)])) as Record<Cadence, string>, lang);
+      // Every half-line of the model psalm goes along as well: one line shows
+      // what the tone does, and the rest are what that reading is tried
+      // against before an anchor is chosen for it.
+      const { tone, warnings } = copySystemTone(String(body.id), Object.fromEntries(CADENCES.map(key => [key, sampleFor(key)])) as Record<Cadence, string>, lang, halves.map(h => h.text));
       return NextResponse.json({ tone: validateTone(tone), warnings });
     }
     if (body.action === 'prepare') {
-      // The two backends do not divide English alike: psalmtone.js is given
+      // The backends do not all divide English alike: psalmtone.js is given
       // this app's phonetic syllabifier and the lypsautierant tones use the
       // sed-parity one, and they disagree ("Bléssed" against "Blés-sed").
       // A staff has to be drawn on the divisions the engine will sing.
       const syllabify = lang === 'la' ? syllabifyLatinLine
-        : body.backend === 'jgabc' ? syllabifyLineForScore : syllabifyLine;
+        : body.backend === 'jgabc' || body.backend === 'discerned' ? syllabifyLineForScore : syllabifyLine;
       const examples = Object.fromEntries(CADENCES.map(key =>
         [key, { syllables: exampleSyllables(syllabify(sampleFor(key))), anchor: 'end' }]));
       return NextResponse.json({ examples });
     }
     if (body.action !== 'preview') throw new Error('Unknown action.');
     const tone = validateTone(body.tone);
+    if (tone.backend === 'discerned') {
+      if (lang !== 'en') throw new Error('Conditional stress-and-distance tones currently support English only.');
+      const result = pointDiscernedTone1(plain, tone.discerned, tone.clef);
+      return NextResponse.json({
+        html: '',
+        gabc: result.gabc,
+        warnings: [...result.inferences, ...result.warnings],
+      });
+    }
     if (tone.backend === 'lyps') {
       const rules = Object.fromEntries(CADENCES.map(key => [key, (line: string) => applyMarkExample(line, tone.examples[key])])) as Record<typeof CADENCES[number], (line: string) => string>;
       const result = pointPsalmText(source, 'english', 'eight', 'a', lang, rules);
-      const elastic = CADENCES.some(key => repeatIndex(tone.examples[key]) >= 0);
-      return NextResponse.json({ html: result.html, gabc: '', warnings: [elastic
-        ? 'Marks before the repeating syllable are counted from the start of each verse; the rest are counted back from the anchor.'
-        : 'Every mark is counted back from the anchor. Set a syllable to repeat to describe the elastic part of a verse.'] });
+      // A cadence longer than the half-lines it has to fit loses its opening
+      // marks on every one of them, which is worth saying before the whole
+      // psalm is read looking for them.
+      const divide = lang === 'la' ? syllabifyLatinLine : syllabifyLine;
+      const shortest = Math.min(...halves.map(h => divide(h.text).trim().split(/\s+/).filter(t => t !== '--').length));
+      const tooLong = CADENCES.filter(key => tone.examples[key].syllables.length - cadenceStart(tone.examples[key]) > shortest);
+      const unanchored = CADENCES.filter(key => tone.examples[key].anchor === 'accent' && anchorIndex(tone.examples[key]) < 0);
+      return NextResponse.json({ html: result.html, gabc: '', warnings: [
+        ...(tooLong.length ? [`The ${tooLong.join(' and ')} cadence is longer than the shortest half-line of this psalm (${shortest} syllables), so its opening marks fall off there.`] : []),
+        ...(unanchored.length ? [`The ${unanchored.join(' and ')} model line has no accent to measure from, so nothing is marked on it.`] : []),
+      ] });
     }
     // psalmtone.js reads English accents only when they are marked its own
     // way; see markEnglishAccents.
